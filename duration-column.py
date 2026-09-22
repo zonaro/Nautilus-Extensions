@@ -34,7 +34,10 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import gi
-gi.require_version("Nautilus", "4.0")
+try:
+    gi.require_version("Nautilus", "4.0")
+except ValueError:
+    pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
 from gi.repository import GObject, Nautilus
 
 # ---------------------------------------------------------------------------
