@@ -70,6 +70,52 @@ if _lang.startswith("fr"):
             ("Haute qualité (couleurs)", "/prepress"),
         ],
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":   "Comprimir PDF…",
+        "dialog_title": "Comprimir PDF",
+        "choose_level": "Elija un nivel de optimización:",
+        "save_as":      "Guardar PDF como…",
+        "compressing":  "Comprimiendo…",
+        "done_title":   "Comprimir PDF – Terminado",
+        "done_msg":     "{name} se ha comprimido correctamente.",
+        "err_gs":       "ghostscript no está instalado. Instálelo primero.",
+        "err_nopdf":    "El archivo seleccionado no es un PDF válido.",
+        "err_failed":   "La compresión falló (código {code}).",
+        "cancel":       "Cancelar",
+        "ok":           "Aceptar",
+        "postpend":     "-optimizado",
+        "levels": [
+            ("Por defecto",              "/default"),
+            ("Solo pantalla",            "/screen"),
+            ("Baja calidad",             "/ebook"),
+            ("Alta calidad",             "/printer"),
+            ("Alta calidad (color)",     "/prepress"),
+        ],
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":   "Comprimir PDF…",
+        "dialog_title": "Comprimir PDF",
+        "choose_level": "Escolha um nível de otimização:",
+        "save_as":      "Salvar PDF como…",
+        "compressing":  "Comprimindo…",
+        "done_title":   "Comprimir PDF – Concluído",
+        "done_msg":     "{name} foi comprimido com sucesso.",
+        "err_gs":       "ghostscript não está instalado. Instale-o primeiro.",
+        "err_nopdf":    "O arquivo selecionado não é um PDF válido.",
+        "err_failed":   "A compressão falhou (código {code}).",
+        "cancel":       "Cancelar",
+        "ok":           "OK",
+        "postpend":     "-otimizado",
+        "levels": [
+            ("Padrão",                   "/default"),
+            ("Somente tela",             "/screen"),
+            ("Baixa qualidade",          "/ebook"),
+            ("Alta qualidade",           "/printer"),
+            ("Alta qualidade (cores)",   "/prepress"),
+        ],
+    }
 else:
     T = {
         "menu_label":   "Compress PDF…",

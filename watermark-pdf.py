@@ -77,6 +77,66 @@ if _lang.startswith("fr"):
             ("Noir",    "0 0 0"),
         ],
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":     "Añadir marca de agua…",
+        "dialog_title":   "Marca de agua PDF",
+        "text_label":     "Texto de la marca de agua",
+        "text_hint":      "Ej.: CONFIDENCIAL, NO DIFUNDIR…",
+        "opacity_label":  "Opacidad",
+        "angle_label":    "Ángulo",
+        "size_label":     "Tamaño de fuente",
+        "color_label":    "Color",
+        "position_label": "Posición",
+        "pos_center":     "Centro",
+        "pos_diagonal":   "Diagonal repetida",
+        "save_as":        "Guardar como…",
+        "processing":     "Aplicando marca de agua…",
+        "done_title":     "Marca de agua añadida",
+        "done_msg":       "{name} se ha procesado correctamente.",
+        "err_gs":         "imagemagick no está instalado. Instálelo primero.",
+        "err_empty":      "El texto de la marca de agua no puede estar vacío.",
+        "err_failed":     "La operación falló (código {code}).",
+        "cancel":         "Cancelar",
+        "ok":             "Aplicar",
+        "postpend":       "-marca-agua",
+        "colors": [
+            ("Rojo",   "1 0 0"),
+            ("Gris",   "0.5 0.5 0.5"),
+            ("Azul",   "0 0 0.8"),
+            ("Negro",  "0 0 0"),
+        ],
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":     "Adicionar marca d'água…",
+        "dialog_title":   "Marca d'água PDF",
+        "text_label":     "Texto da marca d'água",
+        "text_hint":      "Ex.: CONFIDENCIAL, NÃO DIVULGAR…",
+        "opacity_label":  "Opacidade",
+        "angle_label":    "Ângulo",
+        "size_label":     "Tamanho da fonte",
+        "color_label":    "Cor",
+        "position_label": "Posição",
+        "pos_center":     "Centro",
+        "pos_diagonal":   "Diagonal repetida",
+        "save_as":        "Salvar como…",
+        "processing":     "Aplicando marca d'água…",
+        "done_title":     "Marca d'água aplicada",
+        "done_msg":       "{name} foi processado com sucesso.",
+        "err_gs":         "imagemagick não está instalado. Instale-o primeiro.",
+        "err_empty":      "O texto da marca d'água não pode ficar vazio.",
+        "err_failed":     "A operação falhou (código {code}).",
+        "cancel":         "Cancelar",
+        "ok":             "Aplicar",
+        "postpend":       "-marca-dagua",
+        "colors": [
+            ("Vermelho", "1 0 0"),
+            ("Cinza",    "0.5 0.5 0.5"),
+            ("Azul",     "0 0 0.8"),
+            ("Preto",    "0 0 0"),
+        ],
+    }
 else:
     T = {
         "menu_label":     "Add Watermark…",
@@ -288,7 +348,7 @@ class WatermarkDialog(Adw.Window):
         outer.append(self._section_label(T["text_label"]))
         self._text_entry = Gtk.Entry()
         self._text_entry.set_placeholder_text(T["text_hint"])
-        self._text_entry.set_text("CONFIDENTIEL" if _lang.startswith("fr") else "CONFIDENTIAL")
+        self._text_entry.set_text("CONFIDENTIEL" if _lang.startswith("fr") else "CONFIDENCIAL" if _lang.startswith(("es", "pt")) else "CONFIDENTIAL")
         outer.append(self._text_entry)
 
         # -- Taille police --
