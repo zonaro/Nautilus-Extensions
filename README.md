@@ -78,6 +78,13 @@ nautilus -q
 | 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging for folders |
 | 👁️ **Hidden Dim (icon)** | `nautilus-hidden-dim-icon` | Dim only the icon of hidden files |
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
+| 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
+| 🗂️ **File Tools** | — (manual install) | Friendly-name, copy-path, enum-rename, clean-empty, timestamp-folder, symlinks, base64, copy-content |
+| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, combine, watermark, optimize-web (Pillow) |
+| 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
+| 🎨 **Derived Icon Editor** | — (manual install) | Layer-based 256×256 icon editor (opacity/scale/offset/rotation) |
+| 🎨 **Colorize Image** | — (manual install) | Tint images preserving luminance & alpha (Pillow) |
+| 🔄 **Convert Image** | — (manual install) | Convert to PNG/JPEG/WebP/ICO + square 256×256 PNG |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
 > 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**.
@@ -101,6 +108,7 @@ sudo apt install \
   ffmpeg \
   python3-pypdf \
   python3-cairo \
+  python3-pil \
   p7zip-full \
   unrar \
   poppler-utils
@@ -354,6 +362,21 @@ A central hub to manage all the other extensions without manually moving files.
 - **`nautilus-edit-gedit`** — open text files with any installed editor via an alphabetical "Edit With" submenu (filtered by extension to avoid clutter)
 
 ---
+
+## 🧬 Contextrion ports
+
+Ideas ported from [Contextrion](https://github.com/zonaro/Contextrion) (Windows Explorer tools) to Nautilus:
+
+- **`paste-into-file.py`** — right-click folder background → **Paste Into File**: saves clipboard text (`.txt`), image (`.png`/`.jpg`) or copied files (`.zip`, structure preserved) with a preview dialog and `Clipboard_YYYYMMDD_HHMMSS` default name.
+- **`file-tools.py`** — **File Tools** submenu: friendly URL rename, copy path, enum bulk rename (`file (#).ext`), clean empty folders, `YYYY/MM/DD` timestamp folder, symlinks, copy as Base64 Data URL, copy `.txt` content.
+- **`image-tools.py`** — **Image Tools** submenu (Pillow, always saves a new copy): grayscale, invert, center crop, circle crop, resize, vertical/horizontal combine, text/image watermark (50% alpha, centered), optimize for web.
+- **`dev-tools-minify.py`** — **Minify** on `.js`/`.css` (regex-based, stdlib only), side-by-side `name.min.ext` with savings report. Skips already-minified files.
+- **`derived-icon-editor.py`** — layer-based 256×256 icon editor: base image + overlay with opacity, scale, offset and rotation sliders, live preview, PNG export.
+- **`colorize-image.py`** — **Colorize** images with a target color (color picker + strength), preserving luminance and alpha (port of `IconColorizer`).
+- **`convert-image.py`** — **Convert Image** submenu: to PNG / JPEG (q92) / WebP / multi-size ICO (favicon) + square 256×256 PNG (port of `IconImportService`, minus DLL extraction).
+- Copy Content (`file-tools.py`) also combines selected images straight to the clipboard.
+
+> DLL icon extraction and C2PA/metadata stripping were intentionally **not** ported (Windows-only / already covered by `remove-ai-watermarks.py`).
 
 ## ⌨️ Keyboard shortcuts
 

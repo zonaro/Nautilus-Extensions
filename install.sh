@@ -43,6 +43,7 @@ sudo dnf install -y \
   ffmpegthumbnailer \
   python3-pypdf \
   python3-cairo \
+  python3-pillow \
   python3-libarchive-c \
   p7zip \
   p7zip-plugins \
