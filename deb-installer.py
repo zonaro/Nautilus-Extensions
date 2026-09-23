@@ -85,6 +85,48 @@ elif _lang.startswith("de"):
         "deps_checking": "Abhängigkeiten werden geprüft…",
         "deps_error":    "Abhängigkeiten konnten nicht geprüft werden.",
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":    "Instalar paquete",
+        "title":         "Instalación de paquete",
+        "package":       "Paquete:",
+        "install":       "Instalar",
+        "close":         "Cerrar",
+        "cancel":        "Cancelar",
+        "installing":    "Instalando…",
+        "success":       "✓ Instalación completada con éxito.",
+        "error":         "✗ Error durante la instalación.",
+        "cancelled":     "Instalación cancelada.",
+        "need_password": "Autenticación requerida (contraseña sudo).",
+        "not_deb":       "Este archivo no es un paquete .deb válido.",
+        "confirm":       "¿Desea instalar este paquete?",
+        "warning":       "⚠ Instalar paquetes de terceros puede ser riesgoso.\nVerifique la fuente antes de continuar.",
+        "deps_none":     "No se requieren dependencias adicionales.",
+        "deps_title":    "Dependencias que se instalarán:",
+        "deps_checking": "Comprobando dependencias…",
+        "deps_error":    "No se pudieron comprobar las dependencias.",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":    "Instalar pacote",
+        "title":         "Instalação de pacote",
+        "package":       "Pacote:",
+        "install":       "Instalar",
+        "close":         "Fechar",
+        "cancel":        "Cancelar",
+        "installing":    "Instalando…",
+        "success":       "✓ Instalação concluída com sucesso.",
+        "error":         "✗ Erro durante a instalação.",
+        "cancelled":     "Instalação cancelada.",
+        "need_password": "Autenticação necessária (senha sudo).",
+        "not_deb":       "Este arquivo não é um pacote .deb válido.",
+        "confirm":       "Deseja instalar este pacote?",
+        "warning":       "⚠ Instalar pacotes de terceiros pode ser arriscado.\nVerifique a fonte antes de continuar.",
+        "deps_none":     "Nenhuma dependência adicional necessária.",
+        "deps_title":    "Dependências que serão instaladas:",
+        "deps_checking": "Verificando dependências…",
+        "deps_error":    "Não foi possível verificar as dependências.",
+    }
 else:
     T = {
         "menu_label":    "Install package",
