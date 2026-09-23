@@ -61,6 +61,10 @@
           padding:18px; box-shadow:0 1px 3px rgba(41,65,114,.08); }
   .card h3 { margin:.2em 0 .4em; font-size:1.02rem; }
   .card p { color:var(--muted); font-size:.92rem; margin:0; }
+  a.cardlink { text-decoration:none; display:block; }
+  a.cardlink .card { height:100%; transition:transform .15s ease, box-shadow .15s ease; }
+  a.cardlink:hover .card { transform:translateY(-3px); box-shadow:0 6px 18px rgba(41,65,114,.16); }
+  #ext-sections section { scroll-margin-top:70px; }
   footer { background:var(--navy); color:#cdd9ea; text-align:center; padding:34px 20px; font-size:.9rem; }
   footer a { color:#fff; }
 </style>
@@ -118,25 +122,26 @@ nautilus -q</code></pre>
     <h2 data-i18n="ext_h">All extensions</h2>
     <p class="sub" data-i18n="ext_p">18 extensions, one install. Everything runs locally — no telemetry.</p>
     <div class="grid">
-      <div class="card"><h3 data-i18n="c1h">🗂️ Dual Panel</h3><p data-i18n="c1p">Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div>
-      <div class="card"><h3 data-i18n="c2h">🧭 Column Browser</h3><p data-i18n="c2p">Miller-columns Finder-style browser (F9), threaded loading.</p></div>
-      <div class="card"><h3 data-i18n="c3h">⚙️ Extensions Manager</h3><p data-i18n="c3p">Enable/disable extensions on the fly.</p></div>
-      <div class="card"><h3 data-i18n="c4h">🗜️ Archive Browser</h3><p data-i18n="c4p">Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div>
-      <div class="card"><h3 data-i18n="c5h">📦 Extract Here</h3><p data-i18n="c5p">One-click extraction with progress dialog.</p></div>
-      <div class="card"><h3 data-i18n="c6h">🎨 Annotate Image</h3><p data-i18n="c6p">Arrows, shapes, text on PNG/JPG without GIMP.</p></div>
-      <div class="card"><h3 data-i18n="c7h">🗜️ Compress PDF</h3><p data-i18n="c7p">Ghostscript presets with before/after sizes.</p></div>
-      <div class="card"><h3 data-i18n="c8h">🔗 Merge PDF</h3><p data-i18n="c8p">Reorder pages and merge with drag &amp; drop.</p></div>
-      <div class="card"><h3 data-i18n="c9h">🔏 Watermark PDF</h3><p data-i18n="c9p">Text/image watermarks with flattening.</p></div>
-      <div class="card"><h3 data-i18n="c10h">🔍 Preview Panel</h3><p data-i18n="c10p">Side preview for images, video, PDF, text (F4).</p></div>
-      <div class="card"><h3 data-i18n="c11h">📦 Deb Installer</h3><p data-i18n="c11p">Visual .deb installer with dependency check.</p></div>
-      <div class="card"><h3 data-i18n="c12h">🔎 Search &amp; Replace</h3><p data-i18n="c12p">grep/ripgrep content search + replace with preview (F8).</p></div>
-      <div class="card"><h3 data-i18n="c13h">🎵 Video to Audio</h3><p data-i18n="c13p">Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div>
-      <div class="card"><h3 data-i18n="c14h">⏱️ Duration Column</h3><p data-i18n="c14p">Sortable HH:MM:SS column for audio/video.</p></div>
-      <div class="card"><h3 data-i18n="c15h">✂️ Cut Item Dimmer</h3><p data-i18n="c15p">Dims Ctrl+X items so you don't forget them.</p></div>
-      <div class="card"><h3 data-i18n="c16h">✏️ Edit with Gedit</h3><p data-i18n="c16p">One-click open text files in Gedit.</p></div>
-      <div class="card"><h3 data-i18n="c17h">📁 Folder Color Revival</h3><p data-i18n="c17p">Color &amp; emblem tagging + infinite custom colors.</p></div>
-      <div class="card"><h3 data-i18n="c18h">👁️ Hidden Dim</h3><p data-i18n="c18p">Dim hidden files' icons (or icon+label).</p></div>
+      <a class="cardlink" href="#ext-dual-panel"><div class="card"><h3 data-i18n="c1h">🗂️ Dual Panel</h3><p data-i18n="c1p">Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div></a>
+      <a class="cardlink" href="#ext-column-browser"><div class="card"><h3 data-i18n="c2h">🧭 Column Browser</h3><p data-i18n="c2p">Miller-columns Finder-style browser (F9), threaded loading.</p></div></a>
+      <a class="cardlink" href="#ext-extensions-manager"><div class="card"><h3 data-i18n="c3h">⚙️ Extensions Manager</h3><p data-i18n="c3p">Enable/disable extensions on the fly.</p></div></a>
+      <a class="cardlink" href="#ext-archive-browser"><div class="card"><h3 data-i18n="c4h">🗜️ Archive Browser</h3><p data-i18n="c4p">Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div></a>
+      <a class="cardlink" href="#ext-extract-here"><div class="card"><h3 data-i18n="c5h">📦 Extract Here</h3><p data-i18n="c5p">One-click extraction with progress dialog.</p></div></a>
+      <a class="cardlink" href="#ext-annotate-image"><div class="card"><h3 data-i18n="c6h">🎨 Annotate Image</h3><p data-i18n="c6p">Arrows, shapes, text on PNG/JPG without GIMP.</p></div></a>
+      <a class="cardlink" href="#ext-compress-pdf"><div class="card"><h3 data-i18n="c7h">🗜️ Compress PDF</h3><p data-i18n="c7p">Ghostscript presets with before/after sizes.</p></div></a>
+      <a class="cardlink" href="#ext-merge-pdf"><div class="card"><h3 data-i18n="c8h">🔗 Merge PDF</h3><p data-i18n="c8p">Reorder pages and merge with drag &amp; drop.</p></div></a>
+      <a class="cardlink" href="#ext-watermark-pdf"><div class="card"><h3 data-i18n="c9h">🔏 Watermark PDF</h3><p data-i18n="c9p">Text/image watermarks with flattening.</p></div></a>
+      <a class="cardlink" href="#ext-preview-panel"><div class="card"><h3 data-i18n="c10h">🔍 Preview Panel</h3><p data-i18n="c10p">Side preview for images, video, PDF, text (F4).</p></div></a>
+      <a class="cardlink" href="#ext-deb-installer"><div class="card"><h3 data-i18n="c11h">📦 Deb Installer</h3><p data-i18n="c11p">Visual .deb installer with dependency check.</p></div></a>
+      <a class="cardlink" href="#ext-search-content"><div class="card"><h3 data-i18n="c12h">🔎 Search &amp; Replace</h3><p data-i18n="c12p">grep/ripgrep content search + replace with preview (F8).</p></div></a>
+      <a class="cardlink" href="#ext-video-to-audio"><div class="card"><h3 data-i18n="c13h">🎵 Video to Audio</h3><p data-i18n="c13p">Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div></a>
+      <a class="cardlink" href="#ext-duration-column"><div class="card"><h3 data-i18n="c14h">⏱️ Duration Column</h3><p data-i18n="c14p">Sortable HH:MM:SS column for audio/video.</p></div></a>
+      <a class="cardlink" href="#ext-cut-dim"><div class="card"><h3 data-i18n="c15h">✂️ Cut Item Dimmer</h3><p data-i18n="c15p">Dims Ctrl+X items so you don't forget them.</p></div></a>
+      <a class="cardlink" href="#ext-edit-gedit"><div class="card"><h3 data-i18n="c16h">✏️ Edit with Gedit</h3><p data-i18n="c16p">One-click open text files in Gedit.</p></div></a>
+      <a class="cardlink" href="#spotlight"><div class="card"><h3 data-i18n="c17h">📁 Folder Color Revival</h3><p data-i18n="c17p">Color &amp; emblem tagging + infinite custom colors.</p></div></a>
+      <a class="cardlink" href="#ext-hidden-dim"><div class="card"><h3 data-i18n="c18h">👁️ Hidden Dim</h3><p data-i18n="c18p">Dim hidden files' icons (or icon+label).</p></div></a>
     </div>
+    <div id="ext-sections"></div>
   </section>
 </main>
 <footer data-i18n="foot">
@@ -144,15 +149,20 @@ nautilus -q</code></pre>
   (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
 </footer>
 <script src="i18n.js"></script>
+<script src="exts.js"></script>
 <script>
+  function applyLang(lang) {
+    setSiteLang(lang);
+    renderExtSections(lang);
+  }
   document.querySelectorAll("[data-lang]").forEach(function (el) {
     el.addEventListener("click", function (e) {
       e.preventDefault();
-      setSiteLang(el.getAttribute("data-lang"));
+      applyLang(el.getAttribute("data-lang"));
       window.scrollTo(0, 0);
     });
   });
-  setSiteLang(siteLang("en"));
+  applyLang(siteLang("en"));
 </script>
 </body>
 </html>
