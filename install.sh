@@ -3,12 +3,33 @@
 # install.sh — Nautilus Extensions on Fedora (dnf)
 # Repo: https://github.com/zonaro/Nautilus-Extensions (fork of ToFpon/Nautilus-Extensions)
 #
-# Usage: ./install.sh
+# One-liner (no git clone needed):
+#   curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash
+#
+# Or locally:
+#   ./install.sh
 #
 set -euo pipefail
 
+REPO_URL="https://github.com/zonaro/Nautilus-Extensions.git"
 EXT_DIR="$HOME/.local/share/nautilus-python/extensions"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Figure out where the payload lives. When piped via curl|bash there is no
+# script file on disk, so clone the repo to a temp dir first.
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/folder-color-revival.py" ]; then
+  echo "==> No local checkout found, cloning $REPO_URL ..."
+  if ! command -v git >/dev/null 2>&1; then
+    echo "==> Installing git first..."
+    sudo dnf install -y git
+  fi
+  SCRIPT_DIR="$(mktemp -d)/Nautilus-Extensions"
+  git clone --depth 1 "$REPO_URL" "$SCRIPT_DIR"
+  trap 'rm -rf "$(dirname "$SCRIPT_DIR")"' EXIT
+fi
 
 echo "==> Installing dependencies (Fedora / dnf)..."
 sudo dnf install -y \
