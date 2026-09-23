@@ -537,7 +537,7 @@ class FolderColor:
         Cached SVG via metadata::custom-icon. Clears metadata::custom-icon-name
         (mutually exclusive) so Nautilus never prefers a stale theme icon.
         """
-        uri = _ensure_custom_icon(hex_color)
+        uri = _ensure_custom_icon(spec)
         if not uri:
             return
         if self.is_modified:
