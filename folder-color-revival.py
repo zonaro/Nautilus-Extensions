@@ -217,37 +217,38 @@ def _tint_one_color(hex_digits, target):
         max(0, min(255, round(tb * gray))))
 
 
-def _tint_svg_multi(svg_text, hex_list):
-    """Tint a theme SVG with one or two colors.
-
-    Shapes in document order: the first shape (folder back/tab) gets the
-    first color, every other shape (front flap, details) gets the second
-    (or the first when only one given). Gradient stops referenced via
-    url(#id) are tinted with their shape's color, preserving shading.
-    """
-    targets = [str(h).lstrip("#")[:6].lower() for h in hex_list[:2]]
-    if (not targets or len(targets[0]) != 6
-            or any(c not in "0123456789abcdef" for c in targets[0])):
-        return ""
-    if len(targets) < 2:
-        targets.append(targets[0])
-    elif len(targets[1]) != 6 or any(c not in "0123456789abcdef" for c in targets[1]):
-        return ""
+def _svg_shapes(svg_text):
+    """Parse SVG and return (root, shape_elements) with namespaces stripped."""
     try:
         root = ET.fromstring(svg_text)
     except Exception as e:
         log.error(f"tint svg parse: {e}")
-        return ""
+        return None, []
     for el in root.iter():
         if "}" in el.tag:
             el.tag = el.tag.rsplit("}", 1)[1]
+    return root, [el for el in root.iter() if el.tag in _SHAPE_TAGS]
+
+
+def _tint_svg_multi(svg_text, hex_list):
+    """Tint a theme SVG with one color per shape (first shape -> 1st color).
+
+    Shape i uses hex_list[min(i, len-1)]: with two shapes/colors the back
+    takes color 1 and everything else color 2; extra shapes share the last
+    color. Gradient stops referenced via url(#id) are tinted with their
+    shape's color, preserving shading. Works with any theme SVG.
+    """
+    targets = [str(h).lstrip("#")[:6].lower() for h in hex_list]
+    if (not targets or any(len(t) != 6
+            or any(c not in "0123456789abcdef" for c in t) for t in targets)):
+        return ""
+    root, shapes = _svg_shapes(svg_text)
+    if root is None or not shapes:
+        return ""
     gradients = {}
     for el in root.iter():
         if el.tag in ("linearGradient", "radialGradient") and el.get("id"):
             gradients[el.get("id").strip()] = el
-    shapes = [el for el in root.iter() if el.tag in _SHAPE_TAGS]
-    if not shapes:
-        return ""
 
     def tinted_paint(value, target):
         """Tint a fill/stop-color value, preserving url()/none/currentColor."""
@@ -271,8 +272,9 @@ def _tint_svg_multi(svg_text, hex_list):
             except Exception:
                 pass
 
+    last = len(targets) - 1
     for index, shape in enumerate(shapes):
-        target = targets[0] if index == 0 else targets[1]
+        target = targets[min(index, last)]
         tinted, gradient_id = tinted_paint((shape.get("fill") or "").strip(), target)
         if tinted:
             shape.set("fill", tinted)
@@ -296,9 +298,9 @@ def _tint_svg_multi(svg_text, hex_list):
 
 
 def _split_color_spec(spec):
-    """'rrggbb' or 'rrggbb;rrggbb' -> [hex, ...] or [] when invalid."""
+    """'rrggbb[;rrggbb...]' -> [hex, ...] or [] when any part is invalid."""
     parts = []
-    for chunk in str(spec or "").split(";")[:2]:
+    for chunk in str(spec or "").split(";"):
         slug = chunk.strip().lstrip("#").lower()
         if len(slug) != 6 or any(c not in "0123456789abcdef" for c in slug):
             return []
@@ -756,10 +758,33 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             return
         self._show_custom_color_dialog(paths)
 
+    @staticmethod
+    def _rgba_to_hex(rgba):
+        try:
+            return "#{:02x}{:02x}{:02x}".format(
+                max(0, min(255, round(rgba.red * 255))),
+                max(0, min(255, round(rgba.green * 255))),
+                max(0, min(255, round(rgba.blue * 255))))
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _hex_to_rgba(hex_color):
+        rgba = Gdk.RGBA()
+        try:
+            if rgba.parse(str(hex_color)):
+                return rgba
+        except Exception:
+            pass
+        return None
+
     def _show_custom_color_dialog(self, paths):
-        """Modal dialog: name entry + live folder preview, applied on OK."""
+        """Modal dialog: one name entry + color picker per icon shape."""
         sample = os.path.basename(paths[0].rstrip("/")) or paths[0]
-        state = {"hex": "#808080"}
+        theme_svg = _any_folder_svg_text()
+        _root, shapes = _svg_shapes(theme_svg) if theme_svg else (None, [])
+        row_count = len(shapes) if shapes else 1
+        state = {"hexes": ["#808080"] * row_count}
 
         dialog = Gtk.Dialog(title=CUSTOM_COLOR_LABEL)
         dialog.set_modal(True)
@@ -783,11 +808,18 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
 
         box.append(Gtk.Label(label=sample))
 
-        entry = Gtk.Entry()
-        entry.set_placeholder_text(
-            _("Color name — e.g. vermelho, Lucas, #ff6347, azul;branco"))
-        entry.set_activates_default(True)
-        box.append(entry)
+        scroll = Gtk.ScrolledWindow()
+        try:
+            scroll.set_min_content_height(min(64 * row_count, 300))
+            scroll.set_propagate_natural_height(True)
+        except Exception:
+            pass
+        box.append(scroll)
+        rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        try:
+            scroll.set_child(rows_box)
+        except Exception:
+            box.append(rows_box)
 
         preview = Gtk.Image()
         try:
@@ -796,41 +828,40 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             pass
         box.append(preview)
 
-        hex_label = Gtk.Label(label=state["hex"])
+        hex_label = Gtk.Label(label=state["hexes"][0])
         try:
             hex_label.add_css_class("monospace")
         except Exception:
             pass
         box.append(hex_label)
 
-        def resolve_spec(text):
-            """'name[;name]' -> '#rrggbb[;#rrggbb]' or '' when invalid."""
-            chunks = [c.strip() for c in str(text or "").split(";")[:2]]
-            chunks = [c for c in chunks if c]
-            if not chunks:
+        entries = []
+        pickers = []
+        syncing = {"busy": False}
+
+        def resolve_name(text):
+            """Color name -> '#rrggbb' or '' when invalid."""
+            text = str(text or "").strip()
+            if not text:
                 return ""
-            out = []
-            for chunk in chunks:
-                try:
-                    color = generate_color(chunk)
-                except Exception as e:
-                    log.error(f"custom color resolve: {e}")
-                    return ""
-                if isinstance(color, list):
-                    color = color[0] if color else ""
-                color = str(color)[:7]
-                if len(color) != 7:
-                    return ""
-                out.append(color.lower())
-            return ";".join(out)
+            try:
+                color = generate_color(text)
+            except Exception as e:
+                log.error(f"custom color resolve: {e}")
+                return ""
+            if isinstance(color, list):
+                color = color[0] if color else ""
+            color = str(color)[:7].lower()
+            if len(color) != 7 or not color.startswith("#"):
+                return ""
+            if len(_split_color_spec(color)) != 1:
+                return ""
+            return color
 
         def draw_preview(*_args):
             """Render the real (themed, tinted) icon into the preview image."""
-            parts = _split_color_spec(state["hex"])
-            if not parts:
-                return
+            parts = [h.lstrip("#") for h in state["hexes"]]
             svg = ""
-            theme_svg = _any_folder_svg_text()
             if theme_svg:
                 svg = _tint_svg_multi(theme_svg, parts)
             if not svg:
@@ -842,28 +873,92 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
                 preview.set_from_file(preview_path)
             except Exception as e:
                 log.error(f"custom color preview: {e}")
+            hex_label.set_text(" + ".join(state["hexes"]))
 
-        def refresh(*_args):
-            spec = resolve_spec(entry.get_text().strip())
-            if spec:
-                state["hex"] = spec
-                hex_label.set_text(spec.replace(";", " + "))
+        def set_row(index, hex_color, from_entry=True, from_picker=True):
+            if syncing["busy"]:
+                return
+            syncing["busy"] = True
+            try:
+                state["hexes"][index] = hex_color
+                rgba = self._hex_to_rgba(hex_color)
+                if from_picker and rgba is not None:
+                    try:
+                        pickers[index].set_rgba(rgba)
+                    except Exception:
+                        pass
+                if from_entry and entries[index].get_text().strip() != hex_color:
+                    try:
+                        entries[index].set_text(hex_color)
+                    except Exception:
+                        pass
                 draw_preview()
+            finally:
+                syncing["busy"] = False
+
+        def on_entry_changed(entry, index):
+            raw = entry.get_text()
+            if ";" in raw:
+                chunks = [c.strip() for c in raw.split(";")]
+                for offset, chunk in enumerate(chunks):
+                    target = index + offset
+                    if target >= row_count:
+                        break
+                    resolved = resolve_name(chunk)
+                    if resolved:
+                        set_row(target, resolved)
+                return
+            resolved = resolve_name(raw)
+            if resolved:
+                set_row(index, resolved, from_entry=False)
+
+        def on_picker_set(picker, index):
+            try:
+                hex_color = self._rgba_to_hex(picker.get_rgba())
+            except Exception:
+                return
+            if hex_color:
+                set_row(index, hex_color, from_picker=False)
+
+        for i in range(row_count):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            row.append(Gtk.Label(label=_("Color %d") % (i + 1)))
+            entry = Gtk.Entry()
+            entry.set_placeholder_text(_("Name or #hex — e.g. vermelho, Lucas"))
+            entry.set_hexpand(True)
+            entry.set_activates_default(True)
+            picker = Gtk.ColorButton()
+            try:
+                rgba = self._hex_to_rgba(state["hexes"][i])
+                if rgba is not None:
+                    picker.set_rgba(rgba)
+            except Exception:
+                pass
+            entry.connect("changed", on_entry_changed, i)
+            try:
+                picker.connect("color-set", on_picker_set, i)
+            except Exception:
+                pass
+            row.append(entry)
+            row.append(picker)
+            rows_box.append(row)
+            entries.append(entry)
+            pickers.append(picker)
 
         def on_response(dlg, response):
             try:
                 if response == Gtk.ResponseType.OK:
+                    spec = ";".join(state["hexes"])
                     for path in paths:
-                        self.foldercolor.set_custom_color(path, state["hex"])
+                        self.foldercolor.set_custom_color(path, spec)
             finally:
                 try:
                     dlg.destroy()
                 except Exception:
                     pass
 
-        entry.connect("changed", refresh)
         dialog.connect("response", on_response)
-        refresh()
+        draw_preview()
         try:
             dialog.present()
         except Exception as e:
