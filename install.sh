@@ -39,6 +39,10 @@ fi
 echo "==> Installing extensions into $EXT_DIR ..."
 mkdir -p "$EXT_DIR"
 cp "$SCRIPT_DIR"/*.py "$EXT_DIR"/
+# Data files needed by some extensions (e.g. color_database.json for folder-color-revival)
+for data in "$SCRIPT_DIR"/color_database.json; do
+  [ -e "$data" ] && cp "$data" "$EXT_DIR"/
+done
 rm -rf "$EXT_DIR/__pycache__"
 
 echo "==> Restarting Nautilus..."

@@ -9,9 +9,11 @@
 # (at your option) any later version.
 
 import os
+import re
 import sys
 import logging
 import gi
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -38,6 +40,307 @@ except ValueError:
 from gi.repository import Nautilus, Gtk, Gdk, GObject, Gio, GLib
 
 # ---------------------------------------------------------------------------
+# NameToColor integration — "infinite" custom folder colors.
+# generate_color() is a faithful Python port of NameToColor's generateColor()
+# (NameToColor.js + pt-BR pack). Any name -> deterministic #rrggbb.
+# If the module is missing (partial install), the "Custom color…" item
+# is simply hidden and everything else keeps working.
+# ---------------------------------------------------------------------------
+try:
+    from name_to_color import generate_color
+    _CUSTOM_COLOR_AVAILABLE = True
+except Exception as e:
+    log.warning(f"name_to_color unavailable, custom colors disabled: {e}")
+    _CUSTOM_COLOR_AVAILABLE = False
+
+# Disk cache for generated folder icons. One deterministic file per color,
+# so Nautilus (which keys its icon cache by URI) never serves a stale icon.
+_CUSTOM_CACHE_SUBDIR = "folder-color"
+
+
+def _custom_cache_dir():
+    try:
+        base = GLib.get_user_cache_dir()
+    except Exception:
+        base = os.path.join(str(Path.home()), ".cache")
+    path = os.path.join(base, _CUSTOM_CACHE_SUBDIR)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception as e:
+        log.error(f"custom cache dir: {e}")
+    return path
+
+
+def _shade(hex_color, factor):
+    """Lighten (>1) or darken (<1) a #rrggbb color by channel scaling."""
+    h = str(hex_color).lstrip("#")[:6]
+    out = []
+    for i in (0, 2, 4):
+        try:
+            channel = int(h[i:i + 2], 16)
+        except ValueError:
+            channel = 128
+        out.append(max(0, min(255, round(channel * factor))))
+    return "#{:02x}{:02x}{:02x}".format(*out)
+
+
+def _folder_svg(hex_color, hex_color2=None):
+    """Two-tone generic folder: back tab = 1st color, front flap = 2nd (or 1st)."""
+    back_base  = "#" + str(hex_color).lstrip("#")[:6].lower()
+    front_base = ("#" + str(hex_color2).lstrip("#")[:6].lower()
+                  if hex_color2 else back_base)
+    back_light = _shade(back_base, 1.22)
+    front_light = _shade(front_base, 1.22)
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{back_light}"/>
+      <stop offset="1" stop-color="{back_base}"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{front_light}"/>
+      <stop offset="1" stop-color="{front_base}"/>
+    </linearGradient>
+  </defs>
+  <path d="M10 32c0-5 4-9 9-9h22l9 11h58c5 0 9 4 9 9v7H10z" fill="url(#back)"/>
+  <path d="M10 32c0-5 4-9 9-9h22l9 11h58c5 0 9 4 9 9v7H10z" fill="none" stroke="#000000" stroke-opacity="0.25"/>
+  <rect x="10" y="46" width="108" height="64" rx="10" fill="url(#front)"/>
+  <rect x="10" y="46" width="108" height="64" rx="10" fill="none" stroke="#000000" stroke-opacity="0.3"/>
+  <rect x="10" y="46" width="108" height="10" rx="5" fill="#ffffff" fill-opacity="0.18"/>
+</svg>
+"""
+
+
+def _current_theme_name():
+    try:
+        return Gtk.Settings.get_default().get_property("gtk-icon-theme-name") or "hicolor"
+    except Exception:
+        return "hicolor"
+
+
+def _theme_folder_svg_text():
+    """Raw SVG text of the current theme's 'folder' icon, or ''."""
+    try:
+        display = Gdk.Display.get_default()
+        if display is None:
+            return ""
+        icon_theme = Gtk.IconTheme.get_for_display(display)
+        paintable = icon_theme.lookup_icon(
+            "folder", None, 128, 1,
+            Gtk.TextDirection.LTR, Gtk.IconLookupFlags.FORCE_REGULAR,
+        )
+        if paintable is None:
+            return ""
+        gfile = paintable.get_file()
+        if gfile is None:
+            return ""
+        path = gfile.get_path()
+        if not path or not path.lower().endswith(".svg"):
+            return ""
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except Exception as e:
+        log.error(f"theme folder svg: {e}")
+        return ""
+
+
+def _any_folder_svg_text():
+    """Theme SVG if available, else first folder.svg from any installed theme."""
+    svg = _theme_folder_svg_text()
+    if svg:
+        return svg
+    bases = [os.path.join(str(Path.home()), ".icons"),
+             os.path.join(str(Path.home()), ".local", "share", "icons"),
+             "/usr/local/share/icons",
+             "/usr/share/icons"]
+    candidates = []
+    try:
+        for base in bases:
+            if not os.path.isdir(base):
+                continue
+            for theme in sorted(os.listdir(base)):
+                scalable = os.path.join(base, theme, "scalable", "places", "folder.svg")
+                if os.path.isfile(scalable):
+                    candidates.append(scalable)
+                places = os.path.join(base, theme, "places")
+                if os.path.isdir(places):
+                    for size in sorted(os.listdir(places), reverse=True):
+                        sized = os.path.join(places, size, "folder.svg")
+                        if os.path.isfile(sized):
+                            candidates.append(sized)
+    except Exception as e:
+        log.error(f"theme scan: {e}")
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            if "<svg" in text:
+                return text
+        except Exception:
+            continue
+    return ""
+
+
+def _luminance(hex_color):
+    h = str(hex_color).lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    try:
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return 128
+    return round(0.299 * r + 0.587 * g + 0.114 * b)
+
+
+def _tint_svg(svg_text, hex_color):
+    """Single-color tint (whole icon)."""
+    return _tint_svg_multi(svg_text, [hex_color])
+
+
+_SHAPE_TAGS = {"path", "rect", "circle", "ellipse", "polygon", "polyline"}
+_URL_RE = re.compile(r"url\(\s*#([^)]+?)\s*\)")
+_HEX_RE = re.compile(r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])")
+
+
+def _tint_one_color(hex_digits, target):
+    """Multiply-tint a hex paint color with the target color."""
+    if len(hex_digits) == 3:
+        hex_digits = "".join(c * 2 for c in hex_digits)
+    gray = _luminance(hex_digits) / 255.0
+    try:
+        tr, tg, tb = (int(target[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return None
+    return "#{:02x}{:02x}{:02x}".format(
+        max(0, min(255, round(tr * gray))),
+        max(0, min(255, round(tg * gray))),
+        max(0, min(255, round(tb * gray))))
+
+
+def _tint_svg_multi(svg_text, hex_list):
+    """Tint a theme SVG with one or two colors.
+
+    Shapes in document order: the first shape (folder back/tab) gets the
+    first color, every other shape (front flap, details) gets the second
+    (or the first when only one given). Gradient stops referenced via
+    url(#id) are tinted with their shape's color, preserving shading.
+    """
+    targets = [str(h).lstrip("#")[:6].lower() for h in hex_list[:2]]
+    if (not targets or len(targets[0]) != 6
+            or any(c not in "0123456789abcdef" for c in targets[0])):
+        return ""
+    if len(targets) < 2:
+        targets.append(targets[0])
+    elif len(targets[1]) != 6 or any(c not in "0123456789abcdef" for c in targets[1]):
+        return ""
+    try:
+        root = ET.fromstring(svg_text)
+    except Exception as e:
+        log.error(f"tint svg parse: {e}")
+        return ""
+    for el in root.iter():
+        if "}" in el.tag:
+            el.tag = el.tag.rsplit("}", 1)[1]
+    gradients = {}
+    for el in root.iter():
+        if el.tag in ("linearGradient", "radialGradient") and el.get("id"):
+            gradients[el.get("id").strip()] = el
+    shapes = [el for el in root.iter() if el.tag in _SHAPE_TAGS]
+    if not shapes:
+        return ""
+
+    def tinted_paint(value, target):
+        """Tint a fill/stop-color value, preserving url()/none/currentColor."""
+        url_match = _URL_RE.search(value or "")
+        if url_match:
+            return None, url_match.group(1)
+        hex_match = _HEX_RE.search(value or "")
+        if hex_match:
+            return _tint_one_color(hex_match.group(1), target), None
+        return None, None
+
+    def apply_style(element, target):
+        """Tint fill:/stop-color: declarations inside a style attribute."""
+        style = element.get("style") or ""
+        if "fill" not in style and "stop-color" not in style:
+            return
+        tinted, _ = tinted_paint(style, target)
+        if tinted:
+            try:
+                element.set("style", _HEX_RE.sub(tinted, style, count=1))
+            except Exception:
+                pass
+
+    for index, shape in enumerate(shapes):
+        target = targets[0] if index == 0 else targets[1]
+        tinted, gradient_id = tinted_paint((shape.get("fill") or "").strip(), target)
+        if tinted:
+            shape.set("fill", tinted)
+        elif gradient_id:
+            gradient = gradients.get(gradient_id)
+            if gradient is not None:
+                for stop in gradient.iter():
+                    if stop.tag != "stop":
+                        continue
+                    stop_tinted, _ = tinted_paint(
+                        (stop.get("stop-color") or "").strip(), target)
+                    if stop_tinted:
+                        stop.set("stop-color", stop_tinted)
+                    apply_style(stop, target)
+        apply_style(shape, target)
+    try:
+        return ET.tostring(root, encoding="unicode")
+    except Exception as e:
+        log.error(f"tint svg serialize: {e}")
+        return ""
+
+
+def _split_color_spec(spec):
+    """'rrggbb' or 'rrggbb;rrggbb' -> [hex, ...] or [] when invalid."""
+    parts = []
+    for chunk in str(spec or "").split(";")[:2]:
+        slug = chunk.strip().lstrip("#").lower()
+        if len(slug) != 6 or any(c not in "0123456789abcdef" for c in slug):
+            return []
+        parts.append(slug)
+    return parts
+
+
+def _ensure_custom_icon(spec):
+    """Write (if needed) and return the file:// URI of the cached SVG icon.
+
+    spec is '#rrggbb' or '#rrggbb;#rrggbb' (back;front). Preferred: current
+    theme's folder icon, desaturated + tinted. Fallback: generic folder.
+    Filename embeds theme + colors so the Nautilus icon cache (keyed by
+    URI) stays correct across theme switches.
+    """
+    parts = _split_color_spec(spec)
+    if not parts:
+        return ""
+    slug = "-".join(parts)
+    theme = re.sub(r"[^a-z0-9-]+", "",
+                   str(_current_theme_name()).lower().replace("_", "-"))
+    path = os.path.join(_custom_cache_dir(), f"folder-{theme}-{slug}.svg")
+    if not os.path.exists(path):
+        svg = ""
+        theme_svg = _any_folder_svg_text()
+        if theme_svg:
+            svg = _tint_svg_multi(theme_svg, parts)
+        if not svg:
+            svg = _folder_svg(parts[0])
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        except Exception as e:
+            log.error(f"custom icon write: {e}")
+            return ""
+    try:
+        return Gio.File.new_for_path(path).get_uri()
+    except Exception as e:
+        log.error(f"custom icon uri: {e}")
+        return ""
+
+# ---------------------------------------------------------------------------
 # FIX 1 : i18n — les placeholders @GETTEXT_PACKAGE@ / @LOCALEDIR@ n'étaient
 # jamais remplacés (script prévu pour être compilé via autotools).
 # On tombe back sur gettext standard sans domaine custom.
@@ -49,6 +352,7 @@ except Exception:
 
 COLOR  = _("Color")
 EMBLEM = _("Emblem")
+CUSTOM_COLOR_LABEL = _("Custom color…")
 
 COLORS_ALL = {
     "black":   _("Black"),
@@ -176,11 +480,13 @@ class FolderColor:
                 icon_aux = self._get_icon(option + color)
                 if i < 3 and icon_aux["icon"] and "/hicolor/" not in icon_aux["uri"]:
                     self.colors.append({"icon": icon_aux["icon"],
+                                        "name": color,
                                         "label": COLORS_ALL[color],
                                         "uri":   icon_aux["uri"]})
                     break
                 if i >= 3 and icon_aux["icon"]:
                     self.colors.append({"icon": icon_aux["icon"],
+                                        "name": color,
                                         "label": COLORS_ALL[color],
                                         "uri":   icon_aux["uri"]})
                     break
@@ -224,6 +530,29 @@ class FolderColor:
             self._reload_icon(item)
         except Exception as e:
             log.error(f"set_color: {e}")
+
+    def set_custom_color(self, item, spec):
+        """Apply a generated color spec ('#rrggbb' or '#rrggbb;#rrggbb').
+
+        Cached SVG via metadata::custom-icon. Clears metadata::custom-icon-name
+        (mutually exclusive) so Nautilus never prefers a stale theme icon.
+        """
+        uri = _ensure_custom_icon(hex_color)
+        if not uri:
+            return
+        if self.is_modified:
+            self._set_restore_folder(item)
+        try:
+            item_aux = Gio.File.new_for_path(item)
+            info     = item_aux.query_info(
+                "metadata::custom-icon,metadata::custom-icon-name", 0, None)
+            info.set_attribute_string("metadata::custom-icon", uri)
+            info.set_attribute("metadata::custom-icon-name",
+                               Gio.FileAttributeType.INVALID, 0)
+            item_aux.set_attributes_from_info(info, 0, None)
+            self._reload_icon(item)
+        except Exception as e:
+            log.error(f"set_custom_color: {e}")
 
     def set_emblem(self, item, emblem):
         try:
@@ -355,6 +684,15 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
                 item.connect("activate", self._menu_activate_color, items, color)
                 submenu.append_item(item)
 
+            if _CUSTOM_COLOR_AVAILABLE:
+                item = Nautilus.MenuItem(
+                    name="FolderColorMenu::custom_color",
+                    label=CUSTOM_COLOR_LABEL,
+                    icon="color-picker",
+                )
+                item.connect("activate", self._menu_activate_custom_color, items)
+                submenu.append_item(item)
+
         # Emblèmes
         if emblems:
             if self.all_dirs and colors:
@@ -384,14 +722,152 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         return (top_menuitem,)
 
     def _menu_activate_color(self, menu, items, color):
+        # Built-in colors go through the exact same pipeline as custom
+        # colors: English name -> generate_color() -> tinted theme icon.
+        hex_color = ""
+        if _CUSTOM_COLOR_AVAILABLE:
+            try:
+                result = generate_color(color.get("name", ""))
+                if isinstance(result, list):
+                    result = result[0] if result else ""
+                result = str(result)[:7]
+                if len(result) == 7:
+                    hex_color = result.lower()
+            except Exception as e:
+                log.error(f"builtin color resolve: {e}")
         for item in items:
-            if not item.is_gone():
-                self.foldercolor.set_color(item.get_location().get_path(), color)
+            if item.is_gone():
+                continue
+            path = item.get_location().get_path()
+            if hex_color:
+                self.foldercolor.set_custom_color(path, hex_color)
+            else:
+                self.foldercolor.set_color(path, color)
 
     def _menu_activate_emblem(self, menu, items, emblem):
         for item in items:
             if not item.is_gone():
                 self.foldercolor.set_emblem(item.get_location().get_path(), emblem)
+
+    def _menu_activate_custom_color(self, menu, items):
+        paths = [item.get_location().get_path()
+                 for item in items if not item.is_gone()]
+        if not paths:
+            return
+        self._show_custom_color_dialog(paths)
+
+    def _show_custom_color_dialog(self, paths):
+        """Modal dialog: name entry + live folder preview, applied on OK."""
+        sample = os.path.basename(paths[0].rstrip("/")) or paths[0]
+        state = {"hex": "#808080"}
+
+        dialog = Gtk.Dialog(title=CUSTOM_COLOR_LABEL)
+        dialog.set_modal(True)
+        dialog.add_buttons(_("Cancel"), Gtk.ResponseType.CANCEL,
+                           _("Apply"), Gtk.ResponseType.OK)
+        try:
+            dialog.set_default_response(Gtk.ResponseType.OK)
+        except Exception:
+            pass
+
+        content = dialog.get_content_area()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        try:
+            box.set_margin_top(12)
+            box.set_margin_bottom(12)
+            box.set_margin_start(12)
+            box.set_margin_end(12)
+        except Exception:
+            pass
+        content.append(box)
+
+        box.append(Gtk.Label(label=sample))
+
+        entry = Gtk.Entry()
+        entry.set_placeholder_text(
+            _("Color name — e.g. vermelho, Lucas, #ff6347, azul;branco"))
+        entry.set_activates_default(True)
+        box.append(entry)
+
+        preview = Gtk.Image()
+        try:
+            preview.set_pixel_size(128)
+        except Exception:
+            pass
+        box.append(preview)
+
+        hex_label = Gtk.Label(label=state["hex"])
+        try:
+            hex_label.add_css_class("monospace")
+        except Exception:
+            pass
+        box.append(hex_label)
+
+        def resolve_spec(text):
+            """'name[;name]' -> '#rrggbb[;#rrggbb]' or '' when invalid."""
+            chunks = [c.strip() for c in str(text or "").split(";")[:2]]
+            chunks = [c for c in chunks if c]
+            if not chunks:
+                return ""
+            out = []
+            for chunk in chunks:
+                try:
+                    color = generate_color(chunk)
+                except Exception as e:
+                    log.error(f"custom color resolve: {e}")
+                    return ""
+                if isinstance(color, list):
+                    color = color[0] if color else ""
+                color = str(color)[:7]
+                if len(color) != 7:
+                    return ""
+                out.append(color.lower())
+            return ";".join(out)
+
+        def draw_preview(*_args):
+            """Render the real (themed, tinted) icon into the preview image."""
+            parts = _split_color_spec(state["hex"])
+            if not parts:
+                return
+            svg = ""
+            theme_svg = _any_folder_svg_text()
+            if theme_svg:
+                svg = _tint_svg_multi(theme_svg, parts)
+            if not svg:
+                svg = _folder_svg(parts[0])
+            preview_path = os.path.join(_custom_cache_dir(), "folder-preview.svg")
+            try:
+                with open(preview_path, "w", encoding="utf-8") as f:
+                    f.write(svg)
+                preview.set_from_file(preview_path)
+            except Exception as e:
+                log.error(f"custom color preview: {e}")
+
+        def refresh(*_args):
+            spec = resolve_spec(entry.get_text().strip())
+            if spec:
+                state["hex"] = spec
+                hex_label.set_text(spec.replace(";", " + "))
+                draw_preview()
+
+        def on_response(dlg, response):
+            try:
+                if response == Gtk.ResponseType.OK:
+                    for path in paths:
+                        self.foldercolor.set_custom_color(path, state["hex"])
+            finally:
+                try:
+                    dlg.destroy()
+                except Exception:
+                    pass
+
+        entry.connect("changed", refresh)
+        dialog.connect("response", on_response)
+        refresh()
+        try:
+            dialog.present()
+        except Exception as e:
+            log.error(f"custom color dialog: {e}")
 
     def _menu_activate_restore(self, menu, items):
         for item in items:
