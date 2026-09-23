@@ -62,6 +62,22 @@ elif _lang.startswith("fr"):
         "refresh":    "Actualiser",
         "err_title":  "Erreur",
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label": "Abrir en vista de columnas",
+        "title":      "Vista de columnas",
+        "go_up":      "Carpeta superior",
+        "refresh":    "Actualizar",
+        "err_title":  "Error",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label": "Abrir em visão de colunas",
+        "title":      "Navegador em Colunas",
+        "go_up":      "Pasta superior",
+        "refresh":    "Atualizar",
+        "err_title":  "Erro",
+    }
 else:
     T = {
         "menu_label": "Open in column view",

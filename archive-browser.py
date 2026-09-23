@@ -142,6 +142,92 @@ elif _lang.startswith("de"):
         "user_dir_PICTURES":   "Bilder",
         "user_dir_VIDEOS":     "Videos",
     }
+elif _lang.startswith("es"):
+    T = {
+        # Navegación
+        "menu_label":          "Explorar archivo",
+        "title":               "Explorador de archivos",
+        "filter":              "Filtrar…",
+        "go_up":               "Carpeta superior",
+        "refresh":             "Actualizar",
+        "home":                "Inicio",
+        # Extracción
+        "extract_all":         "Extraer todo",
+        "extract_sel":         "Extraer selección",
+        "col_name":            "Nombre",
+        "col_size":            "Tamaño",
+        # Contraseña
+        "pwd_title":           "Archivo protegido",
+        "pwd_body":            "Este archivo está cifrado. Introduzca la contraseña:",
+        "pwd_placeholder":     "Contraseña",
+        "pwd_cancel":          "Cancelar",
+        "pwd_ok":              "Abrir",
+        "pwd_wrong":           "Contraseña incorrecta",
+        # Creador
+        "create_label":        "Crear archivo",
+        "create_title":        "Crear archivo",
+        "create_name":         "Nombre del archivo",
+        "create_format":       "Formato",
+        "create_level":        "Compresión",
+        "create_pwd":          "Contraseña (opcional)",
+        "create_split":        "Dividir en volúmenes (MB, 0=no)",
+        "create_btn":          "Crear",
+        "creating":            "Creando…",
+        "create_done":         "Archivo creado",
+        "create_err":          "Error de creación",
+        # Carpetas XDG
+        "user_dir_DESKTOP":    "Escritorio",
+        "user_dir_DOWNLOAD":   "Descargas",
+        "user_dir_TEMPLATES":  "Plantillas",
+        "user_dir_PUBLICSHARE":"Público",
+        "user_dir_DOCUMENTS":  "Documentos",
+        "user_dir_MUSIC":      "Música",
+        "user_dir_PICTURES":   "Imágenes",
+        "user_dir_VIDEOS":     "Vídeos",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        # Navegação
+        "menu_label":          "Explorar arquivo",
+        "title":               "Navegador de arquivos",
+        "filter":              "Filtrar…",
+        "go_up":               "Pasta superior",
+        "refresh":             "Atualizar",
+        "home":                "Início",
+        # Extração
+        "extract_all":         "Extrair tudo",
+        "extract_sel":         "Extrair seleção",
+        "col_name":            "Nome",
+        "col_size":            "Tamanho",
+        # Senha
+        "pwd_title":           "Arquivo protegido",
+        "pwd_body":            "Este arquivo está criptografado. Digite a senha:",
+        "pwd_placeholder":     "Senha",
+        "pwd_cancel":          "Cancelar",
+        "pwd_ok":              "Abrir",
+        "pwd_wrong":           "Senha incorreta",
+        # Criador
+        "create_label":        "Criar arquivo",
+        "create_title":        "Criar arquivo",
+        "create_name":         "Nome do arquivo",
+        "create_format":       "Formato",
+        "create_level":        "Compressão",
+        "create_pwd":          "Senha (opcional)",
+        "create_split":        "Dividir em volumes (MB, 0=não)",
+        "create_btn":          "Criar",
+        "creating":            "Criando…",
+        "create_done":         "Arquivo criado",
+        "create_err":          "Erro de criação",
+        # Pastas XDG
+        "user_dir_DESKTOP":    "Área de trabalho",
+        "user_dir_DOWNLOAD":   "Downloads",
+        "user_dir_TEMPLATES":  "Modelos",
+        "user_dir_PUBLICSHARE":"Público",
+        "user_dir_DOCUMENTS":  "Documentos",
+        "user_dir_MUSIC":      "Músicas",
+        "user_dir_PICTURES":   "Imagens",
+        "user_dir_VIDEOS":     "Vídeos",
+    }
 else:
     T = {
         # Navigation
