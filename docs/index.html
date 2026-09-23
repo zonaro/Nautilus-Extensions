@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nautilus Extensions — supercharge GNOME Files</title>
-<meta name="description" content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
+<title data-i18n="meta_title">Nautilus Extensions — supercharge GNOME Files</title>
+<meta name="description" data-i18n-content="meta_desc" content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
@@ -28,9 +28,9 @@
   nav.top .brand span { color:var(--fedora-blue); }
   nav.top a.link { color:var(--muted); text-decoration:none; font-weight:600; font-size:.95rem; }
   nav.top a.link:hover { color:var(--link-blue); }
-  nav.top .langs { font-size:.9rem; color:var(--muted); }
-  nav.top .langs a { text-decoration:none; font-weight:700; }
-  nav.top .langs strong { color:var(--navy); }
+  nav.top .langs { font-size:.9rem; color:var(--muted); white-space:nowrap; }
+  nav.top .langs a { text-decoration:none; font-weight:700; cursor:pointer; }
+  nav.top .langs a.active { color:var(--navy); font-weight:800; }
   .btn { display:inline-block; background:var(--link-blue); color:#fff; font-weight:700;
          padding:10px 26px; border-radius:9999px; text-decoration:none; margin:4px;
          font-family:Montserrat,sans-serif; font-size:.95rem; }
@@ -69,25 +69,25 @@
 <nav class="top">
   <div class="inner">
     <a class="brand" href="#">🐚 Nautilus <span>Extensions</span></a>
-    <a class="link" href="#install">Install</a>
-    <a class="link" href="#spotlight">Folder Color</a>
-    <a class="link" href="#extensions">Extensions</a>
-    <span class="langs"><strong>EN</strong> · <a href="fr/">FR</a> · <a href="de/">DE</a> · <a href="pt-BR/">PT-BR</a> · <a href="es/">ES</a></span>
+    <a class="link" href="#install" data-i18n="nav_install">Install</a>
+    <a class="link" href="#spotlight" data-i18n="nav_spotlight">Folder Color</a>
+    <a class="link" href="#extensions" data-i18n="nav_ext">Extensions</a>
+    <span class="langs"><a data-lang="en">EN</a> · <a data-lang="fr">FR</a> · <a data-lang="de">DE</a> · <a data-lang="pt-BR">PT-BR</a> · <a data-lang="es">ES</a></span>
     <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
   </div>
 </nav>
 <header class="hero">
-  <h1>Supercharge <span>GNOME Files</span></h1>
-  <p>Productivity-focused Python extensions for <strong>Nautilus</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
-  <a class="btn" href="#install">Get Started</a>
-  <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions">View Source</a>
+  <h1 data-i18n="hero_title">Supercharge <span>GNOME Files</span></h1>
+  <p data-i18n="hero_sub">Productivity-focused Python extensions for <strong>Nautilus</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
+  <a class="btn" href="#install" data-i18n="btn_start">Get Started</a>
+  <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions" data-i18n="btn_source">View Source</a>
 </header>
 <main>
   <section id="install">
-    <h2>Install</h2>
-    <p class="sub">Fedora / GNOME (Nautilus 46+, GTK4) — one line, no manual clone:</p>
+    <h2 data-i18n="install_h">Install</h2>
+    <p class="sub" data-i18n="install_p1">Fedora / GNOME (Nautilus 46+, GTK4) — one line, no manual clone:</p>
     <pre><code>curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash</code></pre>
-    <p class="sub">Or clone first:</p>
+    <p class="sub" data-i18n="install_p2">Or clone first:</p>
     <pre><code>git clone https://github.com/zonaro/Nautilus-Extensions.git
 cd Nautilus-Extensions
 ./install.sh
@@ -95,53 +95,64 @@ nautilus -q</code></pre>
   </section>
 
   <section id="spotlight">
-    <h2>🎨 Featured: Folder Color Revival + infinite colors</h2>
+    <h2 data-i18n="spot_h">🎨 Featured: Folder Color Revival + infinite colors</h2>
     <div class="spotlight">
-      <p>The classic folder colorizer, revived for modern Nautilus — now with <strong>infinite custom colors</strong> powered by an embedded <a href="https://github.com/zonaro/NameToColor">NameToColor</a> engine (2254 named colors + pt-BR, deterministic hash for any word).</p>
+      <p data-i18n="spot_p">The classic folder colorizer, revived for modern Nautilus — now with <strong>infinite custom colors</strong> powered by an embedded <a href="https://github.com/zonaro/NameToColor">NameToColor</a> engine (2254 named colors + pt-BR, deterministic hash for any word).</p>
       <div class="samples">
-        <div class="sample"><img src="assets/folder-vermelho.svg" alt="red folder"><code>vermelho</code></div>
-        <div class="sample"><img src="assets/folder-lucas.svg" alt="olive folder"><code>Lucas</code></div>
-        <div class="sample"><img src="assets/folder-azul-branco.svg" alt="blue and white folder"><code>azul;branco</code></div>
-        <div class="sample"><img src="assets/folder-verde-limao.svg" alt="lime folder"><code>verde-limão puro</code></div>
+        <div class="sample"><img src="assets/folder-vermelho.svg" data-i18n-alt="alt1" alt="red folder"><code>vermelho</code></div>
+        <div class="sample"><img src="assets/folder-lucas.svg" data-i18n-alt="alt2" alt="olive folder"><code>Lucas</code></div>
+        <div class="sample"><img src="assets/folder-azul-branco.svg" data-i18n-alt="alt3" alt="blue and white folder"><code>azul;branco</code></div>
+        <div class="sample"><img src="assets/folder-verde-limao.svg" data-i18n-alt="alt4" alt="lime folder"><code>verde-limão puro</code></div>
       </div>
       <ul class="feat">
-        <li><strong>Custom color… dialog</strong> — type any name, hex or <code>rgb()</code>, with a live preview of your actual theme icon and a color picker per element.</li>
-        <li><strong>One or two colors</strong> (<code>name1;name2</code>) — back tab and front flap tinted independently; complex theme icons get one field per shape.</li>
-        <li><strong>Theme-aware</strong> — desaturates and tints your current theme's own folder icon (SVG or PNG); falls back gracefully.</li>
-        <li><strong>Built-ins unified</strong> — the 14 classic colors go through the exact same pipeline.</li>
-        <li>Emblems, per-XDG special icons, restore-to-default, lazy theme loading.</li>
+        <li data-i18n="feat1"><strong>Custom color… dialog</strong> — type any name, hex or <code>rgb()</code>, with a live preview of your actual theme icon and a color picker per element.</li>
+        <li data-i18n="feat2"><strong>One or two colors</strong> (<code>name1;name2</code>) — back tab and front flap tinted independently; complex theme icons get one field per shape.</li>
+        <li data-i18n="feat3"><strong>Theme-aware</strong> — desaturates and tints your current theme's own folder icon (SVG or PNG); falls back gracefully.</li>
+        <li data-i18n="feat4"><strong>Built-ins unified</strong> — the 14 classic colors go through the exact same pipeline.</li>
+        <li data-i18n="feat5">Emblems, per-XDG special icons, restore-to-default, lazy theme loading.</li>
       </ul>
     </div>
   </section>
 
   <section id="extensions">
-    <h2>All extensions</h2>
-    <p class="sub">18 extensions, one install. Everything runs locally — no telemetry.</p>
+    <h2 data-i18n="ext_h">All extensions</h2>
+    <p class="sub" data-i18n="ext_p">18 extensions, one install. Everything runs locally — no telemetry.</p>
     <div class="grid">
-      <div class="card"><h3>🗂️ Dual Panel</h3><p>Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div>
-      <div class="card"><h3>🧭 Column Browser</h3><p>Miller-columns Finder-style browser (F9), threaded loading.</p></div>
-      <div class="card"><h3>⚙️ Extensions Manager</h3><p>Enable/disable extensions on the fly.</p></div>
-      <div class="card"><h3>🗜️ Archive Browser</h3><p>Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div>
-      <div class="card"><h3>📦 Extract Here</h3><p>One-click extraction with progress dialog.</p></div>
-      <div class="card"><h3>🎨 Annotate Image</h3><p>Arrows, shapes, text on PNG/JPG without GIMP.</p></div>
-      <div class="card"><h3>🗜️ Compress PDF</h3><p>Ghostscript presets with before/after sizes.</p></div>
-      <div class="card"><h3>🔗 Merge PDF</h3><p>Reorder pages and merge with drag &amp; drop.</p></div>
-      <div class="card"><h3>🔏 Watermark PDF</h3><p>Text/image watermarks with flattening.</p></div>
-      <div class="card"><h3>🔍 Preview Panel</h3><p>Side preview for images, video, PDF, text (F4).</p></div>
-      <div class="card"><h3>📦 Deb Installer</h3><p>Visual .deb installer with dependency check.</p></div>
-      <div class="card"><h3>🔎 Search &amp; Replace</h3><p>grep/ripgrep content search + replace with preview (F8).</p></div>
-      <div class="card"><h3>🎵 Video to Audio</h3><p>Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div>
-      <div class="card"><h3>⏱️ Duration Column</h3><p>Sortable HH:MM:SS column for audio/video.</p></div>
-      <div class="card"><h3>✂️ Cut Item Dimmer</h3><p>Dims Ctrl+X items so you don't forget them.</p></div>
-      <div class="card"><h3>✏️ Edit with Gedit</h3><p>One-click open text files in Gedit.</p></div>
-      <div class="card"><h3>📁 Folder Color Revival</h3><p>Color &amp; emblem tagging + infinite custom colors.</p></div>
-      <div class="card"><h3>👁️ Hidden Dim</h3><p>Dim hidden files' icons (or icon+label).</p></div>
+      <div class="card"><h3 data-i18n="c1h">🗂️ Dual Panel</h3><p data-i18n="c1p">Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div>
+      <div class="card"><h3 data-i18n="c2h">🧭 Column Browser</h3><p data-i18n="c2p">Miller-columns Finder-style browser (F9), threaded loading.</p></div>
+      <div class="card"><h3 data-i18n="c3h">⚙️ Extensions Manager</h3><p data-i18n="c3p">Enable/disable extensions on the fly.</p></div>
+      <div class="card"><h3 data-i18n="c4h">🗜️ Archive Browser</h3><p data-i18n="c4p">Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div>
+      <div class="card"><h3 data-i18n="c5h">📦 Extract Here</h3><p data-i18n="c5p">One-click extraction with progress dialog.</p></div>
+      <div class="card"><h3 data-i18n="c6h">🎨 Annotate Image</h3><p data-i18n="c6p">Arrows, shapes, text on PNG/JPG without GIMP.</p></div>
+      <div class="card"><h3 data-i18n="c7h">🗜️ Compress PDF</h3><p data-i18n="c7p">Ghostscript presets with before/after sizes.</p></div>
+      <div class="card"><h3 data-i18n="c8h">🔗 Merge PDF</h3><p data-i18n="c8p">Reorder pages and merge with drag &amp; drop.</p></div>
+      <div class="card"><h3 data-i18n="c9h">🔏 Watermark PDF</h3><p data-i18n="c9p">Text/image watermarks with flattening.</p></div>
+      <div class="card"><h3 data-i18n="c10h">🔍 Preview Panel</h3><p data-i18n="c10p">Side preview for images, video, PDF, text (F4).</p></div>
+      <div class="card"><h3 data-i18n="c11h">📦 Deb Installer</h3><p data-i18n="c11p">Visual .deb installer with dependency check.</p></div>
+      <div class="card"><h3 data-i18n="c12h">🔎 Search &amp; Replace</h3><p data-i18n="c12p">grep/ripgrep content search + replace with preview (F8).</p></div>
+      <div class="card"><h3 data-i18n="c13h">🎵 Video to Audio</h3><p data-i18n="c13p">Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div>
+      <div class="card"><h3 data-i18n="c14h">⏱️ Duration Column</h3><p data-i18n="c14p">Sortable HH:MM:SS column for audio/video.</p></div>
+      <div class="card"><h3 data-i18n="c15h">✂️ Cut Item Dimmer</h3><p data-i18n="c15p">Dims Ctrl+X items so you don't forget them.</p></div>
+      <div class="card"><h3 data-i18n="c16h">✏️ Edit with Gedit</h3><p data-i18n="c16p">One-click open text files in Gedit.</p></div>
+      <div class="card"><h3 data-i18n="c17h">📁 Folder Color Revival</h3><p data-i18n="c17p">Color &amp; emblem tagging + infinite custom colors.</p></div>
+      <div class="card"><h3 data-i18n="c18h">👁️ Hidden Dim</h3><p data-i18n="c18p">Dim hidden files' icons (or icon+label).</p></div>
     </div>
   </section>
 </main>
-<footer>
+<footer data-i18n="foot">
   Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
   (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
 </footer>
+<script src="i18n.js"></script>
+<script>
+  document.querySelectorAll("[data-lang]").forEach(function (el) {
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      setSiteLang(el.getAttribute("data-lang"));
+      window.scrollTo(0, 0);
+    });
+  });
+  setSiteLang(siteLang("en"));
+</script>
 </body>
 </html>
