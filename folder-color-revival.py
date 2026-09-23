@@ -11,6 +11,7 @@
 import os
 import re
 import sys
+import locale
 import logging
 import gi
 import xml.etree.ElementTree as ET
@@ -430,14 +431,137 @@ def _ensure_custom_icon(spec):
         return ""
 
 # ---------------------------------------------------------------------------
-# FIX 1 : i18n — les placeholders @GETTEXT_PACKAGE@ / @LOCALEDIR@ n'étaient
-# jamais remplacés (script prévu pour être compilé via autotools).
-# On tombe back sur gettext standard sans domaine custom.
+# i18n — same pattern as the other extensions: hardcoded tables per locale
+# detected via locale.getlocale(). English is the fallback (identity).
 # ---------------------------------------------------------------------------
-try:
-    from gettext import gettext as _
-except Exception:
-    def _(s): return s
+_lang = locale.getlocale()[0] or ""
+
+if _lang.startswith("fr"):
+    _T = {
+        "Color": "Couleur",
+        "Emblem": "Emblème",
+        "Custom color…": "Couleur personnalisée…",
+        "Black": "Noir",
+        "Blue": "Bleu",
+        "Brown": "Marron",
+        "Cyan": "Cyan",
+        "Green": "Vert",
+        "Grey": "Gris",
+        "Magenta": "Magenta",
+        "Orange": "Orange",
+        "Pink": "Rose",
+        "Purple": "Violet",
+        "Red": "Rouge",
+        "Violet": "Violette",
+        "White": "Blanc",
+        "Yellow": "Jaune",
+        "Important": "Important",
+        "In Progress": "En cours",
+        "Favorite": "Favori",
+        "Finished": "Terminé",
+        "New": "Nouveau",
+        "Default": "Par défaut",
+        "Cancel": "Annuler",
+        "Apply": "Appliquer",
+        "Color %d": "Couleur %d",
+        "Name or #hex — e.g. vermelho, Lucas": "Nom ou #hex — ex. rouge, Lucas",
+    }
+elif _lang.startswith("de"):
+    _T = {
+        "Color": "Farbe",
+        "Emblem": "Emblem",
+        "Custom color…": "Benutzerdefinierte Farbe…",
+        "Black": "Schwarz",
+        "Blue": "Blau",
+        "Brown": "Braun",
+        "Cyan": "Cyan",
+        "Green": "Grün",
+        "Grey": "Grau",
+        "Magenta": "Magenta",
+        "Orange": "Orange",
+        "Pink": "Rosa",
+        "Purple": "Lila",
+        "Red": "Rot",
+        "Violet": "Violett",
+        "White": "Weiß",
+        "Yellow": "Gelb",
+        "Important": "Wichtig",
+        "In Progress": "In Bearbeitung",
+        "Favorite": "Favorit",
+        "Finished": "Fertig",
+        "New": "Neu",
+        "Default": "Standard",
+        "Cancel": "Abbrechen",
+        "Apply": "Anwenden",
+        "Color %d": "Farbe %d",
+        "Name or #hex — e.g. vermelho, Lucas": "Name oder #hex — z.B. rot, Lucas",
+    }
+elif _lang.startswith("es"):
+    _T = {
+        "Color": "Color",
+        "Emblem": "Emblema",
+        "Custom color…": "Color personalizado…",
+        "Black": "Negro",
+        "Blue": "Azul",
+        "Brown": "Marrón",
+        "Cyan": "Cian",
+        "Green": "Verde",
+        "Grey": "Gris",
+        "Magenta": "Magenta",
+        "Orange": "Naranja",
+        "Pink": "Rosa",
+        "Purple": "Morado",
+        "Red": "Rojo",
+        "Violet": "Violeta",
+        "White": "Blanco",
+        "Yellow": "Amarillo",
+        "Important": "Importante",
+        "In Progress": "En curso",
+        "Favorite": "Favorito",
+        "Finished": "Terminado",
+        "New": "Nuevo",
+        "Default": "Predeterminado",
+        "Cancel": "Cancelar",
+        "Apply": "Aplicar",
+        "Color %d": "Color %d",
+        "Name or #hex — e.g. vermelho, Lucas": "Nombre o #hex — ej. rojo, Lucas",
+    }
+elif _lang.startswith("pt"):
+    _T = {
+        "Color": "Cor",
+        "Emblem": "Emblema",
+        "Custom color…": "Cor personalizada…",
+        "Black": "Preto",
+        "Blue": "Azul",
+        "Brown": "Marrom",
+        "Cyan": "Ciano",
+        "Green": "Verde",
+        "Grey": "Cinza",
+        "Magenta": "Magenta",
+        "Orange": "Laranja",
+        "Pink": "Rosa",
+        "Purple": "Roxo",
+        "Red": "Vermelho",
+        "Violet": "Violeta",
+        "White": "Branco",
+        "Yellow": "Amarelo",
+        "Important": "Importante",
+        "In Progress": "Em andamento",
+        "Favorite": "Favorito",
+        "Finished": "Concluído",
+        "New": "Novo",
+        "Default": "Padrão",
+        "Cancel": "Cancelar",
+        "Apply": "Aplicar",
+        "Color %d": "Cor %d",
+        "Name or #hex — e.g. vermelho, Lucas": "Nome ou #hex — ex. vermelho, Lucas",
+    }
+else:
+    _T = {}
+
+
+def _(s):
+    return _T.get(s, s)
 
 COLOR  = _("Color")
 EMBLEM = _("Emblem")
