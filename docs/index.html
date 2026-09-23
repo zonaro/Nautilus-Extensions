@@ -5,49 +5,85 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nautilus Extensions — supercharge GNOME Files</title>
 <meta name="description" content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#1e1e2e; --panel:#2a2a3e; --accent:#62a0ea; --text:#e8e8f0; --muted:#9a9ab0; }
+  :root {
+    --fedora-blue:#51a2da; --link-blue:#3c6eb4; --navy:#294172;
+    --ink:#2d3748; --muted:#4b5563; --bg:#ffffff;
+    --band:#f0f9ff; --card-border:#dcebf8;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Cantarell,sans-serif;
-         background:var(--bg); color:var(--text); line-height:1.6; }
-  header.hero { text-align:center; padding:64px 20px 40px; }
-  header.hero h1 { font-size:2.4rem; margin:.2em 0; }
-  header.hero p { color:var(--muted); max-width:640px; margin:0 auto 1.5em; }
-  .btn { display:inline-block; background:var(--accent); color:#102030; font-weight:700;
-         padding:10px 22px; border-radius:8px; text-decoration:none; margin:4px; }
-  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  main { max-width:960px; margin:0 auto; padding:0 20px 60px; }
-  section { margin:48px 0; }
-  h2 { border-bottom:2px solid var(--accent); display:inline-block; padding-bottom:4px; }
-  pre { background:#14141f; padding:14px 18px; border-radius:8px; overflow-x:auto; }
-  code { font-family:ui-monospace,Consolas,monospace; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
-  .card { background:var(--panel); border-radius:10px; padding:16px; }
-  .card h3 { margin:.2em 0 .4em; font-size:1.05rem; }
-  .card p { color:var(--muted); font-size:.92rem; margin:0; }
-  .spotlight { background:var(--panel); border-radius:12px; padding:28px; }
-  .samples { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; margin:20px 0; }
-  .sample { text-align:center; }
+  body { margin:0; font-family:"Open Sans",ui-sans-serif,system-ui,sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.6; }
+  h1,h2,h3 { font-family:Montserrat,ui-sans-serif,system-ui,sans-serif; color:var(--navy); }
+  a { color:var(--link-blue); }
+  nav.top { border-bottom:1px solid var(--card-border); background:#fff;
+            position:sticky; top:0; z-index:10; }
+  nav.top .inner { max-width:1024px; margin:0 auto; padding:12px 20px;
+                   display:flex; align-items:center; gap:22px; }
+  nav.top .brand { font-family:Montserrat,sans-serif; font-weight:800; color:var(--navy);
+                   text-decoration:none; font-size:1.05rem; margin-right:auto; }
+  nav.top .brand span { color:var(--fedora-blue); }
+  nav.top a.link { color:var(--muted); text-decoration:none; font-weight:600; font-size:.95rem; }
+  nav.top a.link:hover { color:var(--link-blue); }
+  .btn { display:inline-block; background:var(--link-blue); color:#fff; font-weight:700;
+         padding:10px 26px; border-radius:9999px; text-decoration:none; margin:4px;
+         font-family:Montserrat,sans-serif; font-size:.95rem; }
+  .btn:hover { background:var(--navy); color:#fff; }
+  .btn.ghost { background:#fff; color:var(--link-blue); border:2px solid var(--link-blue); }
+  .btn.ghost:hover { background:var(--link-blue); color:#fff; }
+  header.hero { background:var(--band); text-align:center; padding:72px 20px 56px; }
+  header.hero h1 { font-size:2.6rem; margin:.2em 0; font-weight:800; }
+  header.hero h1 span { color:var(--fedora-blue); }
+  header.hero p { color:var(--muted); max-width:660px; margin:0 auto 1.6em; font-size:1.08rem; }
+  main { max-width:1024px; margin:0 auto; padding:0 20px 60px; }
+  section { margin:52px 0; }
+  h2 { font-size:1.7rem; margin-bottom:.4em; }
+  section > p.sub { color:var(--muted); margin-top:0; }
+  pre { background:var(--navy); color:#e8eef7; padding:16px 20px; border-radius:.75rem; overflow-x:auto; }
+  code { font-family:"Source Code Pro",ui-monospace,monospace; font-size:.92em; }
+  p code, li code { background:#eef4fa; color:var(--navy); padding:1px 6px; border-radius:.375rem; }
+  .spotlight { background:var(--band); border-radius:1.5rem; padding:32px; }
+  .samples { display:flex; gap:22px; flex-wrap:wrap; justify-content:center; margin:22px 0; }
+  .sample { text-align:center; background:#fff; border:1px solid var(--card-border);
+            border-radius:1rem; padding:16px 18px 12px; }
   .sample img { width:128px; height:128px; }
-  .sample code { display:block; margin-top:6px; color:var(--muted); font-size:.85rem; }
-  ul.feat li { margin:.4em 0; }
-  footer { text-align:center; color:var(--muted); padding:30px; font-size:.9rem; }
-  a { color:var(--accent); }
+  .sample code { display:block; margin-top:8px; }
+  ul.feat { padding-left:1.2em; }
+  ul.feat li { margin:.45em 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
+  .card { background:#fff; border:1px solid var(--card-border); border-radius:1rem;
+          padding:18px; box-shadow:0 1px 3px rgba(41,65,114,.08); }
+  .card h3 { margin:.2em 0 .4em; font-size:1.02rem; }
+  .card p { color:var(--muted); font-size:.92rem; margin:0; }
+  footer { background:var(--navy); color:#cdd9ea; text-align:center; padding:34px 20px; font-size:.9rem; }
+  footer a { color:#fff; }
 </style>
 </head>
 <body>
+<nav class="top">
+  <div class="inner">
+    <a class="brand" href="#">🐚 Nautilus <span>Extensions</span></a>
+    <a class="link" href="#install">Install</a>
+    <a class="link" href="#spotlight">Folder Color</a>
+    <a class="link" href="#extensions">Extensions</a>
+    <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
+  </div>
+</nav>
 <header class="hero">
-  <h1>🐚 Nautilus Extensions</h1>
-  <p>Productivity-focused Python extensions for <strong>GNOME Files</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
-  <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
-  <a class="btn ghost" href="#install">Install</a>
+  <h1>Supercharge <span>GNOME Files</span></h1>
+  <p>Productivity-focused Python extensions for <strong>Nautilus</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
+  <a class="btn" href="#install">Get Started</a>
+  <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions">View Source</a>
 </header>
 <main>
   <section id="install">
     <h2>Install</h2>
-    <p>Fedora / GNOME (Nautilus 46+, GTK4) — one line, no manual clone:</p>
+    <p class="sub">Fedora / GNOME (Nautilus 46+, GTK4) — one line, no manual clone:</p>
     <pre><code>curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash</code></pre>
-    <p>Or clone first:</p>
+    <p class="sub">Or clone first:</p>
     <pre><code>git clone https://github.com/zonaro/Nautilus-Extensions.git
 cd Nautilus-Extensions
 ./install.sh
@@ -76,6 +112,7 @@ nautilus -q</code></pre>
 
   <section id="extensions">
     <h2>All extensions</h2>
+    <p class="sub">18 extensions, one install. Everything runs locally — no telemetry.</p>
     <div class="grid">
       <div class="card"><h3>🗂️ Dual Panel</h3><p>Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div>
       <div class="card"><h3>🧭 Column Browser</h3><p>Miller-columns Finder-style browser (F9), threaded loading.</p></div>
@@ -99,7 +136,7 @@ nautilus -q</code></pre>
   </section>
 </main>
 <footer>
-  Made with ❤️ for GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
+  Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
   (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
 </footer>
 </body>
