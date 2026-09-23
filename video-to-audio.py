@@ -91,6 +91,52 @@ elif _lang.startswith("de"):
         "choose":       "Wählen…",
         "same_as_src":  "Gleicher Ordner wie Quelle",
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":   "Extraer audio",
+        "title":        "Extracción de audio",
+        "format":       "Formato",
+        "quality":      "Calidad",
+        "quality_high": "Alta (320 kbps)",
+        "quality_med":  "Media (192 kbps)",
+        "quality_low":  "Baja (128 kbps)",
+        "quality_copy": "Copiar flujo (sin recodificar)",
+        "convert":      "Extraer",
+        "cancel":       "Cancelar",
+        "close":        "Cerrar",
+        "processing":   "Extrayendo…",
+        "file_done":    "✓ {name}",
+        "file_error":   "✗ {name}",
+        "all_done":     "Extracción terminada — {ok} de {total} correctas.",
+        "cancelled":    "Extracción cancelada.",
+        "overwrite":    "El archivo ya existe — se sobrescribirá.",
+        "dest_folder":  "Destino",
+        "choose":       "Elegir…",
+        "same_as_src":  "Misma carpeta que el origen",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":   "Extrair áudio",
+        "title":        "Extração de áudio",
+        "format":       "Formato",
+        "quality":      "Qualidade",
+        "quality_high": "Alta (320 kbps)",
+        "quality_med":  "Média (192 kbps)",
+        "quality_low":  "Baixa (128 kbps)",
+        "quality_copy": "Copiar fluxo (sem recodificar)",
+        "convert":      "Extrair",
+        "cancel":       "Cancelar",
+        "close":        "Fechar",
+        "processing":   "Extraindo…",
+        "file_done":    "✓ {name}",
+        "file_error":   "✗ {name}",
+        "all_done":     "Extração concluída — {ok} de {total} com sucesso.",
+        "cancelled":    "Extração cancelada.",
+        "overwrite":    "O arquivo já existe — será sobrescrito.",
+        "dest_folder":  "Destino",
+        "choose":       "Escolher…",
+        "same_as_src":  "Mesma pasta da origem",
+    }
 else:
     T = {
         "menu_label":   "Extract audio",
@@ -298,6 +344,8 @@ class VideoToAudioWindow(Adw.Window):
         # ── Liste des fichiers ────────────────────────────────────────────────
         files_label = Gtk.Label()
         files_label.set_markup(f"<b>{len(video_files)} fichier(s)</b>" if _lang.startswith("fr")
+                               else f"<b>{len(video_files)} archivo(s)</b>" if _lang.startswith("es")
+                               else f"<b>{len(video_files)} arquivo(s)</b>" if _lang.startswith("pt")
                                else f"<b>{len(video_files)} file(s)</b>")
         files_label.set_halign(Gtk.Align.START)
         files_label.set_margin_start(16); files_label.set_margin_end(16)
