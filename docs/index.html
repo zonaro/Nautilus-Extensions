@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nautilus Extensions — supercharge GNOME Files</title>
+<meta name="description" content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
+<style>
+  :root { --bg:#1e1e2e; --panel:#2a2a3e; --accent:#62a0ea; --text:#e8e8f0; --muted:#9a9ab0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Cantarell,sans-serif;
+         background:var(--bg); color:var(--text); line-height:1.6; }
+  header.hero { text-align:center; padding:64px 20px 40px; }
+  header.hero h1 { font-size:2.4rem; margin:.2em 0; }
+  header.hero p { color:var(--muted); max-width:640px; margin:0 auto 1.5em; }
+  .btn { display:inline-block; background:var(--accent); color:#102030; font-weight:700;
+         padding:10px 22px; border-radius:8px; text-decoration:none; margin:4px; }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  main { max-width:960px; margin:0 auto; padding:0 20px 60px; }
+  section { margin:48px 0; }
+  h2 { border-bottom:2px solid var(--accent); display:inline-block; padding-bottom:4px; }
+  pre { background:#14141f; padding:14px 18px; border-radius:8px; overflow-x:auto; }
+  code { font-family:ui-monospace,Consolas,monospace; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .card { background:var(--panel); border-radius:10px; padding:16px; }
+  .card h3 { margin:.2em 0 .4em; font-size:1.05rem; }
+  .card p { color:var(--muted); font-size:.92rem; margin:0; }
+  .spotlight { background:var(--panel); border-radius:12px; padding:28px; }
+  .samples { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; margin:20px 0; }
+  .sample { text-align:center; }
+  .sample img { width:128px; height:128px; }
+  .sample code { display:block; margin-top:6px; color:var(--muted); font-size:.85rem; }
+  ul.feat li { margin:.4em 0; }
+  footer { text-align:center; color:var(--muted); padding:30px; font-size:.9rem; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>🐚 Nautilus Extensions</h1>
+  <p>Productivity-focused Python extensions for <strong>GNOME Files</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
+  <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
+  <a class="btn ghost" href="#install">Install</a>
+</header>
+<main>
+  <section id="install">
+    <h2>Install</h2>
+    <p>Fedora / GNOME (Nautilus 46+, GTK4):</p>
+    <pre><code>git clone https://github.com/zonaro/Nautilus-Extensions.git
+cd Nautilus-Extensions
+./install.sh
+nautilus -q</code></pre>
+  </section>
+
+  <section id="spotlight">
+    <h2>🎨 Featured: Folder Color Revival + infinite colors</h2>
+    <div class="spotlight">
+      <p>The classic folder colorizer, revived for modern Nautilus — now with <strong>infinite custom colors</strong> powered by an embedded <a href="https://github.com/zonaro/NameToColor">NameToColor</a> engine (2254 named colors + pt-BR, deterministic hash for any word).</p>
+      <div class="samples">
+        <div class="sample"><img src="assets/folder-vermelho.svg" alt="red folder"><code>vermelho</code></div>
+        <div class="sample"><img src="assets/folder-lucas.svg" alt="olive folder"><code>Lucas</code></div>
+        <div class="sample"><img src="assets/folder-azul-branco.svg" alt="blue and white folder"><code>azul;branco</code></div>
+        <div class="sample"><img src="assets/folder-verde-limao.svg" alt="lime folder"><code>verde-limão puro</code></div>
+      </div>
+      <ul class="feat">
+        <li><strong>Custom color… dialog</strong> — type any name, hex or <code>rgb()</code>, with a live preview of your actual theme icon and a color picker per element.</li>
+        <li><strong>One or two colors</strong> (<code>name1;name2</code>) — back tab and front flap tinted independently; complex theme icons get one field per shape.</li>
+        <li><strong>Theme-aware</strong> — desaturates and tints your current theme's own folder icon (SVG or PNG); falls back gracefully.</li>
+        <li><strong>Built-ins unified</strong> — the 14 classic colors go through the exact same pipeline.</li>
+        <li>Emblems, per-XDG special icons, restore-to-default, lazy theme loading.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="extensions">
+    <h2>All extensions</h2>
+    <div class="grid">
+      <div class="card"><h3>🗂️ Dual Panel</h3><p>Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div>
+      <div class="card"><h3>🧭 Column Browser</h3><p>Miller-columns Finder-style browser (F9), threaded loading.</p></div>
+      <div class="card"><h3>⚙️ Extensions Manager</h3><p>Enable/disable extensions on the fly.</p></div>
+      <div class="card"><h3>🗜️ Archive Browser</h3><p>Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div>
+      <div class="card"><h3>📦 Extract Here</h3><p>One-click extraction with progress dialog.</p></div>
+      <div class="card"><h3>🎨 Annotate Image</h3><p>Arrows, shapes, text on PNG/JPG without GIMP.</p></div>
+      <div class="card"><h3>🗜️ Compress PDF</h3><p>Ghostscript presets with before/after sizes.</p></div>
+      <div class="card"><h3>🔗 Merge PDF</h3><p>Reorder pages and merge with drag &amp; drop.</p></div>
+      <div class="card"><h3>🔏 Watermark PDF</h3><p>Text/image watermarks with flattening.</p></div>
+      <div class="card"><h3>🔍 Preview Panel</h3><p>Side preview for images, video, PDF, text (F4).</p></div>
+      <div class="card"><h3>📦 Deb Installer</h3><p>Visual .deb installer with dependency check.</p></div>
+      <div class="card"><h3>🔎 Search &amp; Replace</h3><p>grep/ripgrep content search + replace with preview (F8).</p></div>
+      <div class="card"><h3>🎵 Video to Audio</h3><p>Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div>
+      <div class="card"><h3>⏱️ Duration Column</h3><p>Sortable HH:MM:SS column for audio/video.</p></div>
+      <div class="card"><h3>✂️ Cut Item Dimmer</h3><p>Dims Ctrl+X items so you don't forget them.</p></div>
+      <div class="card"><h3>✏️ Edit with Gedit</h3><p>One-click open text files in Gedit.</p></div>
+      <div class="card"><h3>📁 Folder Color Revival</h3><p>Color &amp; emblem tagging + infinite custom colors.</p></div>
+      <div class="card"><h3>👁️ Hidden Dim</h3><p>Dim hidden files' icons (or icon+label).</p></div>
+    </div>
+  </section>
+</main>
+<footer>
+  Made with ❤️ for GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
+  (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
+</footer>
+</body>
+</html>
