@@ -35,7 +35,7 @@ en: {
   c13h: "🎵 Video to Audio", c13p: "Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.",
   c14h: "⏱️ Duration Column", c14p: "Sortable HH:MM:SS column for audio/video.",
   c15h: "✂️ Cut Item Dimmer", c15p: "Dims Ctrl+X items so you don't forget them.",
-  c16h: "✏️ Edit with Gedit", c16p: "One-click open text files in Gedit.",
+  c16h: "✏️ Edit With", c16p: "Open text files with any installed editor (A–Z).",
   c17h: "📁 Folder Color Revival", c17p: "Color &amp; emblem tagging + infinite custom colors.",
   c18h: "👁️ Hidden Dim", c18p: "Dim hidden files' icons (or icon+label).",
   foot: 'Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
@@ -75,7 +75,7 @@ fr: {
   c13h: "🎵 Vidéo vers audio", c13p: "Extraction par lots vers MP3/M4A/OGG/OPUS/FLAC/WAV.",
   c14h: "⏱️ Colonne durée", c14p: "Colonne HH:MM:SS triable pour audio/vidéo.",
   c15h: "✂️ Atténuer le couper", c15p: "Atténue les éléments Ctrl+X pour ne pas les oublier.",
-  c16h: "✏️ Ouvrir dans Gedit", c16p: "Ouvrez les fichiers texte dans Gedit en un clic.",
+  c16h: "✏️ Ouvrir avec", c16p: "Ouvrez les textes avec l'éditeur de votre choix (A–Z).",
   c17h: "📁 Folder Color Revival", c17p: "Étiquetage couleur &amp; emblèmes + couleurs infinies.",
   c18h: "👁️ Atténuer cachés", c18p: "Atténue les icônes (ou icône+label) des fichiers cachés.",
   foot: 'Fait avec 💙 pour Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
@@ -115,7 +115,7 @@ de: {
   c13h: "🎵 Video zu Audio", c13p: "Stapelextraktion nach MP3/M4A/OGG/OPUS/FLAC/WAV.",
   c14h: "⏱️ Dauer-Spalte", c14p: "Sortierbare HH:MM:SS-Spalte für Audio/Video.",
   c15h: "✂️ Ausschneiden dimmen", c15p: "Dimmt Ctrl+X-Elemente, damit man sie nicht vergisst.",
-  c16h: "✏️ In Gedit öffnen", c16p: "Textdateien per Klick in Gedit öffnen.",
+  c16h: "✏️ Öffnen mit", c16p: "Texte mit beliebigem Editor öffnen (A–Z).",
   c17h: "📁 Folder Color Revival", c17p: "Farb- &amp; Emblem-Markierung + unendliche Farben.",
   c18h: "👁️ Versteckt dimmen", c18p: "Dimmt Symbole (oder Symbol+Label) versteckter Dateien.",
   foot: 'Mit 💙 für Fedora &amp; GNOME gemacht · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (Fork von <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
@@ -155,7 +155,7 @@ de: {
   c13h: "🎵 Vídeo para áudio", c13p: "Extração em lote para MP3/M4A/OGG/OPUS/FLAC/WAV.",
   c14h: "⏱️ Coluna de duração", c14p: "Coluna HH:MM:SS ordenável para áudio/vídeo.",
   c15h: "✂️ Escurecer recorte", c15p: "Escurece itens Ctrl+X pra você não esquecer.",
-  c16h: "✏️ Abrir no Gedit", c16p: "Abra textos no Gedit com um clique.",
+  c16h: "✏️ Editar com", c16p: "Abra textos com qualquer editor instalado (A–Z).",
   c17h: "📁 Folder Color Revival", c17p: "Marcação por cor e emblemas + cores infinitas.",
   c18h: "👁️ Escurecer ocultos", c18p: "Escurece ícones (ou ícone+rótulo) de arquivos ocultos.",
   foot: 'Feito com 💙 para Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
@@ -195,7 +195,7 @@ es: {
   c13h: "🎵 Vídeo a audio", c13p: "Extracción por lotes a MP3/M4A/OGG/OPUS/FLAC/WAV.",
   c14h: "⏱️ Columna de duración", c14p: "Columna HH:MM:SS ordenable para audio/vídeo.",
   c15h: "✂️ Atenuar recorte", c15p: "Atenúa los elementos Ctrl+X para no olvidarlos.",
-  c16h: "✏️ Abrir en Gedit", c16p: "Abre textos en Gedit con un clic.",
+  c16h: "✏️ Abrir con", c16p: "Abre textos con cualquier editor instalado (A–Z).",
   c17h: "📁 Folder Color Revival", c17p: "Marcado por color y emblemas + colores infinitos.",
   c18h: "👁️ Atenuar ocultos", c18p: "Atenúa iconos (o icono+etiqueta) de archivos ocultos.",
   foot: 'Hecho con 💙 para Fedora y GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
