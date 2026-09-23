@@ -62,6 +62,40 @@ if _lang.startswith("fr"):
         "no_disabled":  "Aucune extension désactivée",
         "restart_warn": "⚠ Redémarrer Nautilus fermera toutes les fenêtres.",
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":   "Gestionar extensiones",
+        "title":        "Gestor de extensiones",
+        "active":       "Activas",
+        "disabled":     "Desactivadas",
+        "enable":       "Activar",
+        "disable":      "Desactivar",
+        "restart":      "Reiniciar Nautilus",
+        "restart_msg":  "Nautilus se reiniciará para aplicar los cambios.",
+        "confirm":      "Confirmar",
+        "cancel":       "Cancelar",
+        "this_ext":     "(este gestor)",
+        "no_active":    "Ninguna extensión activa",
+        "no_disabled":  "Ninguna extensión desactivada",
+        "restart_warn": "⚠ Reiniciar Nautilus cerrará todas las ventanas.",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":   "Gerenciar extensões",
+        "title":        "Gerenciador de extensões",
+        "active":       "Ativas",
+        "disabled":     "Desativadas",
+        "enable":       "Ativar",
+        "disable":      "Desativar",
+        "restart":      "Reiniciar o Nautilus",
+        "restart_msg":  "O Nautilus será reiniciado para aplicar as alterações.",
+        "confirm":      "Confirmar",
+        "cancel":       "Cancelar",
+        "this_ext":     "(este gerenciador)",
+        "no_active":    "Nenhuma extensão ativa",
+        "no_disabled":  "Nenhuma extensão desativada",
+        "restart_warn": "⚠ Reiniciar o Nautilus fechará todas as janelas.",
+    }
 else:
     T = {
         "menu_label":   "Manage extensions",

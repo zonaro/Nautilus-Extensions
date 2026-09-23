@@ -64,6 +64,36 @@ if _lang.startswith("fr"):
         "cancel":         "Annuler",
         "ok":             "Extraire",
     }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label":     "Extraer aquí…",
+        "menu_label_vol": "Extraer volumen aquí…",
+        "title":          "Extracción",
+        "extracting":     "Extrayendo…",
+        "done_msg":       "Extraído en: {dst}",
+        "err_7z":         "p7zip no encontrado.\nInstálelo con:\nsudo apt install p7zip-full",
+        "err_failed":     "La extracción falló (código {code})",
+        "err_password":   "Contraseña incorrecta o archivo dañado.",
+        "password_label": "Contraseña (dejar vacío si no tiene):",
+        "volumes_found":  "{n} parte(s) detectada(s) — extrayendo automáticamente.",
+        "cancel":         "Cancelar",
+        "ok":             "Extraer",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label":     "Extrair aqui…",
+        "menu_label_vol": "Extrair volume aqui…",
+        "title":          "Extração",
+        "extracting":     "Extraindo…",
+        "done_msg":       "Extraído para: {dst}",
+        "err_7z":         "p7zip não encontrado.\nInstale com:\nsudo apt install p7zip-full",
+        "err_failed":     "A extração falhou (código {code})",
+        "err_password":   "Senha incorreta ou arquivo corrompido.",
+        "password_label": "Senha (deixe vazio se não houver):",
+        "volumes_found":  "{n} parte(s) detectada(s) — extraindo automaticamente.",
+        "cancel":         "Cancelar",
+        "ok":             "Extrair",
+    }
 else:
     T = {
         "menu_label":     "Extract here…",

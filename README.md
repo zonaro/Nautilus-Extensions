@@ -80,7 +80,7 @@ nautilus -q
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
-> 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪**.
+> 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**.
 
 ---
 
