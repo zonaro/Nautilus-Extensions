@@ -113,72 +113,143 @@ def _folder_svg(hex_color, hex_color2=None):
 
 def _current_theme_name():
     try:
+        theme = Gio.Settings.new("org.gnome.desktop.interface").get_string("icon-theme")
+        if theme:
+            return theme
+    except Exception:
+        pass
+    try:
         return Gtk.Settings.get_default().get_property("gtk-icon-theme-name") or "hicolor"
     except Exception:
         return "hicolor"
 
 
 def _theme_folder_svg_text():
-    """Raw SVG text of the current theme's 'folder' icon, or ''."""
-    try:
-        display = Gdk.Display.get_default()
-        if display is None:
-            return ""
-        icon_theme = Gtk.IconTheme.get_for_display(display)
-        paintable = icon_theme.lookup_icon(
-            "folder", None, 128, 1,
-            Gtk.TextDirection.LTR, Gtk.IconLookupFlags.FORCE_REGULAR,
-        )
-        if paintable is None:
-            return ""
-        gfile = paintable.get_file()
-        if gfile is None:
-            return ""
-        path = gfile.get_path()
-        if not path or not path.lower().endswith(".svg"):
-            return ""
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            return f.read()
-    except Exception as e:
-        log.error(f"theme folder svg: {e}")
-        return ""
+    """Raw SVG text of the CURRENT theme's 'folder' icon, or ''.
 
-
-def _any_folder_svg_text():
-    """Theme SVG if available, else first folder.svg from any installed theme."""
-    svg = _theme_folder_svg_text()
-    if svg:
-        return svg
-    bases = [os.path.join(str(Path.home()), ".icons"),
-             os.path.join(str(Path.home()), ".local", "share", "icons"),
-             "/usr/local/share/icons",
-             "/usr/share/icons"]
-    candidates = []
-    try:
-        for base in bases:
-            if not os.path.isdir(base):
+    Filesystem lookup inside the current theme dirs only — never the
+    display fallback chain (which would silently return another theme).
+    """
+    for theme_dir in _theme_dir_candidates(_current_theme_name()):
+        scalable = os.path.join(theme_dir, "scalable", "places", "folder.svg")
+        if os.path.isfile(scalable):
+            try:
+                with open(scalable, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                if "<svg" in text:
+                    return text
+            except Exception:
                 continue
-            for theme in sorted(os.listdir(base)):
-                scalable = os.path.join(base, theme, "scalable", "places", "folder.svg")
-                if os.path.isfile(scalable):
-                    candidates.append(scalable)
-                places = os.path.join(base, theme, "places")
-                if os.path.isdir(places):
-                    for size in sorted(os.listdir(places), reverse=True):
-                        sized = os.path.join(places, size, "folder.svg")
-                        if os.path.isfile(sized):
-                            candidates.append(sized)
-    except Exception as e:
-        log.error(f"theme scan: {e}")
-    for path in candidates:
+        places = os.path.join(theme_dir, "places")
+        if not os.path.isdir(places):
+            continue
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-            if "<svg" in text:
-                return text
+            sizes = sorted(os.listdir(places), reverse=True)
         except Exception:
             continue
+        for size in sizes:
+            sized = os.path.join(places, size, "folder.svg")
+            if os.path.isfile(sized):
+                try:
+                    with open(sized, "r", encoding="utf-8", errors="replace") as f:
+                        text = f.read()
+                    if "<svg" in text:
+                        return text
+                except Exception:
+                    continue
     return ""
+
+
+def _icon_base_dirs():
+    return [os.path.join(str(Path.home()), ".icons"),
+            os.path.join(str(Path.home()), ".local", "share", "icons"),
+            "/usr/local/share/icons",
+            "/usr/share/icons"]
+
+
+def _current_theme_png_path():
+    """A colored folder PNG variant from the CURRENT theme dirs, or ''."""
+    for theme_dir in _theme_dir_candidates(_current_theme_name()):
+        found = _find_variant_png(theme_dir)
+        if found:
+            return found
+    return ""
+
+
+def _theme_dir_candidates(theme):
+    """Existing directories for a theme name across icon base dirs."""
+    found = []
+    for base in _icon_base_dirs():
+        path = os.path.join(base, theme)
+        if os.path.isdir(path):
+            found.append(path)
+    return found
+
+
+def _find_variant_png(theme_dir):
+    """Largest plain 'folder-<color>.png' variant inside a theme dir."""
+    best = None
+    best_key = (-1, "")
+    try:
+        for root, _dirs, files in os.walk(theme_dir):
+            if os.path.basename(root) != "places" and "places" not in root.split(os.sep):
+                continue
+            size = 0
+            parent = os.path.basename(os.path.dirname(root))
+            if "x" in parent:
+                try:
+                    size = int(parent.split("x")[0])
+                except ValueError:
+                    pass
+            elif os.path.basename(root) == "scalable" or parent == "scalable":
+                size = 10000
+            for name in files:
+                if not name.startswith("folder-") or not name.endswith(".png"):
+                    continue
+                stem = name[len("folder-"):-len(".png")]
+                single = "-" not in stem
+                key = (size + (50000 if single else 0), name)
+                full = os.path.join(root, name)
+                if key > best_key:
+                    best_key = key
+                    best = full
+    except Exception as e:
+        log.error(f"variant scan: {e}")
+    return best
+
+
+def _current_theme_png_path():
+    """A colored folder PNG variant from the CURRENT theme dirs, or ''."""
+    for theme_dir in _theme_dir_candidates(_current_theme_name()):
+        found = _find_variant_png(theme_dir)
+        if found:
+            return found
+    return ""
+
+
+def _tint_png_file(path, hex_color):
+    """Desaturate a PNG icon to gray, then multiply-tint. Returns PNG bytes."""
+    try:
+        from PIL import Image
+    except Exception as e:
+        log.error(f"PIL unavailable: {e}")
+        return b""
+    try:
+        target = str(hex_color).lstrip("#")[:6].lower()
+        tr, tg, tb = (int(target[i:i + 2], 16) for i in (0, 2, 4))
+        img = Image.open(path).convert("RGBA")
+        gray = img.convert("L")
+        r = gray.point(lambda v: v * tr // 255)
+        g = gray.point(lambda v: v * tg // 255)
+        b = gray.point(lambda v: v * tb // 255)
+        tinted = Image.merge("RGBA", (r, g, b, img.split()[3]))
+        import io
+        buffer = io.BytesIO()
+        tinted.save(buffer, format="PNG")
+        return buffer.getvalue()
+    except Exception as e:
+        log.error(f"tint png: {e}")
+        return b""
 
 
 def _luminance(hex_color):
@@ -309,12 +380,12 @@ def _split_color_spec(spec):
 
 
 def _ensure_custom_icon(spec):
-    """Write (if needed) and return the file:// URI of the cached SVG icon.
+    """Write (if needed) and return the file:// URI of the cached icon.
 
-    spec is '#rrggbb' or '#rrggbb;#rrggbb' (back;front). Preferred: current
-    theme's folder icon, desaturated + tinted. Fallback: generic folder.
-    Filename embeds theme + colors so the Nautilus icon cache (keyed by
-    URI) stays correct across theme switches.
+    spec is '#rrggbb[;#rrggbb...]'. Sources in order: theme folder SVG
+    (multi-tint) -> theme folder PNG variant (whole-icon tint) -> generic
+    folder (first color). Filename embeds theme + colors + extension so
+    the Nautilus icon cache (keyed by URI) stays correct.
     """
     parts = _split_color_spec(spec)
     if not parts:
@@ -322,20 +393,36 @@ def _ensure_custom_icon(spec):
     slug = "-".join(parts)
     theme = re.sub(r"[^a-z0-9-]+", "",
                    str(_current_theme_name()).lower().replace("_", "-"))
-    path = os.path.join(_custom_cache_dir(), f"folder-{theme}-{slug}.svg")
+    theme_svg = _theme_folder_svg_text()
+    variant_png = "" if theme_svg else _current_theme_png_path()
+    ext = ".svg" if (theme_svg or not variant_png) else ".png"
+    path = os.path.join(_custom_cache_dir(), f"folder-{theme}-{slug}{ext}")
     if not os.path.exists(path):
-        svg = ""
-        theme_svg = _any_folder_svg_text()
+        data = None
         if theme_svg:
             svg = _tint_svg_multi(theme_svg, parts)
-        if not svg:
-            svg = _folder_svg(parts[0])
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(svg)
-        except Exception as e:
-            log.error(f"custom icon write: {e}")
-            return ""
+            if svg:
+                data = svg.encode("utf-8")
+        elif variant_png:
+            data = _tint_png_file(variant_png, parts[0]) or None
+        if data is None:
+            path = os.path.join(_custom_cache_dir(), f"folder-{theme}-{slug}.svg")
+            if not os.path.exists(path):
+                data = _folder_svg(parts[0]).encode("utf-8")
+        if data is not None and not os.path.exists(path):
+            try:
+                with open(path, "wb") as f:
+                    f.write(data)
+            except Exception as e:
+                log.error(f"custom icon write: {e}")
+                return ""
+    if not os.path.exists(path):
+        return ""
+    try:
+        return Gio.File.new_for_path(path).get_uri()
+    except Exception as e:
+        log.error(f"custom icon uri: {e}")
+        return ""
     try:
         return Gio.File.new_for_path(path).get_uri()
     except Exception as e:
@@ -781,7 +868,8 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
     def _show_custom_color_dialog(self, paths):
         """Modal dialog: one name entry + color picker per icon shape."""
         sample = os.path.basename(paths[0].rstrip("/")) or paths[0]
-        theme_svg = _any_folder_svg_text()
+        theme_svg = _theme_folder_svg_text()
+        variant_png = "" if theme_svg else _current_theme_png_path()
         _root, shapes = _svg_shapes(theme_svg) if theme_svg else (None, [])
         row_count = len(shapes) if shapes else 1
         state = {"hexes": ["#808080"] * row_count}
@@ -861,15 +949,21 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         def draw_preview(*_args):
             """Render the real (themed, tinted) icon into the preview image."""
             parts = [h.lstrip("#") for h in state["hexes"]]
-            svg = ""
+            data = None
             if theme_svg:
                 svg = _tint_svg_multi(theme_svg, parts)
-            if not svg:
-                svg = _folder_svg(parts[0])
-            preview_path = os.path.join(_custom_cache_dir(), "folder-preview.svg")
+                if svg:
+                    data = svg.encode("utf-8")
+            elif variant_png:
+                data = _tint_png_file(variant_png, parts[0]) or None
+            if data is None:
+                data = _folder_svg(parts[0]).encode("utf-8")
+            preview_ext = ".png" if (variant_png and not theme_svg) else ".svg"
+            preview_path = os.path.join(
+                _custom_cache_dir(), "folder-preview" + preview_ext)
             try:
-                with open(preview_path, "w", encoding="utf-8") as f:
-                    f.write(svg)
+                with open(preview_path, "wb") as f:
+                    f.write(data)
                 preview.set_from_file(preview_path)
             except Exception as e:
                 log.error(f"custom color preview: {e}")
