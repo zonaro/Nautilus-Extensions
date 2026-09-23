@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nautilus Extensions — boostez GNOME Files</title>
+<meta name="description" content="Extensions Python productives pour Nautilus (GNOME Files) : double panneau, couleurs de dossiers, outils d'archives, outils PDF et plus.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fedora-blue:#51a2da; --link-blue:#3c6eb4; --navy:#294172;
+    --ink:#2d3748; --muted:#4b5563; --bg:#ffffff;
+    --band:#f0f9ff; --card-border:#dcebf8;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Open Sans",ui-sans-serif,system-ui,sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.6; }
+  h1,h2,h3 { font-family:Montserrat,ui-sans-serif,system-ui,sans-serif; color:var(--navy); }
+  a { color:var(--link-blue); }
+  nav.top { border-bottom:1px solid var(--card-border); background:#fff;
+            position:sticky; top:0; z-index:10; }
+  nav.top .inner { max-width:1024px; margin:0 auto; padding:12px 20px;
+                   display:flex; align-items:center; gap:22px; }
+  nav.top .brand { font-family:Montserrat,sans-serif; font-weight:800; color:var(--navy);
+                   text-decoration:none; font-size:1.05rem; margin-right:auto; }
+  nav.top .brand span { color:var(--fedora-blue); }
+  nav.top a.link { color:var(--muted); text-decoration:none; font-weight:600; font-size:.95rem; }
+  nav.top a.link:hover { color:var(--link-blue); }
+  nav.top .langs { font-size:.9rem; color:var(--muted); }
+  nav.top .langs a { text-decoration:none; font-weight:700; }
+  nav.top .langs strong { color:var(--navy); }
+  .btn { display:inline-block; background:var(--link-blue); color:#fff; font-weight:700;
+         padding:10px 26px; border-radius:9999px; text-decoration:none; margin:4px;
+         font-family:Montserrat,sans-serif; font-size:.95rem; }
+  .btn:hover { background:var(--navy); color:#fff; }
+  .btn.ghost { background:#fff; color:var(--link-blue); border:2px solid var(--link-blue); }
+  .btn.ghost:hover { background:var(--link-blue); color:#fff; }
+  header.hero { background:var(--band); text-align:center; padding:72px 20px 56px; }
+  header.hero h1 { font-size:2.6rem; margin:.2em 0; font-weight:800; }
+  header.hero h1 span { color:var(--fedora-blue); }
+  header.hero p { color:var(--muted); max-width:660px; margin:0 auto 1.6em; font-size:1.08rem; }
+  main { max-width:1024px; margin:0 auto; padding:0 20px 60px; }
+  section { margin:52px 0; }
+  h2 { font-size:1.7rem; margin-bottom:.4em; }
+  section > p.sub { color:var(--muted); margin-top:0; }
+  pre { background:var(--navy); color:#e8eef7; padding:16px 20px; border-radius:.75rem; overflow-x:auto; }
+  code { font-family:"Source Code Pro",ui-monospace,monospace; font-size:.92em; }
+  p code, li code { background:#eef4fa; color:var(--navy); padding:1px 6px; border-radius:.375rem; }
+  .spotlight { background:var(--band); border-radius:1.5rem; padding:32px; }
+  .samples { display:flex; gap:22px; flex-wrap:wrap; justify-content:center; margin:22px 0; }
+  .sample { text-align:center; background:#fff; border:1px solid var(--card-border);
+            border-radius:1rem; padding:16px 18px 12px; }
+  .sample img { width:128px; height:128px; }
+  .sample code { display:block; margin-top:8px; }
+  ul.feat { padding-left:1.2em; }
+  ul.feat li { margin:.45em 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
+  .card { background:#fff; border:1px solid var(--card-border); border-radius:1rem;
+          padding:18px; box-shadow:0 1px 3px rgba(41,65,114,.08); }
+  .card h3 { margin:.2em 0 .4em; font-size:1.02rem; }
+  .card p { color:var(--muted); font-size:.92rem; margin:0; }
+  footer { background:var(--navy); color:#cdd9ea; text-align:center; padding:34px 20px; font-size:.9rem; }
+  footer a { color:#fff; }
+</style>
+</head>
+<body>
+<nav class="top">
+  <div class="inner">
+    <a class="brand" href="#">🐚 Nautilus <span>Extensions</span></a>
+    <a class="link" href="#install">Installer</a>
+    <a class="link" href="#spotlight">Couleur de dossier</a>
+    <a class="link" href="#extensions">Extensions</a>
+    <span class="langs"><strong>FR</strong> · <a href="../">EN</a> · <a href="../de/">DE</a></span>
+    <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
+  </div>
+</nav>
+<header class="hero">
+  <h1>Boostez <span>GNOME Files</span></h1>
+  <p>Des extensions Python axées productivité pour <strong>Nautilus</strong> — double panneau, coloration des dossiers, explorateur d'archives, outils PDF, helpers média et plus. Là où il faut : le menu contextuel.</p>
+  <a class="btn" href="#install">Commencer</a>
+  <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions">Voir le code</a>
+</header>
+<main>
+  <section id="install">
+    <h2>Installer</h2>
+    <p class="sub">Fedora / GNOME (Nautilus 46+, GTK4) — une ligne, sans clonage manuel :</p>
+    <pre><code>curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash</code></pre>
+    <p class="sub">Ou clonez d'abord :</p>
+    <pre><code>git clone https://github.com/zonaro/Nautilus-Extensions.git
+cd Nautilus-Extensions
+./install.sh
+nautilus -q</code></pre>
+  </section>
+
+  <section id="spotlight">
+    <h2>🎨 En vedette : Folder Color Revival + couleurs infinies</h2>
+    <div class="spotlight">
+      <p>Le colorateur de dossiers classique, relancé pour Nautilus moderne — avec des <strong>couleurs personnalisées infinies</strong> grâce au moteur <a href="https://github.com/zonaro/NameToColor">NameToColor</a> intégré (2254 couleurs nommées + pt-BR, hachage déterministe pour tout mot).</p>
+      <div class="samples">
+        <div class="sample"><img src="../assets/folder-vermelho.svg" alt="dossier rouge"><code>vermelho</code></div>
+        <div class="sample"><img src="../assets/folder-lucas.svg" alt="dossier olive"><code>Lucas</code></div>
+        <div class="sample"><img src="../assets/folder-azul-branco.svg" alt="dossier bleu et blanc"><code>azul;branco</code></div>
+        <div class="sample"><img src="../assets/folder-verde-limao.svg" alt="dossier citron vert"><code>verde-limão puro</code></div>
+      </div>
+      <ul class="feat">
+        <li><strong>Dialogue Custom color…</strong> — saisissez un nom, un hex ou <code>rgb()</code>, avec aperçu en direct de votre icône de thème et un sélecteur par élément.</li>
+        <li><strong>Une ou deux couleurs</strong> (<code>nom1;nom2</code>) — onglet arrière et rabat avant teintés séparément ; les icônes complexes ont un champ par forme.</li>
+        <li><strong>Respect du thème</strong> — désature et teinte l'icône de dossier de votre thème (SVG ou PNG) ; repli gracieux.</li>
+        <li><strong>Unifié</strong> — les 14 couleurs classiques passent par le même pipeline.</li>
+        <li>Emblèmes, icônes spéciales XDG, restauration, chargement paresseux du thème.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="extensions">
+    <h2>Toutes les extensions</h2>
+    <p class="sub">18 extensions, une installation. Tout tourne en local — aucune télémétrie.</p>
+    <div class="grid">
+      <div class="card"><h3>🗂️ Double panneau</h3><p>Gestionnaire double panneau dans Nautilus (F3), progression rsync, glisser-déposer.</p></div>
+      <div class="card"><h3>🧭 Navigateur en colonnes</h3><p>Colonnes Miller style Finder (F9), chargement parallélisé.</p></div>
+      <div class="card"><h3>⚙️ Gestionnaire d'extensions</h3><p>Activez/désactivez les extensions à la volée.</p></div>
+      <div class="card"><h3>🗜️ Explorateur d'archives</h3><p>Naviguez, extrayez et créez des archives, multi-volumes et mots de passe (F7).</p></div>
+      <div class="card"><h3>📦 Extraire ici</h3><p>Extraction en un clic avec dialogue de progression.</p></div>
+      <div class="card"><h3>🎨 Annoter image</h3><p>Flèches, formes, texte sur PNG/JPG sans GIMP.</p></div>
+      <div class="card"><h3>🗜️ Compresser PDF</h3><p>Préréglages Ghostscript avec tailles avant/après.</p></div>
+      <div class="card"><h3>🔗 Fusionner PDF</h3><p>Réordonnez et fusionnez par glisser-déposer.</p></div>
+      <div class="card"><h3>🔏 Filigrane PDF</h3><p>Filigranes texte/image avec aplatissement.</p></div>
+      <div class="card"><h3>🔍 Panneau d'aperçu</h3><p>Aperçu latéral images, vidéo, PDF, texte (F4).</p></div>
+      <div class="card"><h3>📦 Installeur Deb</h3><p>Installeur .deb visuel avec vérification des dépendances.</p></div>
+      <div class="card"><h3>🔎 Rechercher &amp; remplacer</h3><p>Recherche grep/ripgrep + remplacement avec aperçu (F8).</p></div>
+      <div class="card"><h3>🎵 Vidéo vers audio</h3><p>Extraction par lots vers MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div>
+      <div class="card"><h3>⏱️ Colonne durée</h3><p>Colonne HH:MM:SS triable pour audio/vidéo.</p></div>
+      <div class="card"><h3>✂️ Atténuer le couper</h3><p>Atténue les éléments Ctrl+X pour ne pas les oublier.</p></div>
+      <div class="card"><h3>✏️ Ouvrir dans Gedit</h3><p>Ouvrez les fichiers texte dans Gedit en un clic.</p></div>
+      <div class="card"><h3>📁 Folder Color Revival</h3><p>Étiquetage couleur &amp; emblèmes + couleurs infinies.</p></div>
+      <div class="card"><h3>👁️ Atténuer cachés</h3><p>Atténue les icônes (ou icône+label) des fichiers cachés.</p></div>
+    </div>
+  </section>
+</main>
+<footer>
+  Fait avec 💙 pour Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
+  (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
+</footer>
+</body>
+</html>
