@@ -1,176 +1,507 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title data-i18n="meta_title">Nautilus Extensions — supercharge GNOME Files</title>
-<meta name="description" data-i18n-content="meta_desc" content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --fedora-blue:#51a2da; --link-blue:#3c6eb4; --navy:#294172;
-    --ink:#2d3748; --muted:#4b5563; --bg:#ffffff;
-    --band:#f0f9ff; --card-border:#dcebf8;
-  }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:"Open Sans",ui-sans-serif,system-ui,sans-serif;
-         background:var(--bg); color:var(--ink); line-height:1.6; }
-  h1,h2,h3 { font-family:Montserrat,ui-sans-serif,system-ui,sans-serif; color:var(--navy); }
-  a { color:var(--link-blue); }
-  nav.top { border-bottom:1px solid var(--card-border); background:#fff;
-            position:sticky; top:0; z-index:10; }
-  nav.top .inner { max-width:1024px; margin:0 auto; padding:12px 20px;
-                   display:flex; align-items:center; gap:22px; }
-  nav.top .brand { font-family:Montserrat,sans-serif; font-weight:800; color:var(--navy);
-                   text-decoration:none; font-size:1.05rem; margin-right:auto; }
-  nav.top .brand span { color:var(--fedora-blue); }
-  nav.top a.link { color:var(--muted); text-decoration:none; font-weight:600; font-size:.95rem; }
-  nav.top a.link:hover { color:var(--link-blue); }
-  nav.top .langs { font-size:.9rem; color:var(--muted); white-space:nowrap; }
-  nav.top .langs a { text-decoration:none; font-weight:700; cursor:pointer; }
-  nav.top .langs a.active { color:var(--navy); font-weight:800; }
-  .btn { display:inline-block; background:var(--link-blue); color:#fff; font-weight:700;
-         padding:10px 26px; border-radius:9999px; text-decoration:none; margin:4px;
-         font-family:Montserrat,sans-serif; font-size:.95rem; }
-  .btn:hover { background:var(--navy); color:#fff; }
-  .btn.ghost { background:#fff; color:var(--link-blue); border:2px solid var(--link-blue); }
-  .btn.ghost:hover { background:var(--link-blue); color:#fff; }
-  header.hero { background:var(--band); text-align:center; padding:72px 20px 56px; }
-  header.hero h1 { font-size:2.6rem; margin:.2em 0; font-weight:800; }
-  header.hero h1 span { color:var(--fedora-blue); }
-  header.hero p { color:var(--muted); max-width:660px; margin:0 auto 1.6em; font-size:1.08rem; }
-  main { max-width:1024px; margin:0 auto; padding:0 20px 60px; }
-  section { margin:52px 0; }
-  h2 { font-size:1.7rem; margin-bottom:.4em; }
-  section > p.sub { color:var(--muted); margin-top:0; }
-  pre { background:var(--navy); color:#e8eef7; padding:16px 20px; border-radius:.75rem; overflow-x:auto; }
-  code { font-family:"Source Code Pro",ui-monospace,monospace; font-size:.92em; }
-  p code, li code { background:#eef4fa; color:var(--navy); padding:1px 6px; border-radius:.375rem; }
-  .spotlight { background:var(--band); border-radius:1.5rem; padding:32px; }
-  .samples { display:flex; gap:22px; flex-wrap:wrap; justify-content:center; margin:22px 0; }
-  .sample { text-align:center; background:#fff; border:1px solid var(--card-border);
-            border-radius:1rem; padding:16px 18px 12px; }
-  .sample img { width:128px; height:128px; }
-  .sample code { display:block; margin-top:8px; }
-  ul.feat { padding-left:1.2em; }
-  ul.feat li { margin:.45em 0; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
-  .card { background:#fff; border:1px solid var(--card-border); border-radius:1rem;
-          padding:18px; box-shadow:0 1px 3px rgba(41,65,114,.08); }
-  .card h3 { margin:.2em 0 .4em; font-size:1.02rem; }
-  .card p { color:var(--muted); font-size:.92rem; margin:0; }
-  a.cardlink { text-decoration:none; display:block; }
-  a.cardlink .card { height:100%; transition:transform .15s ease, box-shadow .15s ease; }
-  a.cardlink:hover .card { transform:translateY(-3px); box-shadow:0 6px 18px rgba(41,65,114,.16); }
-  #ext-sections section { scroll-margin-top:70px; }
-  footer { background:var(--navy); color:#cdd9ea; text-align:center; padding:34px 20px; font-size:.9rem; }
-  footer a { color:#fff; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="meta_title">Nautilus Extensions — supercharge GNOME Files</title>
+  <meta name="description" data-i18n-content="meta_desc"
+    content="Productivity-focused Python extensions for Nautilus (GNOME Files): dual panel, folder colors, archive tools, PDF tools and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600;700&family=Source+Code+Pro:wght@400;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --fedora-blue: #51a2da;
+      --link-blue: #3c6eb4;
+      --navy: #294172;
+      --ink: #2d3748;
+      --muted: #4b5563;
+      --bg: #ffffff;
+      --band: #f0f9ff;
+      --card-border: #dcebf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Open Sans", ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+      color: var(--navy);
+    }
+
+    a {
+      color: var(--link-blue);
+    }
+
+    nav.top {
+      border-bottom: 1px solid var(--card-border);
+      background: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    nav.top .inner {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 22px;
+    }
+
+    nav.top .brand {
+      font-family: Montserrat, sans-serif;
+      font-weight: 800;
+      color: var(--navy);
+      text-decoration: none;
+      font-size: 1.05rem;
+      margin-right: auto;
+    }
+
+    nav.top .brand span {
+      color: var(--fedora-blue);
+    }
+
+    nav.top a.link {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: .95rem;
+    }
+
+    nav.top a.link:hover {
+      color: var(--link-blue);
+    }
+
+    nav.top .langs {
+      font-size: .9rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    nav.top .langs a {
+      text-decoration: none;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    nav.top .langs a.active {
+      color: var(--navy);
+      font-weight: 800;
+    }
+
+    .btn {
+      display: inline-block;
+      background: var(--link-blue);
+      color: #fff;
+      font-weight: 700;
+      padding: 10px 26px;
+      border-radius: 9999px;
+      text-decoration: none;
+      margin: 4px;
+      font-family: Montserrat, sans-serif;
+      font-size: .95rem;
+    }
+
+    .btn:hover {
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .btn.ghost {
+      background: #fff;
+      color: var(--link-blue);
+      border: 2px solid var(--link-blue);
+    }
+
+    .btn.ghost:hover {
+      background: var(--link-blue);
+      color: #fff;
+    }
+
+    header.hero {
+      background: var(--band);
+      text-align: center;
+      padding: 72px 20px 56px;
+    }
+
+    header.hero h1 {
+      font-size: 2.6rem;
+      margin: .2em 0;
+      font-weight: 800;
+    }
+
+    header.hero h1 span {
+      color: var(--fedora-blue);
+    }
+
+    header.hero p {
+      color: var(--muted);
+      max-width: 660px;
+      margin: 0 auto 1.6em;
+      font-size: 1.08rem;
+    }
+
+    main {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
+    section {
+      margin: 52px 0;
+    }
+
+    h2 {
+      font-size: 1.7rem;
+      margin-bottom: .4em;
+    }
+
+    section>p.sub {
+      color: var(--muted);
+      margin-top: 0;
+    }
+
+    pre {
+      background: var(--navy);
+      color: #e8eef7;
+      padding: 16px 20px;
+      border-radius: .75rem;
+      overflow-x: auto;
+    }
+
+    code {
+      font-family: "Source Code Pro", ui-monospace, monospace;
+      font-size: .92em;
+    }
+
+    p code,
+    li code {
+      background: #eef4fa;
+      color: var(--navy);
+      padding: 1px 6px;
+      border-radius: .375rem;
+    }
+
+    .spotlight {
+      background: var(--band);
+      border-radius: 1.5rem;
+      padding: 32px;
+    }
+
+    .samples {
+      display: flex;
+      gap: 22px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 22px 0;
+    }
+
+    .sample {
+      text-align: center;
+      background: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 16px 18px 12px;
+    }
+
+    .sample img {
+      width: 128px;
+      height: 128px;
+    }
+
+    .sample code {
+      display: block;
+      margin-top: 8px;
+    }
+
+    ul.feat {
+      padding-left: 1.2em;
+    }
+
+    ul.feat li {
+      margin: .45em 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 1rem;
+      padding: 18px;
+      box-shadow: 0 1px 3px rgba(41, 65, 114, .08);
+    }
+
+    .card h3 {
+      margin: .2em 0 .4em;
+      font-size: 1.02rem;
+    }
+
+    .card p {
+      color: var(--muted);
+      font-size: .92rem;
+      margin: 0;
+    }
+
+    a.cardlink {
+      text-decoration: none;
+      display: block;
+    }
+
+    a.cardlink .card {
+      height: 100%;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    a.cardlink:hover .card {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 18px rgba(41, 65, 114, .16);
+    }
+
+    #ext-sections section {
+      scroll-margin-top: 70px;
+    }
+
+    footer {
+      background: var(--navy);
+      color: #cdd9ea;
+      text-align: center;
+      padding: 34px 20px;
+      font-size: .9rem;
+    }
+
+    footer a {
+      color: #fff;
+    }
+  </style>
 </head>
+
 <body>
-<nav class="top">
-  <div class="inner">
-    <a class="brand" href="#">🐚 Nautilus <span>Extensions</span></a>
-    <a class="link" href="#install" data-i18n="nav_install">Install</a>
-    <a class="link" href="#spotlight" data-i18n="nav_spotlight">Folder Color</a>
-    <a class="link" href="#extensions" data-i18n="nav_ext">Extensions</a>
-    <span class="langs"><a data-lang="en">EN</a> · <a data-lang="fr">FR</a> · <a data-lang="de">DE</a> · <a data-lang="pt-BR">PT-BR</a> · <a data-lang="es">ES</a></span>
-    <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
-  </div>
-</nav>
-<header class="hero">
-  <h1 data-i18n="hero_title">Supercharge <span>GNOME Files</span></h1>
-  <p data-i18n="hero_sub">Productivity-focused Python extensions for <strong>Nautilus</strong> — dual panel, folder colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
-  <a class="btn" href="#install" data-i18n="btn_start">Get Started</a>
-  <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions" data-i18n="btn_source">View Source</a>
-</header>
-<main>
-  <section id="install">
-    <h2 data-i18n="install_h">Install</h2>
-    <p class="sub" data-i18n="install_p1">Fedora / GNOME (Nautilus 46+, GTK4) — one line, no manual clone:</p>
-    <pre><code>curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash</code></pre>
-    <p class="sub" data-i18n="install_p2">Or clone first:</p>
-    <pre><code>git clone https://github.com/zonaro/Nautilus-Extensions.git
-cd Nautilus-Extensions
-./install.sh
-nautilus -q</code></pre>
-  </section>
+  <nav class="top">
+    <div class="inner">
+      <a class="brand" href="#">🐚 Nautilus <span>Extensions</span></a>
+      <a class="link" href="#install" data-i18n="nav_install">Install</a>
+      <a class="link" href="#spotlight" data-i18n="nav_spotlight">Folder Color</a>
+      <a class="link" href="#extensions" data-i18n="nav_ext">Extensions</a>
+      <span class="langs"><a data-lang="en">EN</a> · <a data-lang="fr">FR</a> · <a data-lang="de">DE</a> · <a
+          data-lang="pt-BR">PT-BR</a> · <a data-lang="es">ES</a></span>
+      <a class="btn" href="https://github.com/zonaro/Nautilus-Extensions">GitHub</a>
+    </div>
+  </nav>
+  <header class="hero">
+    <h1 data-i18n="hero_title">Supercharge <span>GNOME Files</span></h1>
+    <p data-i18n="hero_sub">Productivity-focused Python extensions for <strong>Nautilus</strong> — dual panel, folder
+      colorizer, archive browser, PDF tools, media helpers and more. Right where you need them: the context menu.</p>
+    <a class="btn" href="#install" data-i18n="btn_start">Get Started</a>
+    <a class="btn ghost" href="https://github.com/zonaro/Nautilus-Extensions" data-i18n="btn_source">View Source</a>
+  </header>
+  <main>
+    <section id="install">
+      <h2 data-i18n="install_h">Install</h2>
+      <p class="sub" data-i18n="install_p1">Fedora / GNOME (Nautilus 46+, GTK4) — one line</p>
+      <pre><code>curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash</code></pre>
 
-  <section id="spotlight">
-    <h2 data-i18n="spot_h">🎨 Featured: Folder Color Revival + infinite colors</h2>
-    <div class="spotlight">
-      <p data-i18n="spot_p">The classic folder colorizer, revived for modern Nautilus — now with <strong>infinite custom colors</strong> powered by an embedded <a href="https://github.com/zonaro/NameToColor">NameToColor</a> engine (2254 named colors + pt-BR, deterministic hash for any word).</p>
-      <div class="samples">
-        <div class="sample"><img src="assets/folder-vermelho.svg" data-i18n-alt="alt1" alt="red folder"><code>vermelho</code></div>
-        <div class="sample"><img src="assets/folder-lucas.svg" data-i18n-alt="alt2" alt="olive folder"><code>Lucas</code></div>
-        <div class="sample"><img src="assets/folder-azul-branco.svg" data-i18n-alt="alt3" alt="blue and white folder"><code>azul;branco</code></div>
-        <div class="sample"><img src="assets/folder-verde-limao.svg" data-i18n-alt="alt4" alt="lime folder"><code>verde-limão puro</code></div>
+    </section>
+
+    <section id="extensions">
+      <h2 data-i18n="ext_h">All extensions</h2>
+      <p class="sub" data-i18n="ext_p">26 extensions, one install. Everything runs locally — no telemetry.</p>
+      <div class="grid">
+        <a class="cardlink" href="#ext-dual-panel">
+          <div class="card">
+            <h3 data-i18n="c1h">🗂️ Dual Panel</h3>
+            <p data-i18n="c1p">Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-column-browser">
+          <div class="card">
+            <h3 data-i18n="c2h">🧭 Column Browser</h3>
+            <p data-i18n="c2p">Miller-columns Finder-style browser (F9), threaded loading.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-extensions-manager">
+          <div class="card">
+            <h3 data-i18n="c3h">⚙️ Extensions Manager</h3>
+            <p data-i18n="c3p">Enable/disable extensions on the fly.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-archive-browser">
+          <div class="card">
+            <h3 data-i18n="c4h">🗜️ Archive Browser</h3>
+            <p data-i18n="c4p">Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-extract-here">
+          <div class="card">
+            <h3 data-i18n="c5h">📦 Extract Here</h3>
+            <p data-i18n="c5p">One-click extraction with progress dialog.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-annotate-image">
+          <div class="card">
+            <h3 data-i18n="c6h">🎨 Annotate Image</h3>
+            <p data-i18n="c6p">Arrows, shapes, text on PNG/JPG without GIMP.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-compress-pdf">
+          <div class="card">
+            <h3 data-i18n="c7h">🗜️ Compress PDF</h3>
+            <p data-i18n="c7p">Ghostscript presets with before/after sizes.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-merge-pdf">
+          <div class="card">
+            <h3 data-i18n="c8h">🔗 Merge PDF</h3>
+            <p data-i18n="c8p">Reorder pages and merge with drag &amp; drop.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-watermark-pdf">
+          <div class="card">
+            <h3 data-i18n="c9h">🔏 Watermark PDF</h3>
+            <p data-i18n="c9p">Text/image watermarks with flattening.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-preview-panel">
+          <div class="card">
+            <h3 data-i18n="c10h">🔍 Preview Panel</h3>
+            <p data-i18n="c10p">Side preview for images, video, PDF, text (F4).</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-deb-installer">
+          <div class="card">
+            <h3 data-i18n="c11h">📦 Deb Installer</h3>
+            <p data-i18n="c11p">Visual .deb installer with dependency check.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-search-content">
+          <div class="card">
+            <h3 data-i18n="c12h">🔎 Search &amp; Replace</h3>
+            <p data-i18n="c12p">grep/ripgrep content search + replace with preview (F8).</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-video-to-audio">
+          <div class="card">
+            <h3 data-i18n="c13h">🎵 Video to Audio</h3>
+            <p data-i18n="c13p">Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-duration-column">
+          <div class="card">
+            <h3 data-i18n="c14h">⏱️ Duration Column</h3>
+            <p data-i18n="c14p">Sortable HH:MM:SS column for audio/video.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-cut-dim">
+          <div class="card">
+            <h3 data-i18n="c15h">✂️ Cut Item Dimmer</h3>
+            <p data-i18n="c15p">Dims Ctrl+X items so you don't forget them.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-edit-with">
+          <div class="card">
+            <h3 data-i18n="c16h">✏️ Edit With</h3>
+            <p data-i18n="c16p">Open text files with any installed editor (A–Z).</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-folder-color-revival">
+          <div class="card">
+            <h3 data-i18n="c17h">📁 Folder Color Revival</h3>
+            <p data-i18n="c17p">Color &amp; emblem tagging + infinite custom colors + image overlays.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-hidden-dim">
+          <div class="card">
+            <h3 data-i18n="c18h">👁️ Hidden Dim</h3>
+            <p data-i18n="c18p">Dim hidden files' icons (or icon+label).</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-remove-ai-watermarks">
+          <div class="card">
+            <h3 data-i18n="c19h">🧹 Remove AI Watermarks</h3>
+            <p data-i18n="c19p">Strip invisible AI watermarks from images via CLI.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-paste-into-file">
+          <div class="card">
+            <h3 data-i18n="c20h">📋 Paste Into File</h3>
+            <p data-i18n="c20p">Save clipboard as .txt/.png/.jpg/.zip with preview.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-file-tools">
+          <div class="card">
+            <h3 data-i18n="c21h">🧰 File Tools</h3>
+            <p data-i18n="c21p">Friendly rename, copy path, bulk rename, clean empty, timestamps, symlinks, Base64.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-dev-tools-minify">
+          <div class="card">
+            <h3 data-i18n="c22h">🔧 Dev Tools Minify</h3>
+            <p data-i18n="c22p">Regex minifier for JS/CSS with a savings report.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-image-tools">
+          <div class="card">
+            <h3 data-i18n="c23h">🖼️ Image Tools</h3>
+            <p data-i18n="c23p">Grayscale, invert, crop, circle, resize, combine, watermark, optimize.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-colorize-image">
+          <div class="card">
+            <h3 data-i18n="c25h">🌈 Colorize Image</h3>
+            <p data-i18n="c25p">Duotone tint preserving luminance and alpha.</p>
+          </div>
+        </a>
+        <a class="cardlink" href="#ext-convert-image">
+          <div class="card">
+            <h3 data-i18n="c26h">🔄 Convert Image</h3>
+            <p data-i18n="c26p">To PNG/JPEG/WebP/ICO plus square 256 PNG.</p>
+          </div>
+        </a>
       </div>
-      <ul class="feat">
-        <li data-i18n="feat1"><strong>Custom color… dialog</strong> — type any name, hex or <code>rgb()</code>, with a live preview of your actual theme icon and a color picker per element.</li>
-        <li data-i18n="feat2"><strong>One or two colors</strong> (<code>name1;name2</code>) — back tab and front flap tinted independently; complex theme icons get one field per shape.</li>
-        <li data-i18n="feat3"><strong>Theme-aware</strong> — desaturates and tints your current theme's own folder icon (SVG or PNG); falls back gracefully.</li>
-        <li data-i18n="feat4"><strong>Built-ins unified</strong> — the 14 classic colors go through the exact same pipeline.</li>
-        <li data-i18n="feat5">Emblems, per-XDG special icons, restore-to-default, lazy theme loading.</li>
-      </ul>
-    </div>
-  </section>
-
-  <section id="extensions">
-    <h2 data-i18n="ext_h">All extensions</h2>
-    <p class="sub" data-i18n="ext_p">26 extensions, one install. Everything runs locally — no telemetry.</p>
-    <div class="grid">
-      <a class="cardlink" href="#ext-dual-panel"><div class="card"><h3 data-i18n="c1h">🗂️ Dual Panel</h3><p data-i18n="c1p">Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.</p></div></a>
-      <a class="cardlink" href="#ext-column-browser"><div class="card"><h3 data-i18n="c2h">🧭 Column Browser</h3><p data-i18n="c2p">Miller-columns Finder-style browser (F9), threaded loading.</p></div></a>
-      <a class="cardlink" href="#ext-extensions-manager"><div class="card"><h3 data-i18n="c3h">⚙️ Extensions Manager</h3><p data-i18n="c3p">Enable/disable extensions on the fly.</p></div></a>
-      <a class="cardlink" href="#ext-archive-browser"><div class="card"><h3 data-i18n="c4h">🗜️ Archive Browser</h3><p data-i18n="c4p">Browse, extract and create archives incl. multi-volume &amp; passwords (F7).</p></div></a>
-      <a class="cardlink" href="#ext-extract-here"><div class="card"><h3 data-i18n="c5h">📦 Extract Here</h3><p data-i18n="c5p">One-click extraction with progress dialog.</p></div></a>
-      <a class="cardlink" href="#ext-annotate-image"><div class="card"><h3 data-i18n="c6h">🎨 Annotate Image</h3><p data-i18n="c6p">Arrows, shapes, text on PNG/JPG without GIMP.</p></div></a>
-      <a class="cardlink" href="#ext-compress-pdf"><div class="card"><h3 data-i18n="c7h">🗜️ Compress PDF</h3><p data-i18n="c7p">Ghostscript presets with before/after sizes.</p></div></a>
-      <a class="cardlink" href="#ext-merge-pdf"><div class="card"><h3 data-i18n="c8h">🔗 Merge PDF</h3><p data-i18n="c8p">Reorder pages and merge with drag &amp; drop.</p></div></a>
-      <a class="cardlink" href="#ext-watermark-pdf"><div class="card"><h3 data-i18n="c9h">🔏 Watermark PDF</h3><p data-i18n="c9p">Text/image watermarks with flattening.</p></div></a>
-      <a class="cardlink" href="#ext-preview-panel"><div class="card"><h3 data-i18n="c10h">🔍 Preview Panel</h3><p data-i18n="c10p">Side preview for images, video, PDF, text (F4).</p></div></a>
-      <a class="cardlink" href="#ext-deb-installer"><div class="card"><h3 data-i18n="c11h">📦 Deb Installer</h3><p data-i18n="c11p">Visual .deb installer with dependency check.</p></div></a>
-      <a class="cardlink" href="#ext-search-content"><div class="card"><h3 data-i18n="c12h">🔎 Search &amp; Replace</h3><p data-i18n="c12p">grep/ripgrep content search + replace with preview (F8).</p></div></a>
-      <a class="cardlink" href="#ext-video-to-audio"><div class="card"><h3 data-i18n="c13h">🎵 Video to Audio</h3><p data-i18n="c13p">Batch extraction to MP3/M4A/OGG/OPUS/FLAC/WAV.</p></div></a>
-      <a class="cardlink" href="#ext-duration-column"><div class="card"><h3 data-i18n="c14h">⏱️ Duration Column</h3><p data-i18n="c14p">Sortable HH:MM:SS column for audio/video.</p></div></a>
-      <a class="cardlink" href="#ext-cut-dim"><div class="card"><h3 data-i18n="c15h">✂️ Cut Item Dimmer</h3><p data-i18n="c15p">Dims Ctrl+X items so you don't forget them.</p></div></a>
-      <a class="cardlink" href="#ext-edit-with"><div class="card"><h3 data-i18n="c16h">✏️ Edit With</h3><p data-i18n="c16p">Open text files with any installed editor (A–Z).</p></div></a>
-      <a class="cardlink" href="#ext-folder-color-revival"><div class="card"><h3 data-i18n="c17h">📁 Folder Color Revival</h3><p data-i18n="c17p">Color &amp; emblem tagging + infinite custom colors.</p></div></a>
-      <a class="cardlink" href="#ext-hidden-dim"><div class="card"><h3 data-i18n="c18h">👁️ Hidden Dim</h3><p data-i18n="c18p">Dim hidden files' icons (or icon+label).</p></div></a>
-      <a class="cardlink" href="#ext-remove-ai-watermarks"><div class="card"><h3 data-i18n="c19h">🧹 Remove AI Watermarks</h3><p data-i18n="c19p">Strip invisible AI watermarks from images via CLI.</p></div></a>
-      <a class="cardlink" href="#ext-paste-into-file"><div class="card"><h3 data-i18n="c20h">📋 Paste Into File</h3><p data-i18n="c20p">Save clipboard as .txt/.png/.jpg/.zip with preview.</p></div></a>
-      <a class="cardlink" href="#ext-file-tools"><div class="card"><h3 data-i18n="c21h">🧰 File Tools</h3><p data-i18n="c21p">Friendly rename, copy path, bulk rename, clean empty, timestamps, symlinks, Base64.</p></div></a>
-      <a class="cardlink" href="#ext-dev-tools-minify"><div class="card"><h3 data-i18n="c22h">🔧 Dev Tools Minify</h3><p data-i18n="c22p">Regex minifier for JS/CSS with a savings report.</p></div></a>
-      <a class="cardlink" href="#ext-image-tools"><div class="card"><h3 data-i18n="c23h">🖼️ Image Tools</h3><p data-i18n="c23p">Grayscale, invert, crop, circle, resize, combine, watermark, optimize.</p></div></a>
-      <a class="cardlink" href="#ext-derived-icon-editor"><div class="card"><h3 data-i18n="c24h">🎨 Derived Icon Editor</h3><p data-i18n="c24p">Layer-based 256×256 icon composer with live preview.</p></div></a>
-      <a class="cardlink" href="#ext-colorize-image"><div class="card"><h3 data-i18n="c25h">🌈 Colorize Image</h3><p data-i18n="c25p">Duotone tint preserving luminance and alpha.</p></div></a>
-      <a class="cardlink" href="#ext-convert-image"><div class="card"><h3 data-i18n="c26h">🔄 Convert Image</h3><p data-i18n="c26p">To PNG/JPEG/WebP/ICO plus square 256 PNG.</p></div></a>
-    </div>
-    <div id="ext-sections"></div>
-  </section>
-</main>
-<footer data-i18n="foot">
-  Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
-  (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
-</footer>
-<script src="i18n.js"></script>
-<script src="exts.js"></script>
-<script>
-  function applyLang(lang) {
-    setSiteLang(lang);
-    renderExtSections(lang);
-  }
-  document.querySelectorAll("[data-lang]").forEach(function (el) {
-    el.addEventListener("click", function (e) {
-      e.preventDefault();
-      applyLang(el.getAttribute("data-lang"));
-      window.scrollTo(0, 0);
+      <div id="ext-sections"></div>
+    </section>
+  </main>
+  <footer data-i18n="foot">
+    Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a
+      href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a>
+    (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)
+  </footer>
+  <script src="i18n.js"></script>
+  <script src="exts.js"></script>
+  <script>
+    function applyLang(lang) {
+      setSiteLang(lang);
+      renderExtSections(lang);
+    }
+    document.querySelectorAll("[data-lang]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.preventDefault();
+        applyLang(el.getAttribute("data-lang"));
+        window.scrollTo(0, 0);
+      });
     });
-  });
-  applyLang(siteLang("en"));
-</script>
+    applyLang(siteLang("en"));
+  </script>
 </body>
+
 </html>
