@@ -3,7 +3,7 @@
 #
 # NAME: File Tools – Nautilus Python Extension
 # AUTHOR: Tof
-# VERSION: 1.0
+# VERSION: 1.1
 # LICENSE: GNU General Public License v3.0
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 # NAME: File Tools – Nautilus Python Extension
-# DESC: Utility toolset in a "File Tools" submenu (renamed, clipboard,
+# DESC: Utility toolset in the context menu root (friendly rename, clipboard,
 #       empty-folder cleanup, timestamp folders, symlinks, base64, content)
 # REQUIRES: python3-nautilus (>= 4.0), python3-gi, gir1.2-adw-1
 # INSTALL:
@@ -43,7 +43,7 @@ try:
     gi.require_version("Nautilus", "4.0")
 except ValueError:
     pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
-from gi.repository import GObject, Gtk, Adw, Gdk, GLib, GdkPixbuf, Nautilus
+from gi.repository import GObject, Gtk, Adw, Gdk, GLib, Gio, GdkPixbuf, Nautilus
 
 try:
     from PIL import Image as _PILImage
@@ -59,8 +59,6 @@ _lang = locale.getlocale()[0] or ""
 
 if _lang.startswith("fr"):
     T = {
-        "menu_label":     "Outils de fichiers",
-        "menu_tip":       "Outils utilitaires (renommage, presse-papiers, dossiers, liens)",
         "friendly_name":  "Nom convivial",
         "copy_path":      "Copier le chemin",
         "enum_rename":    "Renommage séquentiel…",
@@ -71,6 +69,10 @@ if _lang.startswith("fr"):
         "copy_content":   "Copier le contenu",
         "ok":             "Appliquer",
         "cancel":         "Annuler",
+        "dest_label":     "Dossier de destination",
+        "dest_hint":      "ex. : /chemin/vers/dossier",
+        "browse":         "Choisir…",
+        "err_no_dest":    "Choisissez un dossier de destination.",
         "pattern_label":  "Modèle de nom (contient #)",
         "pattern_hint":   "ex. : fichier (#).txt",
         "start_label":    "Numéro de départ",
@@ -94,8 +96,6 @@ if _lang.startswith("fr"):
     }
 elif _lang.startswith("de"):
     T = {
-        "menu_label":     "Dateiwerkzeuge",
-        "menu_tip":       "Hilfswerkzeuge (Umbenennen, Zwischenablage, Ordner, Links)",
         "friendly_name":  "Freundlicher Name",
         "copy_path":      "Pfad kopieren",
         "enum_rename":    "Nummeriert umbenennen…",
@@ -106,6 +106,10 @@ elif _lang.startswith("de"):
         "copy_content":   "Inhalt kopieren",
         "ok":             "Anwenden",
         "cancel":         "Abbrechen",
+        "dest_label":     "Zielordner",
+        "dest_hint":      "z. B. /pfad/zum/ordner",
+        "browse":         "Wählen…",
+        "err_no_dest":    "Bitte wählen Sie einen Zielordner.",
         "pattern_label":  "Namensmuster (enthält #)",
         "pattern_hint":   "z. B. datei (#).txt",
         "start_label":    "Startnummer",
@@ -129,8 +133,6 @@ elif _lang.startswith("de"):
     }
 elif _lang.startswith("es"):
     T = {
-        "menu_label":     "Herramientas de archivos",
-        "menu_tip":       "Herramientas de utilidad (renombrar, portapapeles, carpetas, enlaces)",
         "friendly_name":  "Nombre amigable",
         "copy_path":      "Copiar ruta",
         "enum_rename":    "Renombrar secuencial…",
@@ -141,6 +143,10 @@ elif _lang.startswith("es"):
         "copy_content":   "Copiar contenido",
         "ok":             "Aplicar",
         "cancel":         "Cancelar",
+        "dest_label":     "Carpeta de destino",
+        "dest_hint":      "ej.: /ruta/a/carpeta",
+        "browse":         "Elegir…",
+        "err_no_dest":    "Elija una carpeta de destino.",
         "pattern_label":  "Patrón de nombre (contiene #)",
         "pattern_hint":   "ej.: archivo (#).txt",
         "start_label":    "Número inicial",
@@ -164,8 +170,6 @@ elif _lang.startswith("es"):
     }
 elif _lang.startswith("pt"):
     T = {
-        "menu_label":     "Ferramentas de arquivo",
-        "menu_tip":       "Ferramentas utilitárias (renomear, área de transferência, pastas, links)",
         "friendly_name":  "Nome amigável",
         "copy_path":      "Copiar caminho",
         "enum_rename":    "Renomear sequencial…",
@@ -176,6 +180,10 @@ elif _lang.startswith("pt"):
         "copy_content":   "Copiar conteúdo",
         "ok":             "Aplicar",
         "cancel":         "Cancelar",
+        "dest_label":     "Pasta de destino",
+        "dest_hint":      "ex.: /caminho/para/pasta",
+        "browse":         "Escolher…",
+        "err_no_dest":    "Escolha uma pasta de destino.",
         "pattern_label":  "Padrão de nome (contém #)",
         "pattern_hint":   "ex.: arquivo (#).txt",
         "start_label":    "Número inicial",
@@ -199,8 +207,6 @@ elif _lang.startswith("pt"):
     }
 else:
     T = {
-        "menu_label":     "File Tools",
-        "menu_tip":       "Utility tools (rename, clipboard, folders, links)",
         "friendly_name":  "Friendly Name",
         "copy_path":      "Copy Path",
         "enum_rename":    "Sequential Rename…",
@@ -211,6 +217,10 @@ else:
         "copy_content":   "Copy Content",
         "ok":             "Apply",
         "cancel":         "Cancel",
+        "dest_label":     "Destination folder",
+        "dest_hint":      "e.g. /path/to/folder",
+        "browse":         "Browse…",
+        "err_no_dest":    "Please choose a destination folder.",
         "pattern_label":  "Name pattern (contains #)",
         "pattern_hint":   "e.g. file (#).txt",
         "start_label":    "Start number",
@@ -301,6 +311,10 @@ _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 
 def _is_image_file(path: str) -> bool:
     return path.lower().endswith(_IMAGE_EXTS)
+
+
+def _is_content_file(path: str) -> bool:
+    return os.path.isfile(path) and (_is_text_file(path) or _is_image_file(path))
 
 
 def _pil_to_pixbuf(img):
@@ -428,6 +442,17 @@ class SymlinkDialog(_BaseDialog):
         super().__init__(title=T["symlink"])
 
     def _build(self, body):
+        body.append(self._section(T["dest_label"]))
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._dest = Gtk.Entry()
+        self._dest.set_placeholder_text(T["dest_hint"])
+        self._dest.set_hexpand(True)
+        row.append(self._dest)
+        btn = Gtk.Button(label=T["browse"])
+        btn.connect("clicked", self._on_browse)
+        row.append(btn)
+        body.append(row)
+
         body.append(self._section(T["link_label"]))
         self._entry = Gtk.Entry()
         self._entry.set_placeholder_text(T["link_hint"])
@@ -435,55 +460,85 @@ class SymlinkDialog(_BaseDialog):
         self._entry.set_activates_default(True)
         body.append(self._entry)
 
+    def _on_browse(self, _btn):
+        dlg = Gtk.FileDialog(title=T["symlink"])
+        try:
+            cur = self._dest.get_text().strip()
+            if cur and os.path.isdir(cur):
+                dlg.set_initial_folder(Gio.File.new_for_path(cur))
+        except Exception:  # noqa: BLE001
+            pass
+        dlg.select_folder(_nautilus_window(), None, self._on_folder_done)
+
+    def _on_folder_done(self, dlg, result):
+        try:
+            folder = dlg.select_folder_finish(result)
+            if folder is not None:
+                self._dest.set_text(folder.get_path() or "")
+        except Exception:  # noqa: BLE001
+            pass
+
     def _values(self):
-        name = self._entry.get_text().strip()
+        dest = self._dest.get_text().strip()
+        if not dest or not os.path.isdir(dest):
+            _show_message(T["err_no_dest"])
+            return None
+        name = self._entry.get_text().strip() or self._default_link
         if not name:
             return None
-        return {"name": name}
+        return {"dest": dest, "name": name}
 
 
 # ---------------------------------------------------------------------------
-# Nautilus extension with submenu
+# Nautilus extension with root context menu items
 # ---------------------------------------------------------------------------
 
 class FileToolsExtension(GObject.GObject, Nautilus.MenuProvider):
     __gtype_name__ = "FileToolsExtension"
 
-    def _add(self, submenu, name, label, cb, paths):
+    def _add(self, items, name, label, cb, paths):
         item = Nautilus.MenuItem(
             name="FileTools::{0}".format(name),
             label=label,
-            tip=T["menu_tip"],
+            tip=label,
         )
         item.connect("activate", cb, paths)
-        submenu.append_item(item)
+        items.append(item)
 
     def get_file_items(self, files):
         paths = _paths_from_files(files)
         if not paths:
             return []
 
-        top = Nautilus.MenuItem(
-            name="FileTools::Top",
-            label=T["menu_label"],
-            tip=T["menu_tip"],
-        )
-        submenu = Nautilus.Menu()
-        top.set_submenu(submenu)
+        items = []
+        self._add(items, "FriendlyName",  T["friendly_name"],  self._cb_friendly, paths)
+        self._add(items, "CopyPath",      T["copy_path"],      self._cb_copy_path, paths)
+        self._add(items, "EnumRename",    T["enum_rename"],    self._cb_enum_rename, paths)
 
-        self._add(submenu, "FriendlyName",  T["friendly_name"],  self._cb_friendly, paths)
-        self._add(submenu, "CopyPath",      T["copy_path"],      self._cb_copy_path, paths)
-        self._add(submenu, "EnumRename",    T["enum_rename"],    self._cb_enum_rename, paths)
-        self._add(submenu, "CleanEmpty",    T["clean_empty"],    self._cb_clean_empty, paths)
-        self._add(submenu, "TimestampFolder", T["timestamp_folder"], self._cb_timestamp, paths)
-        self._add(submenu, "Symlink",       T["symlink"],        self._cb_symlink, paths)
-        self._add(submenu, "ToBase64",      T["to_base64"],      self._cb_to_base64, paths)
-        self._add(submenu, "CopyContent",   T["copy_content"],   self._cb_copy_content, paths)
+        if all(os.path.isdir(p) for p in paths):
+            self._add(items, "CleanEmpty",    T["clean_empty"],    self._cb_clean_empty, paths)
+            self._add(items, "TimestampFolder", T["timestamp_folder"], self._cb_timestamp, paths)
 
-        return [top]
+        self._add(items, "Symlink",       T["symlink"],        self._cb_symlink, paths)
+
+        if all(os.path.isfile(p) for p in paths):
+            self._add(items, "ToBase64",      T["to_base64"],      self._cb_to_base64, paths)
+
+        if all(_is_content_file(p) for p in paths):
+            self._add(items, "CopyContent",   T["copy_content"],   self._cb_copy_content, paths)
+
+        return items
 
     def get_background_items(self, folder):
-        return []
+        if folder.get_uri_scheme() != "file":
+            return []
+        path = folder.get_location().get_path()
+        if not path:
+            return []
+        items = []
+        self._add(items, "CleanEmpty",    T["clean_empty"],    self._cb_clean_empty, [path])
+        self._add(items, "TimestampFolder", T["timestamp_folder"], self._cb_timestamp, [path])
+        return items
 
     def _cb_friendly(self, _item, paths):
         existing, missing = [], []
@@ -603,10 +658,11 @@ class FileToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         default = os.path.basename(paths[0]) if paths else ""
         dlg = SymlinkDialog(default_link=default)
         dlg.set_callback(
-            lambda s: s is not None and self._do_symlink(paths, s["name"]))
+            lambda s: s is not None
+            and self._do_symlink(paths, s["dest"], s["name"]))
         dlg.present()
 
-    def _do_symlink(self, paths, name):
+    def _do_symlink(self, paths, dest, name):
         existing, missing = [], []
         for p in paths:
             (existing if os.path.exists(p) else missing).append(p)
@@ -614,7 +670,7 @@ class FileToolsExtension(GObject.GObject, Nautilus.MenuProvider):
 
         created = 0
         for p in existing:
-            dst = os.path.join(os.path.dirname(p), _unique_path(name))
+            dst = os.path.join(dest, _unique_path(name))
             try:
                 os.symlink(p, dst)
                 created += 1
