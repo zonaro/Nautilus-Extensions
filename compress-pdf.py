@@ -116,6 +116,29 @@ elif _lang.startswith("pt"):
             ("Alta qualidade (cores)",   "/prepress"),
         ],
     }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label":   "PDF komprimieren…",
+        "dialog_title": "PDF komprimieren",
+        "choose_level": "Optimierungsstufe wählen:",
+        "save_as":      "PDF speichern unter…",
+        "compressing":  "Komprimierung läuft…",
+        "done_title":   "PDF komprimieren – Fertig",
+        "done_msg":     "{name} wurde erfolgreich komprimiert.",
+        "err_gs":       "ghostscript ist nicht installiert. Bitte zuerst installieren.",
+        "err_nopdf":    "Die ausgewählte Datei ist kein gültiges PDF.",
+        "err_failed":   "Komprimierung fehlgeschlagen (Code {code}).",
+        "cancel":       "Abbrechen",
+        "ok":           "OK",
+        "postpend":     "-optimiert",
+        "levels": [
+            ("Standard",                "/default"),
+            ("Nur Bildschirm",          "/screen"),
+            ("Niedrige Qualität",       "/ebook"),
+            ("Hohe Qualität",           "/printer"),
+            ("Hohe Qualität (Farbe)",   "/prepress"),
+        ],
+    }
 else:
     T = {
         "menu_label":   "Compress PDF…",

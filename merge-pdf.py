@@ -100,6 +100,24 @@ elif _lang.startswith("pt"):
         "move_down":     "↓",
         "output_name":   "mesclado.pdf",
     }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label":    "PDFs zusammenführen…",
+        "dialog_title":  "PDFs zusammenführen",
+        "order_label":   "Zum Sortieren ziehen:",
+        "save_as":       "Zusammengeführtes PDF speichern unter…",
+        "merging":       "Zusammenführen läuft…",
+        "done_title":    "Zusammenführen abgeschlossen",
+        "done_msg":      "Die PDFs wurden erfolgreich zusammengeführt.",
+        "err_gs":        "ghostscript ist nicht installiert. Bitte zuerst installieren.",
+        "err_single":    "Bitte mindestens zwei PDF-Dateien auswählen.",
+        "err_failed":    "Zusammenführen fehlgeschlagen (Code {code}).",
+        "cancel":        "Abbrechen",
+        "ok":            "Zusammenführen",
+        "move_up":       "↑",
+        "move_down":     "↓",
+        "output_name":   "zusammengefuehrt.pdf",
+    }
 else:
     T = {
         "menu_label":    "Merge PDFs…",

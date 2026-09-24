@@ -137,6 +137,36 @@ elif _lang.startswith("pt"):
             ("Preto",    "0 0 0"),
         ],
     }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label":     "PDF-Wasserzeichen hinzufügen…",
+        "dialog_title":   "PDF-Wasserzeichen",
+        "text_label":     "Wasserzeichentext",
+        "text_hint":      "Z. B. VERTRAULICH, NICHT TEILEN…",
+        "opacity_label":  "Deckkraft",
+        "angle_label":    "Winkel",
+        "size_label":     "Schriftgröße",
+        "color_label":    "Farbe",
+        "position_label": "Position",
+        "pos_center":     "Mitte",
+        "pos_diagonal":   "Diagonale Wiederholung",
+        "save_as":        "Speichern unter…",
+        "processing":     "Wasserzeichen wird angewendet…",
+        "done_title":     "Wasserzeichen hinzugefügt",
+        "done_msg":       "{name} wurde erfolgreich bearbeitet.",
+        "err_gs":         "imagemagick ist nicht installiert. Bitte zuerst installieren.",
+        "err_empty":      "Der Wasserzeichentext darf nicht leer sein.",
+        "err_failed":     "Vorgang fehlgeschlagen (Code {code}).",
+        "cancel":         "Abbrechen",
+        "ok":             "Anwenden",
+        "postpend":       "-wasserzeichen",
+        "colors": [
+            ("Rot",     "1 0 0"),
+            ("Grau",    "0.5 0.5 0.5"),
+            ("Blau",    "0 0 0.8"),
+            ("Schwarz", "0 0 0"),
+        ],
+    }
 else:
     T = {
         "menu_label":     "Add Watermark…",
@@ -348,7 +378,7 @@ class WatermarkDialog(Adw.Window):
         outer.append(self._section_label(T["text_label"]))
         self._text_entry = Gtk.Entry()
         self._text_entry.set_placeholder_text(T["text_hint"])
-        self._text_entry.set_text("CONFIDENTIEL" if _lang.startswith("fr") else "CONFIDENCIAL" if _lang.startswith(("es", "pt")) else "CONFIDENTIAL")
+        self._text_entry.set_text("CONFIDENTIEL" if _lang.startswith("fr") else "VERTRAULICH" if _lang.startswith("de") else "CONFIDENCIAL" if _lang.startswith(("es", "pt")) else "CONFIDENTIAL")
         outer.append(self._text_entry)
 
         # -- Taille police --
