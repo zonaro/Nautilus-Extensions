@@ -9,8 +9,46 @@
 #
 
 from gi.repository import Nautilus, GObject, Gio
+import locale
 import subprocess
 import shutil
+
+
+# ---------------------------------------------------------------------------
+# i18n
+# ---------------------------------------------------------------------------
+_lang = locale.getlocale()[0] or ""
+
+if _lang.startswith("fr"):
+    T = {
+        "menu_label": "Ouvrir avec",
+        "menu_tip":   "Ouvrir la sélection avec un éditeur de texte",
+        "item_tip":   "Ouvrir la sélection avec {label}",
+    }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label": "Öffnen mit",
+        "menu_tip":   "Auswahl mit einem Texteditor öffnen",
+        "item_tip":   "Auswahl mit {label} öffnen",
+    }
+elif _lang.startswith("es"):
+    T = {
+        "menu_label": "Abrir con",
+        "menu_tip":   "Abrir la selección con un editor de texto",
+        "item_tip":   "Abrir la selección con {label}",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "menu_label": "Editar com",
+        "menu_tip":   "Abrir a seleção com um editor de texto",
+        "item_tip":   "Abrir a seleção com {label}",
+    }
+else:
+    T = {
+        "menu_label": "Edit With",
+        "menu_tip":   "Open selection with a text editor",
+        "item_tip":   "Open selection with {label}",
+    }
 
 
 class EditFileExtension(GObject.GObject, Nautilus.MenuProvider):
@@ -134,8 +172,8 @@ class EditFileExtension(GObject.GObject, Nautilus.MenuProvider):
 
         top_item = Nautilus.MenuItem(
             name="EditFileExtension::EditWith",
-            label="Edit With",
-            tip="Open selection with a text editor",
+            label=T["menu_label"],
+            tip=T["menu_tip"],
         )
         submenu = Nautilus.Menu()
         top_item.set_submenu(submenu)
@@ -155,7 +193,7 @@ class EditFileExtension(GObject.GObject, Nautilus.MenuProvider):
                 item = Nautilus.MenuItem(
                     name=f"EditFileExtension::EditWith::{self._sanitize_id(binary)}",
                     label=label,
-                    tip=f"Open selection with {label}",
+                    tip=T["item_tip"].format(label=label),
                 )
                 item.connect("activate", self._open_with_binary_cb, filepaths, binary)
             else:
@@ -168,7 +206,7 @@ class EditFileExtension(GObject.GObject, Nautilus.MenuProvider):
                 item = Nautilus.MenuItem(
                     name=f"EditFileExtension::EditWith::{self._sanitize_id(app_id)}",
                     label=label,
-                    tip=f"Open selection with {label}",
+                    tip=T["item_tip"].format(label=label),
                 )
                 item.connect("activate", self._open_with_app_cb, uris, filepaths, entry)
             submenu.append_item(item)

@@ -28,10 +28,42 @@
 
 import os
 import json
+import locale
 import subprocess
 import time
 from pathlib import Path
 from urllib.parse import unquote
+
+# ---------------------------------------------------------------------------
+# i18n
+# ---------------------------------------------------------------------------
+_lang = locale.getlocale()[0] or ""
+
+if _lang.startswith("fr"):
+    T = {
+        "columns_label": "Durée",
+        "columns_desc":  "Durée des fichiers audio/vidéo",
+    }
+elif _lang.startswith("de"):
+    T = {
+        "columns_label": "Dauer",
+        "columns_desc":  "Dauer von Audio-/Videodateien",
+    }
+elif _lang.startswith("es"):
+    T = {
+        "columns_label": "Duración",
+        "columns_desc":  "Duración de archivos de audio/vídeo",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "columns_label": "Duração",
+        "columns_desc":  "Duração de arquivos de áudio/vídeo",
+    }
+else:
+    T = {
+        "columns_label": "Duration",
+        "columns_desc":  "Duration of audio/video files",
+    }
 
 import gi
 try:
@@ -176,8 +208,8 @@ class DurationColumnExtension(
         return [Nautilus.Column(
             name        = "NautilusPython::duration_column",
             attribute   = "duration",
-            label       = "Duration",
-            description = "Duration of audio/video files",
+            label       = T["columns_label"],
+            description = T["columns_desc"],
         )]
 
     def update_file_info(self, file_info):

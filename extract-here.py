@@ -94,6 +94,21 @@ elif _lang.startswith("pt"):
         "cancel":         "Cancelar",
         "ok":             "Extrair",
     }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label":     "Hier entpacken…",
+        "menu_label_vol": "Volume hier entpacken…",
+        "title":          "Extraktion",
+        "extracting":     "Entpacken läuft…",
+        "done_msg":       "Entpackt nach: {dst}",
+        "err_7z":         "p7zip nicht gefunden.\nInstallieren mit:\nsudo apt install p7zip-full",
+        "err_failed":     "Entpacken fehlgeschlagen (Code {code})",
+        "err_password":   "Falsches Passwort oder beschädigtes Archiv.",
+        "password_label": "Passwort (leer lassen, falls keins):",
+        "volumes_found":  "{n} Teil(e) gefunden — automatisches Entpacken.",
+        "cancel":         "Abbrechen",
+        "ok":             "Entpacken",
+    }
 else:
     T = {
         "menu_label":     "Extract here…",

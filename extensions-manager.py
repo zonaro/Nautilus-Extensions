@@ -96,6 +96,23 @@ elif _lang.startswith("pt"):
         "no_disabled":  "Nenhuma extensão desativada",
         "restart_warn": "⚠ Reiniciar o Nautilus fechará todas as janelas.",
     }
+elif _lang.startswith("de"):
+    T = {
+        "menu_label":   "Erweiterungen verwalten",
+        "title":        "Erweiterungsmanager",
+        "active":       "Aktiv",
+        "disabled":     "Deaktiviert",
+        "enable":       "Aktivieren",
+        "disable":      "Deaktivieren",
+        "restart":      "Nautilus neu starten",
+        "restart_msg":  "Nautilus wird neu gestartet, um die Änderungen zu übernehmen.",
+        "confirm":      "Bestätigen",
+        "cancel":       "Abbrechen",
+        "this_ext":     "(dieser Manager)",
+        "no_active":    "Keine aktiven Erweiterungen",
+        "no_disabled":  "Keine deaktivierten Erweiterungen",
+        "restart_warn": "⚠ Ein Neustart von Nautilus schließt alle Fenster.",
+    }
 else:
     T = {
         "menu_label":   "Manage extensions",

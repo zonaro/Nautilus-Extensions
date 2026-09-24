@@ -129,6 +129,31 @@ elif _lang.startswith("pt"):
         "exif_aperture":"Abertura",
         "loading":     "Carregando…",
     }
+elif _lang.startswith("de"):
+    T = {
+        "title":       "Vorschau",
+        "menu_label":  "Vorschau",
+        "no_preview":  "Keine Vorschau verfügbar",
+        "file_info":   "Dateiinformationen",
+        "size":        "Größe",
+        "modified":    "Geändert",
+        "permissions": "Zugriffsrechte",
+        "mime":        "Typ",
+        "dimensions":  "Abmessungen",
+        "duration":    "Dauer",
+        "pages":       "Seiten",
+        "lines":       "Zeilen",
+        "title_meta":  "Titel",
+        "subject":     "Betreff",
+        "exif_make":   "Kamerahersteller",
+        "exif_model":  "Kameramodell",
+        "exif_date":   "Aufnahmedatum",
+        "exif_focal":  "Brennweite",
+        "exif_iso":    "ISO",
+        "exif_shutter":"Verschlusszeit",
+        "exif_aperture":"Blende",
+        "loading":     "Wird geladen…",
+    }
 else:
     T = {
         "title":       "Preview",

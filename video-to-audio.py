@@ -343,7 +343,8 @@ class VideoToAudioWindow(Adw.Window):
 
         # ── Liste des fichiers ────────────────────────────────────────────────
         files_label = Gtk.Label()
-        files_label.set_markup(f"<b>{len(video_files)} fichier(s)</b>" if _lang.startswith("fr")
+        files_label.set_markup(f"<b>{len(video_files)} Datei(en)</b>" if _lang.startswith("de")
+                               else f"<b>{len(video_files)} fichier(s)</b>" if _lang.startswith("fr")
                                else f"<b>{len(video_files)} archivo(s)</b>" if _lang.startswith("es")
                                else f"<b>{len(video_files)} arquivo(s)</b>" if _lang.startswith("pt")
                                else f"<b>{len(video_files)} file(s)</b>")
