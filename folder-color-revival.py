@@ -17,6 +17,7 @@ import hashlib
 import tempfile
 import locale
 import logging
+import configparser
 import gi
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -635,6 +636,235 @@ def _clear_overlay_state(path):
         os.unlink(_overlay_state_path(path))
     except OSError:
         pass
+
+# ---------------------------------------------------------------------------
+# Dolphin folder colors — fallback chain:
+#   1. Nautilus/user customization (metadata::custom-icon*)   -> kept as-is
+#   2. Dolphin customization (<folder>/.directory Icon=)      -> applied here
+#   3. Default theme icon                                    -> nothing to do
+#
+# Dolphin persists folder colors/icons as Icon= inside the folder's
+# ".directory" Desktop Entry (INI) file. The value is either a themed icon
+# name ("folder-red", "folder-blue", ...), a path ("./icon.png" or absolute)
+# or a "file://" URI. Source: KIO KFileItem::iconFromDirectoryFile + Dolphin's
+# SetFolderIconItemAction.
+# ---------------------------------------------------------------------------
+
+DOLPHIN_COLOR_MAP = {
+    "folder-red":    "#da4453",
+    "folder-yellow": "#f5c211",
+    "folder-orange": "#f28200",
+    "folder-green":  "#37a251",
+    "folder-cyan":   "#2ac3de",
+    "folder-blue":   "#3daee9",
+    "folder-violet": "#9b59b6",
+    "folder-brown":  "#9c6b3c",
+    "folder-grey":   "#979797",
+}
+
+
+def _read_dolphin_folder_spec(path):
+    """Best-effort Dolphin customization for a folder, or None.
+
+    Reads <folder>/.directory (Desktop Entry INI) and returns a dict:
+      {"kind": "color", "spec": "#rrggbb"}       — Icon=folder-<color>
+      {"kind": "icon",  "name": "<theme icon>"}  — Icon=<icon name>
+      {"kind": "file",  "uri": "file:///..."}    — Icon=<path or file://>
+    """
+    dot = os.path.join(path, ".directory")
+    if not os.path.isfile(dot):
+        return None
+    try:
+        cp = configparser.ConfigParser()
+        with open(dot, "r", encoding="utf-8", errors="replace") as f:
+            cp.read_file(f)
+        icon = (cp.get("Desktop Entry", "Icon", fallback="") or "").strip()
+    except Exception:
+        return None
+    if not icon:
+        return None
+    if icon.startswith("file://"):
+        f = Gio.File.new_for_uri(icon)
+        p = f.get_path()
+        if p and os.path.isfile(p):
+            return {"kind": "file", "uri": f.get_uri()}
+        return None
+    if icon.startswith("./") or os.path.isabs(icon):
+        p = os.path.abspath(os.path.join(path, icon[2:])) if icon.startswith("./") else icon
+        if os.path.isfile(p):
+            return {"kind": "file", "uri": Gio.File.new_for_path(p).get_uri()}
+        return None
+    if icon in DOLPHIN_COLOR_MAP:
+        return {"kind": "color", "spec": DOLPHIN_COLOR_MAP[icon]}
+    return {"kind": "icon", "name": icon}
+
+
+def _has_custom_metadata(path):
+    """Rule 1: true when the extension/user already customized the folder."""
+    try:
+        item_aux = Gio.File.new_for_path(path)
+        info = item_aux.query_info(
+            "metadata::custom-icon,metadata::custom-icon-name", 0, None)
+        return bool(info.get_attribute_as_string("metadata::custom-icon") or
+                    info.get_attribute_as_string("metadata::custom-icon-name"))
+    except Exception:
+        return False
+
+
+def _icon_theme_has(name):
+    try:
+        return Gtk.IconTheme.get_for_display(
+            Gdk.Display.get_default()).has_icon(name)
+    except Exception:
+        return False
+
+
+def _apply_dolphin_folder_spec(path, spec):
+    """Persist the Dolphin-resolved icon as Nautilus metadata."""
+    try:
+        item_aux = Gio.File.new_for_path(path)
+        info = item_aux.query_info(
+            "metadata::custom-icon,metadata::custom-icon-name", 0, None)
+    except Exception as e:
+        log.error(f"dolphin spec query {path}: {e}")
+        return False
+    kind = spec.get("kind")
+    if kind == "color":
+        uri = _ensure_custom_icon(spec.get("spec", ""))
+        if not uri:
+            return False
+        info.set_attribute_string("metadata::custom-icon", uri)
+        info.set_attribute("metadata::custom-icon-name",
+                           Gio.FileAttributeType.INVALID, 0)
+    elif kind == "file":
+        info.set_attribute_string("metadata::custom-icon", spec.get("uri", ""))
+        info.set_attribute("metadata::custom-icon-name",
+                           Gio.FileAttributeType.INVALID, 0)
+    elif kind == "icon":
+        if not _icon_theme_has(spec.get("name", "")):
+            return False
+        info.set_attribute_string("metadata::custom-icon-name",
+                                  spec.get("name", ""))
+        info.set_attribute("metadata::custom-icon",
+                           Gio.FileAttributeType.INVALID, 0)
+    else:
+        return False
+    try:
+        item_aux.set_attributes_from_info(info, 0, None)
+        return True
+    except Exception as e:
+        log.error(f"dolphin spec apply {path}: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Blocklist — "Default" from the context menu must stick: the folder is
+# recorded here so the auto fallback never re-applies the Dolphin color.
+# ---------------------------------------------------------------------------
+
+def _dolphin_blocklist_path():
+    return os.path.join(_custom_cache_dir(), "dolphin-ignore.json")
+
+
+_DOLPHIN_BLOCKLIST = None
+
+
+def _dolphin_blocklist():
+    global _DOLPHIN_BLOCKLIST
+    if _DOLPHIN_BLOCKLIST is None:
+        try:
+            with open(_dolphin_blocklist_path(), "r", encoding="utf-8") as f:
+                _DOLPHIN_BLOCKLIST = set(json.load(f))
+        except Exception:
+            _DOLPHIN_BLOCKLIST = set()
+    return _DOLPHIN_BLOCKLIST
+
+
+def _save_dolphin_blocklist():
+    try:
+        with open(_dolphin_blocklist_path(), "w", encoding="utf-8") as f:
+            json.dump(sorted(_dolphin_blocklist()), f)
+    except Exception as e:
+        log.error(f"dolphin blocklist save: {e}")
+
+
+class DolphinFolderManager:
+    """Shared resolver state between the InfoProvider and the menu."""
+
+    def __init__(self):
+        self.seen    = set()
+        self.blocked = _dolphin_blocklist()
+        self.pending = {}
+
+    def update_file_info_full(self, provider, handle, closure, file):
+        if file.get_uri_scheme() != "file":
+            return Nautilus.OperationResult.COMPLETE
+        try:
+            path = file.get_location().get_path()
+            if not path or not file.is_directory():
+                return Nautilus.OperationResult.COMPLETE
+        except Exception:
+            return Nautilus.OperationResult.COMPLETE
+        if path in self.seen or path in self.blocked:
+            return Nautilus.OperationResult.COMPLETE
+        self.seen.add(path)
+        self.pending[handle] = (provider, closure, path)
+        GLib.idle_add(self._process, handle)
+        return Nautilus.OperationResult.IN_PROGRESS
+
+    def cancel_update(self, handle):
+        self.pending.pop(handle, None)
+
+    def _process(self, handle):
+        job = self.pending.pop(handle, None)
+        if job is None:
+            return False
+        provider, closure, path = job
+        try:
+            if not _has_custom_metadata(path):            # rule 1: user wins
+                spec = _read_dolphin_folder_spec(path)    # rule 2: Dolphin
+                if spec:
+                    _apply_dolphin_folder_spec(path, spec)
+        except Exception as e:
+            log.error(f"dolphin folder {path}: {e}")
+        finally:
+            try:
+                Nautilus.info_provider_update_complete_invoke(
+                    closure, provider, handle, Nautilus.OperationResult.COMPLETE)
+            except Exception as e:
+                log.error(f"dolphin complete {path}: {e}")
+        return False
+
+    def block(self, path):
+        self.blocked.add(path)
+        _save_dolphin_blocklist()
+
+
+_DOLPHIN_MANAGER = None
+
+
+def _dolphin_manager():
+    global _DOLPHIN_MANAGER
+    if _DOLPHIN_MANAGER is None:
+        _DOLPHIN_MANAGER = DolphinFolderManager()
+    return _DOLPHIN_MANAGER
+
+
+class DolphinColorProvider(GObject.GObject, Nautilus.InfoProvider):
+    """Applies Dolphin folder colors as a fallback when the folder has no
+    Nautilus/user customization of its own."""
+
+    __gtype_name__ = "DolphinColorProvider"
+
+    def __init__(self):
+        super().__init__()
+        self.manager = _dolphin_manager()
+
+    def update_file_info_full(self, provider, handle, closure, file):
+        return self.manager.update_file_info_full(provider, handle, closure, file)
+
+    def cancel_update(self, provider, handle):
+        self.manager.cancel_update(handle)
 
 # ---------------------------------------------------------------------------
 # i18n — same pattern as the other extensions: hardcoded tables per locale
@@ -1696,6 +1926,9 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             log.error(f"custom color dialog: {e}")
 
     def _menu_activate_restore(self, menu, items):
+        manager = _dolphin_manager()
         for item in items:
             if not item.is_gone():
-                self.foldercolor.set_restore(item.get_location().get_path())
+                path = item.get_location().get_path()
+                self.foldercolor.set_restore(path)
+                manager.block(path)

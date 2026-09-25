@@ -75,7 +75,7 @@ nautilus -q
 | ⏱️ **Duration Column** | `nautilus-duration-column` | Duration column for audio/video files |
 | ✂️ **Cut Item Dimmer** | `nautilus-cut-dim` | Visual dimming of cut (Ctrl+X) files |
 | ✏️ **Edit With** | `nautilus-edit-gedit` | Open text files with any installed editor (alphabetical submenu) |
-| 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging for folders |
+| 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging + Dolphin (KDE) color import |
 | 👁️ **Hidden Dim (icon)** | `nautilus-hidden-dim-icon` | Dim only the icon of hidden files |
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
@@ -357,7 +357,7 @@ A central hub to manage all the other extensions without manually moving files.
 
 - **`nautilus-cut-dim`** — visually dims items cut with `Ctrl+X` so you don't forget what's in the clipboard
 - **`nautilus-duration-column`** — adds a sortable Duration column (HH:MM:SS) for audio/video files via `ffprobe`
-- **`nautilus-folder-color-revival`** — revive the classic folder colorizer; works on modern Nautilus 46+
+- **`nautilus-folder-color-revival`** — revive the classic folder colorizer; imports Dolphin (KDE) folder colors automatically; works on modern Nautilus 46+
 - **`nautilus-edit-gedit`** — open text files with any installed editor via an alphabetical "Edit With" submenu (filtered by extension to avoid clutter)
 
 ---
