@@ -421,6 +421,14 @@ class RunDialog(Adw.Window):
         threading.Thread(target=self._run, daemon=True).start()
         GObject.timeout_add(90, self._pulse)
 
+    def present(self):
+        # Defer mapping to idle: presenting synchronously from a menu-activate
+        # handler (or while the previous modal is still closing) leaves pointer
+        # events stuck on the dying menu/window on Wayland while keyboard focus
+        # already moved on (X/Fechar dead, Escape alive). One idle turn lets the
+        # menu dismiss and the old modal unmap first.
+        GLib.idle_add(super().present)
+
     def _pulse(self):
         if self._closed or self._done:
             return False
@@ -548,6 +556,9 @@ class _BaseDialog(Adw.Window):
 
         tv.set_content(self._outer)
         self.set_content(tv)
+
+    def present(self):
+        GLib.idle_add(super().present)
 
     def _on_close_request(self, *_args):
         self._closed = True
