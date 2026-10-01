@@ -46,7 +46,7 @@ en: {
   c23h: "🖼️ Image Tools", c23p: "Grayscale, invert, crop, circle, resize, combine, watermark, optimize.",
   c25h: "🌈 Colorize Image", c25p: "Duotone tint preserving luminance and alpha.",
   c26h: "🔄 Convert Image", c26p: "To PNG/JPEG/WebP/ICO plus square 256 PNG.",
-  c27h: "📥 Clone Repository", c27p: "Clone any git repo into the current folder (URL paste + gh autocomplete).",
+  c27h: "📥 Clone Repository", c27p: "Clone any git repo into the current folder (URL paste + gh autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash.",
   foot: 'Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 fr: {
@@ -95,7 +95,7 @@ fr: {
   c23h: "🖼️ Outils d'image", c23p: "Niveaux de gris, inversion, recadrage, cercle, redimensionnement, combinaison, filigrane, optimisation.",
   c25h: "🌈 Coloriser", c25p: "Teinte duotone qui préserve la luminance et l'alpha.",
   c26h: "🔄 Convertir l'image", c26p: "Vers PNG/JPEG/WebP/ICO plus PNG carré 256.",
-  c27h: "📥 Cloner le dépôt", c27p: "Clonez un dépôt git dans le dossier courant (collage URL + autocomplétion gh).",
+  c27h: "📥 Cloner le dépôt", c27p: "Clonez un dépôt dans le dossier courant (collage URL + autocomplétion gh) ; dans un dépôt, un sous-menu Git offre Pull/Push/Fetch/État/Journal/Commit/Branche/Stash.",
   foot: 'Fait avec 💙 pour Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 de: {
@@ -144,7 +144,7 @@ de: {
   c23h: "🖼️ Bildwerkzeuge", c23p: "Graustufen, Invertieren, Crop, Kreis, Skalieren, Kombinieren, Wasserzeichen, Optimieren.",
   c25h: "🌈 Colorieren", c25p: "Duoton-Färbung, die Luminanz und Alpha erhält.",
   c26h: "🔄 Bild konvertieren", c26p: "Zu PNG/JPEG/WebP/ICO plus quadratischem 256-PNG.",
-  c27h: "📥 Repository klonen", c27p: "Git-Repo in den aktuellen Ordner klonen (URL einfügen + gh-Autovervollständigung).",
+  c27h: "📥 Repository klonen", c27p: "Repos in den aktuellen Ordner klonen (URL einfügen + gh-Autovervollständigung); in Repos bietet ein Git-Untermenü Pull/Push/Fetch/Status/Verlauf/Commit/Branch/Stash.",
   foot: 'Mit 💙 für Fedora &amp; GNOME gemacht · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (Fork von <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 "pt-BR": {
@@ -193,7 +193,7 @@ de: {
   c23h: "🖼️ Ferramentas de imagem", c23p: "Escala de cinza, inverter, recortar, círculo, redimensionar, combinar, marca d'água, otimizar.",
   c25h: "🌈 Colorir", c25p: "Tingimento duotone preservando luminância e alfa.",
   c26h: "🔄 Converter imagem", c26p: "Para PNG/JPEG/WebP/ICO + PNG quadrado 256.",
-  c27h: "📥 Clonar repositório", c27p: "Clone repos git na pasta atual (colar URL + autocompletar gh).",
+  c27h: "📥 Clonar repositório", c27p: "Clone repos na pasta atual (colar URL + autocompletar gh); dentro de repos, o submenu Git oferece Pull/Push/Fetch/Status/Histórico/Commit/Branch/Stash.",
   foot: 'Feito com 💙 para Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 es: {
@@ -242,7 +242,7 @@ es: {
   c23h: "🖼️ Herramientas de imagen", c23p: "Escala de grises, invertir, recortar, círculo, redimensionar, combinar, marca de agua, optimizar.",
   c25h: "🌈 Colorear", c25p: "Tinte duotono que preserva luminancia y alfa.",
   c26h: "🔄 Convertir imagen", c26p: "A PNG/JPEG/WebP/ICO además de PNG cuadrado 256.",
-  c27h: "📥 Clonar repositorio", c27p: "Clona repos git en la carpeta actual (pegar URL + autocompletado gh).",
+  c27h: "📥 Clonar repositorio", c27p: "Clona repos en la carpeta actual (pegar URL + autocompletado gh); dentro de repos, el submenú Git ofrece Pull/Push/Fetch/Estado/Historial/Commit/Rama/Stash.",
   foot: 'Hecho con 💙 para Fedora y GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 }
 };
