@@ -315,6 +315,39 @@ def _parse_regions(text: str) -> list:
     return regs
 
 
+# Keep explicit refs to open windows: nautilus-python drops its Python
+# reference as soon as .present() returns, and a GC'd dialog stops
+# responding to button/X clicks (user gets stuck with a dead popup).
+_open_windows: list = []
+
+
+def _make_header(title: str) -> Adw.HeaderBar:
+    """HeaderBar with a guaranteed working close button.
+
+    A bare Adw.HeaderBar() relies on the system button-layout setting;
+    on some desktops that leaves the dialog with no visible/working X.
+    """
+    header = Adw.HeaderBar()
+    header.set_decoration_layout(":minimize,close")
+    header.set_title_widget(Gtk.Label(label=title))
+    return header
+
+
+def _add_escape_to_close(win: Gtk.Window):
+    """Escape closes the dialog (same pattern as column-browser)."""
+    ctrl = Gtk.ShortcutController()
+    ctrl.set_scope(Gtk.ShortcutScope.MANAGED)
+    trigger = Gtk.ShortcutTrigger.parse_string("Escape")
+    action = Gtk.CallbackAction.new(lambda *a: (win.close(), True)[1])
+    ctrl.add_shortcut(Gtk.Shortcut.new(trigger, action))
+    win.add_controller(ctrl)
+
+
+def _forget_window(win: Gtk.Window):
+    if win in _open_windows:
+        _open_windows.remove(win)
+
+
 # ---------------------------------------------------------------------------
 # Runner dialog: shows command + live log, cancellable
 # ---------------------------------------------------------------------------
@@ -331,9 +364,15 @@ class RunDialog(Adw.Window):
         self._cwd = cwd or os.path.expanduser("~")
         self._proc = None
         self._cancelled = False
+        self._closed = False
+        self._done = False
+        _open_windows.append(self)
+        self.connect("close-request", self._on_close_request)
+        self.connect("destroy", lambda *_: _forget_window(self))
+        _add_escape_to_close(self)
 
         tv = Adw.ToolbarView()
-        tv.add_top_bar(Adw.HeaderBar())
+        tv.add_top_bar(_make_header(T["top_menu"]))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.set_margin_top(14); box.set_margin_bottom(14)
         box.set_margin_start(16); box.set_margin_end(16)
@@ -373,7 +412,7 @@ class RunDialog(Adw.Window):
         self._close_btn = Gtk.Button(label=T["close"])
         self._close_btn.set_visible(False)
         self._close_btn.add_css_class("suggested-action")
-        self._close_btn.connect("clicked", lambda _: self.destroy())
+        self._close_btn.connect("clicked", lambda _: self.close())
         btn_box.append(self._close_btn)
         box.append(btn_box)
 
@@ -383,15 +422,33 @@ class RunDialog(Adw.Window):
         GObject.timeout_add(90, self._pulse)
 
     def _pulse(self):
+        if self._closed or self._done:
+            return False
         if self._proc is None or self._proc.poll() is None:
             self._bar.pulse()
             return True
+        return False
+
+    def _on_close_request(self, *_args):
+        self._closed = True
+        self._cancelled = True
+        if self._proc is not None and self._proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
+            except Exception:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
+        _forget_window(self)
         return False
 
     def _log(self, text: str):
         GLib.idle_add(self._append, text)
 
     def _append(self, text: str):
+        if self._closed:
+            return False
         end = self._buf.get_end_iter()
         self._buf.insert(end, text)
         return False
@@ -425,6 +482,9 @@ class RunDialog(Adw.Window):
         GLib.idle_add(self._finish, rc)
 
     def _finish(self, rc: int):
+        if self._closed:
+            return False
+        self._done = True
         self._bar.set_fraction(1.0 if rc == 0 else 0.0)
         if self._cancelled:
             self._status.set_text(T["cancelled"])
@@ -448,28 +508,51 @@ class _BaseDialog(Adw.Window):
         super().__init__(title=title)
         self.set_modal(True)
         self.set_transient_for(_nautilus_window())
-        self.set_default_size(520, -1)
+        self.set_default_size(520, 560)
+        self._closed = False
+        _open_windows.append(self)
+        self.connect("close-request", self._on_close_request)
+        self.connect("destroy", lambda *_: _forget_window(self))
+        _add_escape_to_close(self)
 
         tv = Adw.ToolbarView()
-        tv.add_top_bar(Adw.HeaderBar())
-        self._box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self._box.set_margin_top(14); self._box.set_margin_bottom(14)
-        self._box.set_margin_start(18); self._box.set_margin_end(18)
+        tv.add_top_bar(_make_header(title))
+        self._outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+        top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        top.set_margin_top(14)
+        top.set_margin_start(18); top.set_margin_end(18)
 
         sub = Gtk.Label(label=subtitle)
         sub.set_halign(Gtk.Align.START)
         sub.set_wrap(True)
         sub.add_css_class("dim-label")
-        self._box.append(sub)
+        top.append(sub)
 
         fl = Gtk.Label(label=f"{T['files']}: {files_label}")
         fl.set_halign(Gtk.Align.START)
         fl.set_wrap(True)
         fl.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
-        self._box.append(fl)
-        self._box.append(Gtk.Separator())
-        tv.set_content(self._box)
+        top.append(fl)
+        top.append(Gtk.Separator())
+        self._outer.append(top)
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self._box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self._box.set_margin_top(6); self._box.set_margin_bottom(6)
+        self._box.set_margin_start(18); self._box.set_margin_end(18)
+        scroll.set_child(self._box)
+        self._outer.append(scroll)
+
+        tv.set_content(self._outer)
         self.set_content(tv)
+
+    def _on_close_request(self, *_args):
+        self._closed = True
+        _forget_window(self)
+        return False
 
     def _lbl(self, text: str) -> Gtk.Label:
         lbl = Gtk.Label(label=f"<b>{text}</b>")
@@ -567,17 +650,22 @@ class _BaseDialog(Adw.Window):
         self._box.append(lbl)
 
     def _buttons(self, on_run):
-        self._box.append(Gtk.Separator())
+        self._outer.append(Gtk.Separator())
+        bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        bottom.set_margin_top(10); bottom.set_margin_bottom(14)
+        bottom.set_margin_start(18); bottom.set_margin_end(18)
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         box.set_halign(Gtk.Align.END)
+        box.set_hexpand(True)
         c = Gtk.Button(label=T["cancel"])
-        c.connect("clicked", lambda _: self.destroy())
+        c.connect("clicked", lambda _: self.close())
         box.append(c)
         ok = Gtk.Button(label=T["run"])
         ok.add_css_class("suggested-action")
         ok.connect("clicked", on_run)
         box.append(ok)
-        self._box.append(box)
+        bottom.append(box)
+        self._outer.append(bottom)
 
 
 def _short_list(paths: list, limit: int = 3) -> str:
@@ -615,7 +703,7 @@ class IdentifyDialog(_BaseDialog):
         if self._no_vis.get_active():
             argv.append("--no-visible")
         argv += self._paths
-        self.destroy()
+        self.close()
         RunDialog(argv).present()
 
 
@@ -633,7 +721,7 @@ class ClassifyDialog(_BaseDialog):
         if self._json.get_active():
             argv.append("--json")
         argv += self._paths
-        self.destroy()
+        self.close()
         RunDialog(argv).present()
 
 
@@ -677,7 +765,7 @@ class VisibleDialog(_BaseDialog):
             else:
                 argv += ["-o", _suggest_output(src)]
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class EraseDialog(_BaseDialog):
@@ -724,7 +812,7 @@ class EraseDialog(_BaseDialog):
                      if self._out is not None and self._out.get_text().strip()
                      else _suggest_output(src)]
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class MetadataDialog(_BaseDialog):
@@ -765,7 +853,7 @@ class MetadataDialog(_BaseDialog):
             else:
                 argv.append("--check")
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class InvisibleDialog(_BaseDialog):
@@ -838,7 +926,7 @@ class InvisibleDialog(_BaseDialog):
                      if self._out is not None and self._out.get_text().strip()
                      else _suggest_output(src)]
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class BatchDialog(_BaseDialog):
@@ -887,7 +975,7 @@ class BatchDialog(_BaseDialog):
                 if self._cpu.get_active():
                     argv.append("--cpu-offload")
             RunDialog(argv, cwd=d).present()
-        self.destroy()
+        self.close()
 
 
 class VideoVisibleDialog(_BaseDialog):
@@ -924,7 +1012,7 @@ class VideoVisibleDialog(_BaseDialog):
                      if self._out is not None and self._out.get_text().strip()
                      else _suggest_output(src)]
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class VideoAllDialog(_BaseDialog):
@@ -950,7 +1038,7 @@ class VideoAllDialog(_BaseDialog):
             if self._with_inv.get_active():
                 argv.append("--invisible")
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 class VideoInvisibleDialog(_BaseDialog):
@@ -985,7 +1073,7 @@ class VideoInvisibleDialog(_BaseDialog):
                      if self._out is not None and self._out.get_text().strip()
                      else _suggest_output(src)]
             RunDialog(argv, cwd=os.path.dirname(src) or None).present()
-        self.destroy()
+        self.close()
 
 
 # ---------------------------------------------------------------------------
