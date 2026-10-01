@@ -73,9 +73,12 @@ en: [
  {id:"colorize-image", name:"🌈 Colorize Image",
   desc:"Duotone tint preserving luminance and alpha.",
   feats:["Target color via color picker","Adjustable strength","Preserves luminance and alpha","Port of IconColorizer"]},
- {id:"convert-image", name:"🔄 Convert Image",
-  desc:"To PNG/JPEG/WebP/ICO plus square 256 PNG.",
-  feats:["Convert to PNG, JPEG (q92), WebP or ICO (favicon)","Square 256×256 PNG conversion","Multi-size ICO output","Port of IconImportService"]}
+  {id:"convert-image", name:"🔄 Convert Image",
+   desc:"To PNG/JPEG/WebP/ICO plus square 256 PNG.",
+   feats:["Convert to PNG, JPEG (q92), WebP or ICO (favicon)","Square 256×256 PNG conversion","Multi-size ICO output","Port of IconImportService"]},
+  {id:"clone-repository", name:"📥 Clone Repository",
+   desc:"Clone any git repository into the current folder — paste a URL, pick from your gh repos.",
+   feats:["Background menu: Clone Repository… clones into the current folder","Auto-pastes a valid git URL from the clipboard","Autocomplete of your GitHub repos via the gh CLI (silently off when gh is missing)","ENTER or Clone runs git clone with progress plus success/error feedback"]}
 ],
 fr: [
  {id:"dual-panel", name:"🗂️ Double panneau",
@@ -150,9 +153,12 @@ fr: [
  {id:"colorize-image", name:"🌈 Coloriser",
   desc:"Teinte duotone qui préserve la luminance et l'alpha.",
   feats:["Couleur cible via sélecteur de couleurs","Intensité réglable","Préserve la luminance et l'alpha","Port de IconColorizer"]},
- {id:"convert-image", name:"🔄 Convertir l'image",
-  desc:"Vers PNG/JPEG/WebP/ICO plus PNG carré 256.",
-  feats:["Conversion vers PNG, JPEG (q92), WebP ou ICO (favicon)","Conversion en PNG carré 256×256","Sortie ICO multi-tailles","Port de IconImportService"]}
+  {id:"convert-image", name:"🔄 Convertir l'image",
+   desc:"Vers PNG/JPEG/WebP/ICO plus PNG carré 256.",
+   feats:["Conversion vers PNG, JPEG (q92), WebP ou ICO (favicon)","Conversion en PNG carré 256×256","Sortie ICO multi-tailles","Port de IconImportService"]},
+  {id:"clone-repository", name:"📥 Cloner le dépôt",
+   desc:"Clonez n'importe quel dépôt git dans le dossier courant — collez une URL ou choisissez parmi vos dépôts gh.",
+   feats:["Menu du fond de dossier : Cloner le dépôt… clone dans le dossier courant","Colle auto une URL git valide depuis le presse-papiers","Autocomplétion de vos dépôts GitHub via la CLI gh (désactivée silencieusement sans gh)","ENTRÉE ou Cloner lance git clone avec progression et retour succès/erreur"]}
 ],
 de: [
  {id:"dual-panel", name:"🗂️ Doppelpanel",
@@ -227,9 +233,12 @@ de: [
  {id:"colorize-image", name:"🌈 Colorieren",
   desc:"Duoton-Färbung, die Luminanz und Alpha erhält.",
   feats:["Zielfarbe per Farbwähler","Intensität einstellbar","Erhält Luminanz und Alpha","Port von IconColorizer"]},
- {id:"convert-image", name:"🔄 Bild konvertieren",
-  desc:"Zu PNG/JPEG/WebP/ICO plus quadratischem 256-PNG.",
-  feats:["Konvertierung zu PNG, JPEG (q92), WebP oder ICO (Favicon)","Quadratisches 256×256-PNG","Multi-Size-ICO-Ausgabe","Port von IconImportService"]}
+  {id:"convert-image", name:"🔄 Bild konvertieren",
+   desc:"Zu PNG/JPEG/WebP/ICO plus quadratischem 256-PNG.",
+   feats:["Konvertierung zu PNG, JPEG (q92), WebP oder ICO (Favicon)","Quadratisches 256×256-PNG","Multi-Size-ICO-Ausgabe","Port von IconImportService"]},
+  {id:"clone-repository", name:"📥 Repository klonen",
+   desc:"Ein beliebiges Git-Repository in den aktuellen Ordner klonen — URL einfügen oder aus gh-Repos wählen.",
+   feats:["Hintergrundmenü: Repository klonen… klont in den aktuellen Ordner","Fügt eine gültige Git-URL automatisch aus der Zwischenablage ein","Autovervollständigung der eigenen GitHub-Repos via gh-CLI (ohne gh still deaktiviert)","ENTER oder Klonen startet git clone mit Fortschritt plus Erfolgs-/Fehlermeldung"]}
 ],
 "pt-BR": [
  {id:"dual-panel", name:"🗂️ Painel duplo",
@@ -304,9 +313,12 @@ de: [
  {id:"colorize-image", name:"🌈 Colorir",
   desc:"Tingimento duotone preservando luminância e alfa.",
   feats:["Cor alvo via seletor de cor","Intensidade ajustável","Preserva luminância e alfa","Port do IconColorizer"]},
- {id:"convert-image", name:"🔄 Converter imagem",
-  desc:"Para PNG/JPEG/WebP/ICO + PNG quadrado 256.",
-  feats:["Converte para PNG, JPEG (q92), WebP ou ICO (favicon)","PNG quadrado 256×256","Saída ICO multiresolução","Port do IconImportService"]}
+  {id:"convert-image", name:"🔄 Converter imagem",
+   desc:"Para PNG/JPEG/WebP/ICO + PNG quadrado 256.",
+   feats:["Converte para PNG, JPEG (q92), WebP ou ICO (favicon)","PNG quadrado 256×256","Saída ICO multiresolução","Port do IconImportService"]},
+  {id:"clone-repository", name:"📥 Clonar repositório",
+   desc:"Clone qualquer repositório git na pasta atual — cole a URL ou escolha entre seus repos do gh.",
+   feats:["Menu do fundo da pasta: Clonar repositório… clona na pasta atual","Cola auto uma URL git válida da área de transferência","Autocompletar dos seus repos do GitHub via CLI gh (desligado em silêncio sem gh)","ENTER ou Clonar roda git clone com progresso e retorno de sucesso/erro"]}
 ],
 es: [
  {id:"dual-panel", name:"🗂️ Panel doble",
@@ -381,9 +393,12 @@ es: [
  {id:"colorize-image", name:"🌈 Colorear",
   desc:"Tinte duotono que preserva luminancia y alfa.",
   feats:["Color objetivo vía selector de color","Intensidad ajustable","Preserva luminancia y alfa","Port de IconColorizer"]},
- {id:"convert-image", name:"🔄 Convertir imagen",
-  desc:"A PNG/JPEG/WebP/ICO además de PNG cuadrado 256.",
-  feats:["Conversión a PNG, JPEG (q92), WebP o ICO (favicon)","PNG cuadrado 256×256","Salida ICO multiresolución","Port de IconImportService"]}
+  {id:"convert-image", name:"🔄 Convertir imagen",
+   desc:"A PNG/JPEG/WebP/ICO además de PNG cuadrado 256.",
+   feats:["Conversión a PNG, JPEG (q92), WebP o ICO (favicon)","PNG cuadrado 256×256","Salida ICO multiresolución","Port de IconImportService"]},
+  {id:"clone-repository", name:"📥 Clonar repositorio",
+   desc:"Clona cualquier repositorio git en la carpeta actual — pega la URL o elige entre tus repos de gh.",
+   feats:["Menú del fondo de la carpeta: Clonar repositorio… clona en la carpeta actual","Pega auto una URL git válida del portapapeles","Autocompletado de tus repos de GitHub vía la CLI gh (desactivado en silencio sin gh)","ENTER o Clonar ejecuta git clone con progreso y aviso de éxito/error"]}
 ]
 };
 

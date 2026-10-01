@@ -84,6 +84,7 @@ nautilus -q
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 🎨 **Colorize Image** | — (manual install) | Tint images preserving luminance & alpha (Pillow) |
 | 🔄 **Convert Image** | — (manual install) | Convert to PNG/JPEG/WebP/ICO + square 256×256 PNG |
+| 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete) |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
 > 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**.

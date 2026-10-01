@@ -20,7 +20,7 @@ en: {
   feat5: "Emblems, per-XDG special icons, restore-to-default, lazy theme loading.",
   feat6: "<strong>Image overlay</strong> — stamp any PNG/JPEG/WebP/SVG onto the folder icon (Add image…), then fine-tune directly on the canvas: drag to move, scroll to resize, Shift+scroll to rotate, Alt+scroll for opacity.",
   ext_h: "All extensions",
-  ext_p: "26 extensions, one install. Everything runs locally — no telemetry.",
+  ext_p: "27 extensions, one install. Everything runs locally — no telemetry.",
   c1h: "🗂️ Dual Panel", c1p: "Double-pane manager inside Nautilus (F3), rsync progress, drag &amp; drop.",
   c2h: "🧭 Column Browser", c2p: "Miller-columns Finder-style browser (F9), threaded loading.",
   c3h: "⚙️ Extensions Manager", c3p: "Enable/disable extensions on the fly.",
@@ -46,6 +46,7 @@ en: {
   c23h: "🖼️ Image Tools", c23p: "Grayscale, invert, crop, circle, resize, combine, watermark, optimize.",
   c25h: "🌈 Colorize Image", c25p: "Duotone tint preserving luminance and alpha.",
   c26h: "🔄 Convert Image", c26p: "To PNG/JPEG/WebP/ICO plus square 256 PNG.",
+  c27h: "📥 Clone Repository", c27p: "Clone any git repo into the current folder (URL paste + gh autocomplete).",
   foot: 'Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 fr: {
@@ -68,7 +69,7 @@ fr: {
   feat5: "Emblèmes, icônes spéciales XDG, restauration, chargement paresseux du thème.",
   feat6: "<strong>Superposition d'image</strong> — apposez un PNG/JPEG/WebP/SVG sur l'icône du dossier (Add image…), puis réglez-le directement sur le canevas : glisser pour déplacer, molette pour redimensionner, Maj+molette pour pivoter, Alt+molette pour l'opacité.",
   ext_h: "Toutes les extensions",
-  ext_p: "26 extensions, une installation. Tout tourne en local — aucune télémétrie.",
+  ext_p: "27 extensions, une installation. Tout tourne en local — aucune télémétrie.",
   c1h: "🗂️ Double panneau", c1p: "Gestionnaire double panneau dans Nautilus (F3), progression rsync, glisser-déposer.",
   c2h: "🧭 Navigateur en colonnes", c2p: "Colonnes Miller style Finder (F9), chargement parallélisé.",
   c3h: "⚙️ Gestionnaire d'extensions", c3p: "Activez/désactivez les extensions à la volée.",
@@ -94,6 +95,7 @@ fr: {
   c23h: "🖼️ Outils d'image", c23p: "Niveaux de gris, inversion, recadrage, cercle, redimensionnement, combinaison, filigrane, optimisation.",
   c25h: "🌈 Coloriser", c25p: "Teinte duotone qui préserve la luminance et l'alpha.",
   c26h: "🔄 Convertir l'image", c26p: "Vers PNG/JPEG/WebP/ICO plus PNG carré 256.",
+  c27h: "📥 Cloner le dépôt", c27p: "Clonez un dépôt git dans le dossier courant (collage URL + autocomplétion gh).",
   foot: 'Fait avec 💙 pour Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 de: {
@@ -116,7 +118,7 @@ de: {
   feat5: "Embleme, XDG-Spezialsymbole, Wiederherstellung, Lazy-Theme-Loading.",
   feat6: "<strong>Bild-Overlay</strong> — stempeln Sie ein PNG/JPEG/WebP/SVG auf das Ordnersymbol (Add image…), dann direkt auf der Leinwand einstellen: Ziehen zum Verschieben, Scrollen zum Skalieren, Umschalt+Scrollen zum Drehen, Alt+Scrollen für Deckkraft.",
   ext_h: "Alle Erweiterungen",
-  ext_p: "26 Erweiterungen, eine Installation. Alles läuft lokal — keine Telemetrie.",
+  ext_p: "27 Erweiterungen, eine Installation. Alles läuft lokal — keine Telemetrie.",
   c1h: "🗂️ Doppelpanel", c1p: "Zwei Panels in Nautilus (F3), rsync-Fortschritt, Drag &amp; Drop.",
   c2h: "🧭 Spaltenbrowser", c2p: "Miller-Spalten im Finder-Stil (F9), paralleles Laden.",
   c3h: "⚙️ Erweiterungsmanager", c3p: "Erweiterungen per Klick aktivieren/deaktivieren.",
@@ -142,6 +144,7 @@ de: {
   c23h: "🖼️ Bildwerkzeuge", c23p: "Graustufen, Invertieren, Crop, Kreis, Skalieren, Kombinieren, Wasserzeichen, Optimieren.",
   c25h: "🌈 Colorieren", c25p: "Duoton-Färbung, die Luminanz und Alpha erhält.",
   c26h: "🔄 Bild konvertieren", c26p: "Zu PNG/JPEG/WebP/ICO plus quadratischem 256-PNG.",
+  c27h: "📥 Repository klonen", c27p: "Git-Repo in den aktuellen Ordner klonen (URL einfügen + gh-Autovervollständigung).",
   foot: 'Mit 💙 für Fedora &amp; GNOME gemacht · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (Fork von <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 "pt-BR": {
@@ -164,7 +167,7 @@ de: {
   feat5: "Emblemas, ícones especiais XDG, restauração, carregamento preguiçoso do tema.",
   feat6: "<strong>Sobreposição de imagem</strong> — carimbe qualquer PNG/JPEG/WebP/SVG no ícone da pasta (Adicionar Imagem…), e ajuste direto no canvas: arrastar para mover, scroll para redimensionar, Shift+scroll para girar, Alt+scroll para opacidade.",
   ext_h: "Todas as extensões",
-  ext_p: "26 extensões, uma instalação. Tudo roda localmente — sem telemetria.",
+  ext_p: "27 extensões, uma instalação. Tudo roda localmente — sem telemetria.",
   c1h: "🗂️ Painel duplo", c1p: "Gerenciador de painel duplo dentro do Nautilus (F3), progresso rsync, arrastar e soltar.",
   c2h: "🧭 Navegador em colunas", c2p: "Colunas Miller estilo Finder (F9), carregamento paralelizado.",
   c3h: "⚙️ Gerenciador de extensões", c3p: "Ative/desative extensões com um clique.",
@@ -190,6 +193,7 @@ de: {
   c23h: "🖼️ Ferramentas de imagem", c23p: "Escala de cinza, inverter, recortar, círculo, redimensionar, combinar, marca d'água, otimizar.",
   c25h: "🌈 Colorir", c25p: "Tingimento duotone preservando luminância e alfa.",
   c26h: "🔄 Converter imagem", c26p: "Para PNG/JPEG/WebP/ICO + PNG quadrado 256.",
+  c27h: "📥 Clonar repositório", c27p: "Clone repos git na pasta atual (colar URL + autocompletar gh).",
   foot: 'Feito com 💙 para Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
 es: {
@@ -212,7 +216,7 @@ es: {
   feat5: "Emblemas, iconos especiales XDG, restauración, carga perezosa del tema.",
   feat6: "<strong>Superposición de imagen</strong> — estampa cualquier PNG/JPEG/WebP/SVG sobre el icono de la carpeta (Añadir imagen…), y ajústalo directamente en el lienzo: arrastrar para mover, rueda para redimensionar, Mayús+rueda para rotar, Alt+rueda para opacidad.",
   ext_h: "Todas las extensiones",
-  ext_p: "26 extensiones, una instalación. Todo funciona en local — sin telemetría.",
+  ext_p: "27 extensiones, una instalación. Todo funciona en local — sin telemetría.",
   c1h: "🗂️ Panel doble", c1p: "Gestor de doble panel en Nautilus (F3), progreso rsync, arrastrar y soltar.",
   c2h: "🧭 Navegador en columnas", c2p: "Columnas Miller estilo Finder (F9), carga paralelizada.",
   c3h: "⚙️ Gestor de extensiones", c3p: "Activa/desactiva extensiones con un clic.",
@@ -238,6 +242,7 @@ es: {
   c23h: "🖼️ Herramientas de imagen", c23p: "Escala de grises, invertir, recortar, círculo, redimensionar, combinar, marca de agua, optimizar.",
   c25h: "🌈 Colorear", c25p: "Tinte duotono que preserva luminancia y alfa.",
   c26h: "🔄 Convertir imagen", c26p: "A PNG/JPEG/WebP/ICO además de PNG cuadrado 256.",
+  c27h: "📥 Clonar repositorio", c27p: "Clona repos git en la carpeta actual (pegar URL + autocompletado gh).",
   foot: 'Hecho con 💙 para Fedora y GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 }
 };
