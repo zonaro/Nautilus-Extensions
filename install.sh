@@ -58,9 +58,9 @@ if ! command -v unrar >/dev/null 2>&1; then
   sudo dnf install -y unrar || echo "WARNING: unrar unavailable — password-protected RAR will use 7z."
 fi
 
-# --- Optional: remove-ai-watermarks CLI (used by remove-ai-watermarks.py) ---
+# --- Optional: remove-ai-watermarks CLI (used by the Image Tools submenu) ---
 # Upstream: https://github.com/wiltodelta/remove-ai-watermarks
-# The Nautilus extension (remove-ai-watermarks.py) is always copied below;
+# The Nautilus extension (image-tools.py) is always copied below;
 # the CLI itself is only installed if the user opts in here.
 install_raiw_cli() {
   if command -v remove-ai-watermarks >/dev/null 2>&1; then
@@ -100,7 +100,7 @@ install_raiw_cli() {
 RAIW_ANSWER=""
 if [ -e /dev/tty ]; then
   # Ask on the controlling terminal so curl|bash still prompts correctly.
-  printf "Instalar Remove AI Watermarks (extensão + CLI remove-ai-watermarks no PATH)? [S/n] " > /dev/tty
+  printf "Instalar o CLI remove-ai-watermarks (usado pelo submenu Image Tools)? [S/n] " > /dev/tty
   read -r RAIW_ANSWER < /dev/tty || RAIW_ANSWER=""
 else
   RAIW_ANSWER="${RAIW_INSTALL:-Y}"
