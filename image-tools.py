@@ -129,10 +129,11 @@ if _lang.startswith("fr"):
         "resize_custom":  "Personnalisé",
         "resize_keep":    "Conserver les proportions",
         "resize_mode":    "Ajustement",
+        "resize_dpi":     "Résolution (DPI)",
         "fit_inside":     "À l'intérieur (bornes max)",
         "fit_fill":       "Remplir (recadrage centré)",
         "fit_stretch":    "Étirer (exact)",
-        "resize_info":    "Résultat : {w} × {h} px · {ratio}",
+        "resize_info":    "Résultat : {w} × {h} px · {ratio} · {dpi} ppp",
         "resize_nosrc":   "Image source illisible : proportions indisponibles.",
         "optimize_title": "Optimiser pour le Web",
         "optimize_max":   "Dimension max",
@@ -291,10 +292,11 @@ elif _lang.startswith("de"):
         "resize_custom":  "Benutzerdefiniert",
         "resize_keep":    "Seitenverhältnis beibehalten",
         "resize_mode":    "Anpassung",
+        "resize_dpi":     "Auflösung (DPI)",
         "fit_inside":     "Einpassen (max. Grenzen)",
         "fit_fill":       "Füllen (zentriert zuschneiden)",
         "fit_stretch":    "Strecken (exakt)",
-        "resize_info":    "Ergebnis: {w} × {h} px · {ratio}",
+        "resize_info":    "Ergebnis: {w} × {h} px · {ratio} · {dpi} dpi",
         "resize_nosrc":   "Quelldatei nicht lesbar: Seitenverhältnis unbekannt.",
         "optimize_title": "Für Web optimieren",
         "optimize_max":   "Max. Dimension",
@@ -453,10 +455,11 @@ elif _lang.startswith("es"):
         "resize_custom":  "Personalizado",
         "resize_keep":    "Mantener proporción",
         "resize_mode":    "Ajuste",
+        "resize_dpi":     "Resolución (DPI)",
         "fit_inside":     "Ajustar dentro (límites máx.)",
         "fit_fill":       "Rellenar (recorte centrado)",
         "fit_stretch":    "Estirar (exacto)",
-        "resize_info":    "Resultado: {w} × {h} px · {ratio}",
+        "resize_info":    "Resultado: {w} × {h} px · {ratio} · {dpi} ppp",
         "resize_nosrc":   "Imagen de origen ilegible: proporción no disponible.",
         "optimize_title": "Optimizar para web",
         "optimize_max":   "Dimensión máx.",
@@ -615,10 +618,11 @@ elif _lang.startswith("pt"):
         "resize_custom":  "Personalizado",
         "resize_keep":    "Manter proporção",
         "resize_mode":    "Ajuste",
+        "resize_dpi":     "Resolução (DPI)",
         "fit_inside":     "Ajustar dentro (limites máx.)",
         "fit_fill":       "Preencher (recorte central)",
         "fit_stretch":    "Esticar (exato)",
-        "resize_info":    "Resultado: {w} × {h} px · {ratio}",
+        "resize_info":    "Resultado: {w} × {h} px · {ratio} · {dpi} ppp",
         "resize_nosrc":   "Imagem de origem ilegível: proporção indisponível.",
         "optimize_title": "Otimizar para web",
         "optimize_max":   "Dimensão máx.",
@@ -777,10 +781,11 @@ else:
         "resize_custom":  "Custom",
         "resize_keep":    "Keep aspect ratio",
         "resize_mode":    "Fit mode",
+        "resize_dpi":     "Resolution (DPI)",
         "fit_inside":     "Fit inside (max bounds)",
         "fit_fill":       "Fill (center crop)",
         "fit_stretch":    "Stretch (exact)",
-        "resize_info":    "Result: {w} × {h} px · {ratio}",
+        "resize_info":    "Result: {w} × {h} px · {ratio} · {dpi} dpi",
         "resize_nosrc":   "Source image unreadable: aspect ratio unavailable.",
         "optimize_title": "Optimize for Web",
         "optimize_max":   "Max dimension",
@@ -889,6 +894,7 @@ _FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG",
             ".webp": "WEBP", ".bmp": "BMP", ".ico": "ICO",
             ".tif": "TIFF", ".tiff": "TIFF"}
 _ALPHA_FORMATS = ("PNG", "WEBP", "ICO")
+_DPI_FORMATS = ("PNG", "JPEG", "BMP", "TIFF")
 _COMBINE_OUTPUT = "combined_images.png"
 _CONVERT_JPEG_QUALITY = 92
 _SQUARE_SIZE = 256
@@ -953,7 +959,7 @@ def _same_path(a: str, b: str) -> bool:
     return os.path.abspath(a).lower() == os.path.abspath(b).lower()
 
 
-def _save(img, dst: str, params=None):
+def _save(img, dst: str, params=None, dpi=None):
     """Sauvegarde img dans dst en gérant alpha selon le format cible."""
     ext = os.path.splitext(dst)[1].lower()
     fmt = _FORMATS.get(ext, "PNG")
@@ -966,6 +972,8 @@ def _save(img, dst: str, params=None):
     elif mode == "P":
         img = img.convert("RGB" if fmt not in _ALPHA_FORMATS else "RGBA")
     opts = dict(params or {})
+    if dpi and fmt in _DPI_FORMATS:
+        opts["dpi"] = (dpi, dpi)
     img.save(dst, fmt, **opts)
 
 
@@ -991,11 +999,19 @@ _RESIZE_PRESETS = (
     ("Ultrawide 21:9", 3440, 1440),
     ("Super Ultrawide 32:9", 5120, 1440),
     ("App Icon / Avatar", 512, 512),
-    ("A4 96 dpi", 794, 1123),
-    ("A4 150 dpi", 1240, 1754),
-    ("A4 300 dpi", 2480, 3508),
-    ("US Letter 300 dpi", 2550, 3300),
 )
+
+# Physical sizes (mm) whose pixel size follows the DPI field.
+_PAPER_PRESETS = (
+    ("A3", 297.0, 420.0),
+    ("A4", 210.0, 297.0),
+    ("A5", 148.0, 210.0),
+    ("US Letter", 215.9, 279.4),
+)
+
+_PAPER_DEFAULT_DPI = 300
+_MAX_DPI = 4800
+_MM_PER_INCH = 25.4
 
 _MAX_DIM = 100000
 
@@ -1041,6 +1057,28 @@ def _image_size(path):
             return im.size
     except Exception:  # noqa: BLE001
         return None
+
+
+def _image_dpi(path):
+    """DPI recorded in an image, or None when absent/unusable."""
+    if Image is None or not path:
+        return None
+    try:
+        with Image.open(path) as im:
+            value = im.info.get("dpi")
+    except Exception:  # noqa: BLE001
+        return None
+    if isinstance(value, tuple):
+        value = value[0] if value else None
+    try:
+        dpi = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    return dpi if 1 <= dpi <= _MAX_DPI else None
+
+
+def _mm_to_px(mm: float, dpi: int) -> int:
+    return min(_MAX_DIM, max(1, round(mm / _MM_PER_INCH * dpi)))
 
 
 # ---------------------------------------------------------------------------
@@ -1089,25 +1127,34 @@ def op_circle(src):
     return dst
 
 
-def op_resize(src, w, h, keep_ratio=False, mode="inside"):
-    """keep_ratio links both dimensions to the source ratio (exact output).
+def op_resize(src, w, h, keep_ratio=False, mode="inside", axis="w", dpi=None):
+    """keep_ratio links both dimensions to the image's own ratio (exact output),
+    so a mixed-ratio batch keeps every picture undistorted.
 
-    mode applies when the two dimensions are independent: "inside" fits the
-    image in the box without upscaling, "fill" center-crops to the box,
-    "stretch" distorts to the box.
+    axis tells which dimension the user edited last. mode applies when the two
+    dimensions are independent: "inside" fits the image in the box without
+    upscaling, "fill" center-crops to the box, "stretch" distorts to the box.
+    dpi is stored in the output metadata for print-oriented formats.
     """
     dst = _suffix(src, T["s_resize"])
-    w, h = max(1, int(w)), max(1, int(h))
+    w, h = min(_MAX_DIM, max(1, int(w))), min(_MAX_DIM, max(1, int(h)))
     with Image.open(src) as im:
         im.load()
         work = im.copy()
-        if keep_ratio or mode == "stretch":
+        if keep_ratio:
+            iw, ih = work.size
+            if axis == "w":
+                h = min(_MAX_DIM, max(1, round(w * ih / iw)))
+            else:
+                w = min(_MAX_DIM, max(1, round(h * iw / ih)))
+            work = work.resize((w, h), Image.LANCZOS)
+        elif mode == "stretch":
             work = work.resize((w, h), Image.LANCZOS)
         elif mode == "fill":
             work = ImageOps.fit(work, (w, h), Image.LANCZOS)
         else:
             work.thumbnail((w, h), Image.LANCZOS)
-        _save(work, dst)
+        _save(work, dst, dpi=dpi)
     return dst
 
 
@@ -1525,18 +1572,23 @@ class ResizeDialog(_BaseDialog):
 
     def __init__(self, source=None):
         self._src_size = _image_size(source)
+        self._src_dpi = _image_dpi(source)
         self._syncing = False
+        self._axis = "w"
         super().__init__(T["resize_title"])
 
     def _build(self, body):
         body.append(self._section(T["resize_preset"]))
         self._preset = self._dropdown(
             [T["resize_custom"]]
-            + [f"{name} · {w} × {h}" for name, w, h in _RESIZE_PRESETS])
+            + [f"{name} · {w} × {h}" for name, w, h in _RESIZE_PRESETS]
+            + [f"{name} · {mm_w:g} × {mm_h:g} mm"
+               for name, mm_w, mm_h in _PAPER_PRESETS])
         self._preset.connect("notify::selected", self._on_preset)
         body.append(self._preset)
 
         start_w = 1024
+        start_dpi = self._src_dpi or _PAPER_DEFAULT_DPI
         if self._src_size:
             start_w = min(self._src_size[0], start_w)
 
@@ -1549,6 +1601,11 @@ class ResizeDialog(_BaseDialog):
         self._h = self._spin(1, _MAX_DIM, 1, 1)
         self._h.connect("value-changed", lambda *_: self._on_dim(keep_w=False))
         body.append(self._h)
+
+        body.append(self._section(T["resize_dpi"]))
+        self._dpi = self._spin(1, _MAX_DPI, 1, start_dpi)
+        self._dpi.connect("value-changed", lambda *_: self._on_dpi())
+        body.append(self._dpi)
 
         self._keep = self._switch(T["resize_keep"], True,
                                   self._src_size is not None)
@@ -1566,30 +1623,62 @@ class ResizeDialog(_BaseDialog):
         else:
             self._sync()
 
+    def _paper_at(self, idx):
+        """(mm_w, mm_h) when the dropdown entry is a physical size."""
+        offset = len(_RESIZE_PRESETS) + 1
+        if offset <= idx < offset + len(_PAPER_PRESETS):
+            return _PAPER_PRESETS[idx - offset][1:]
+        return None
+
+    def _apply_paper(self, mm):
+        dpi = int(self._dpi.get_value())
+        self._syncing = True
+        self._w.set_value(_mm_to_px(mm[0], dpi))
+        self._h.set_value(_mm_to_px(mm[1], dpi))
+        self._syncing = False
+        self._sync()
+
     def _on_preset(self, *_):
         idx = self._preset.get_selected()
         if self._syncing or idx <= 0:
             self._sync()
             return
-        _name, w, h = _RESIZE_PRESETS[idx - 1]
         self._syncing = True
-        self._w.set_value(min(_MAX_DIM, w))
-        self._h.set_value(min(_MAX_DIM, h))
+        mm = self._paper_at(idx)
+        if mm:
+            self._dpi.set_value(_PAPER_DEFAULT_DPI)
+        else:
+            _name, w, h = _RESIZE_PRESETS[idx - 1]
+            self._w.set_value(min(_MAX_DIM, w))
+            self._h.set_value(min(_MAX_DIM, h))
         self._keep.set_active(False)
         self._mode.set_selected(1)
         self._syncing = False
-        self._sync()
+        if mm:
+            self._apply_paper(mm)
+        else:
+            self._sync()
+
+    def _on_dpi(self, *_):
+        if self._syncing:
+            return
+        mm = self._paper_at(self._preset.get_selected())
+        if mm:
+            self._apply_paper(mm)
+        else:
+            self._sync()
 
     def _on_dim(self, keep_w):
         if self._syncing:
             return
+        self._axis = "w" if keep_w else "h"
         self._syncing = True
         self._preset.set_selected(0)
-        self._syncing = False
         if self._keep.get_active() and self._src_size:
             value = int(self._w.get_value() if keep_w else self._h.get_value())
             target = self._h if keep_w else self._w
             target.set_value(_linked_dim(value, self._src_size, keep_w))
+        self._syncing = False
         self._sync()
 
     def _on_keep(self, *_):
@@ -1609,12 +1698,14 @@ class ResizeDialog(_BaseDialog):
         if not locked and self._mode.get_selected() == 0:
             w, h = _fit_size(*self._src_size, w, h)
         self._info.set_text(T["resize_info"].format(
-            w=w, h=h, ratio=_ratio_label(w, h)))
+            w=w, h=h, ratio=_ratio_label(w, h), dpi=int(self._dpi.get_value())))
 
     def _values(self):
         return {"w": int(self._w.get_value()),
                 "h": int(self._h.get_value()),
                 "keep": self._keep.get_active(),
+                "axis": self._axis,
+                "dpi": int(self._dpi.get_value()),
                 "mode": ("inside", "fill", "stretch")[self._mode.get_selected()]}
 
 
@@ -3336,7 +3427,8 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         dlg = ResizeDialog(paths[0] if paths else None)
         dlg.set_callback(
             lambda s: s is not None and self._start_batch(
-                [lambda p=p, s=s: op_resize(p, s["w"], s["h"], s["keep"], s["mode"])
+                [lambda p=p, s=s: op_resize(p, s["w"], s["h"], s["keep"],
+                                            s["mode"], s["axis"], s["dpi"])
                  for p in paths]))
         dlg.present()
 
