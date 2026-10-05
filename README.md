@@ -80,7 +80,7 @@ nautilus -q
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
 | 🗂️ **File Tools** | — (manual install) | Friendly-name, copy-path, enum-rename, clean-empty, timestamp-folder, symlinks, base64, copy-content |
-| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, combine, watermark, optimize-web (Pillow) |
+| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Remove AI Watermarks** submenu for images, video and folders (`remove-ai-watermarks` CLI) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 🎨 **Colorize Image** | — (manual install) | Tint images preserving luminance & alpha (Pillow) |
 | 🔄 **Convert Image** | — (manual install) | Convert to PNG/JPEG/WebP/ICO + square 256×256 PNG |
@@ -369,13 +369,13 @@ Ideas ported from [Contextrion](https://github.com/zonaro/Contextrion) (Windows 
 
 - **`paste-into-file.py`** — right-click folder background → **Paste Into File**: saves clipboard text (`.txt`), image (`.png`/`.jpg`) or copied files (`.zip`, structure preserved) with a preview dialog and `Clipboard_YYYYMMDD_HHMMSS` default name.
 - **`file-tools.py`** — **File Tools** (root context menu): friendly URL rename, copy path, enum bulk rename (`file (#).ext`), clean empty folders & `YYYY/MM/DD` timestamp folder (folders only — also from the folder background menu), symlinks (destination folder + name prompt), copy as Base64 Data URL (files only), copy `.txt`/image content (text/image files only).
-- **`image-tools.py`** — **Image Tools** submenu (Pillow, always saves a new copy): grayscale, invert, center crop, circle crop, resize, vertical/horizontal combine, text/image watermark (50% alpha, centered), optimize for web.
+- **`image-tools.py`** — **Image Tools** submenu (Pillow, always saves a new copy): grayscale, invert, center crop, circle crop, resize, vertical/horizontal combine, text/image watermark (50% alpha, centered), optimize for web. Includes a nested **Remove AI Watermarks** submenu (via the `remove-ai-watermarks` CLI) with visible/invisible watermark removal, C2PA/metadata stripping, ffmpeg video support and folder batch processing.
 - **`dev-tools-minify.py`** — **Minify** on `.js`/`.css` (regex-based, stdlib only), side-by-side `name.min.ext` with savings report. Skips already-minified files.
 - **`colorize-image.py`** — **Colorize** images with a target color (color picker + strength), preserving luminance and alpha (port of `IconColorizer`).
 - **`convert-image.py`** — **Convert Image** submenu: to PNG / JPEG (q92) / WebP / multi-size ICO (favicon) + square 256×256 PNG (port of `IconImportService`, minus DLL extraction).
 - Copy Content (`file-tools.py`) also combines selected images straight to the clipboard.
 
-> DLL icon extraction and C2PA/metadata stripping were intentionally **not** ported (Windows-only / already covered by `remove-ai-watermarks.py`).
+> DLL icon extraction was intentionally **not** ported (Windows-only). C2PA/metadata stripping is covered by the Image Tools → **Remove AI Watermarks** submenu.
 
 ## ⌨️ Keyboard shortcuts
 
