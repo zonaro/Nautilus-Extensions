@@ -39,7 +39,7 @@ try:
     gi.require_version("Nautilus", "4.0")
 except ValueError:
     pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
-from gi.repository import GObject, Gtk, Adw, Gio, Nautilus
+from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus
 
 # ---------------------------------------------------------------------------
 # i18n
@@ -234,6 +234,12 @@ class OrderDialog(Adw.Window):
         toolbar_view.set_content(outer)
         self.set_content(toolbar_view)
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _populate(self):
         # Vider la liste
         while True:
@@ -332,6 +338,12 @@ class MergeProgressDialog(Adw.Window):
         self._thread = threading.Thread(target=self._merge, daemon=True)
         self._thread.start()
         GObject.timeout_add(80, self._pulse)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
     def _pulse(self):
         if self._thread.is_alive():

@@ -341,6 +341,12 @@ class SearchWindow(Adw.Window):
                      lambda *_: setattr(self, "_closed", True) or False)
         GLib.idle_add(lambda: (self._entry.grab_focus(), False)[1])
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _toast(self, message):
         """Affiche un toast natif dans la fenêtre."""
         toast = Adw.Toast.new(message)

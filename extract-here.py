@@ -298,6 +298,12 @@ class ExtractDialog(Adw.Window):
         tv.set_content(box)
         self.set_content(tv)
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _on_ok(self, *_):
         if self._done:
             return
@@ -381,6 +387,12 @@ class ExtractProgressDialog(Adw.Window):
         self._thread = threading.Thread(target=self._extract, daemon=True)
         self._thread.start()
         GObject.timeout_add(100, self._tick)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
     # -- UI ------------------------------------------------------------------
 

@@ -280,6 +280,12 @@ class ZipProgressWindow(Adw.Window):
         self._timer = GObject.timeout_add(80, self._pulse)
         self.connect("destroy", self._on_destroy)
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _on_destroy(self, _widget):
         if self._timer is not None:
             GLib.source_remove(self._timer)
@@ -358,6 +364,12 @@ class PasteIntoFileDialog(Adw.Window):
 
         self._name_entry.grab_focus()
         self._name_entry.select_region(0, -1)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
     def _respond(self, ok: bool):
         if not ok:

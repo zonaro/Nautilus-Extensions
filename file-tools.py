@@ -373,6 +373,12 @@ class _BaseDialog(Adw.Window):
         self._tv.set_content(self._body)
         self.set_content(self._tv)
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _section(self, text):
         lbl = Gtk.Label(label="<b>{0}</b>".format(text))
         lbl.set_use_markup(True)

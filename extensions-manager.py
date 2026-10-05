@@ -277,6 +277,12 @@ class ExtManagerWindow(Adw.Window):
 
         self._populate()
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def _populate(self):
         # Vider
         while True:

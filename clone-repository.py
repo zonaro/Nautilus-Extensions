@@ -470,6 +470,12 @@ class CloneDialog(Adw.Window):
         self._autopaste_clipboard()
         threading.Thread(target=self._load_gh_repos, daemon=True).start()
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
     def set_callback(self, cb):
         self._callback = cb
 
@@ -572,6 +578,12 @@ class _BusyWindow(Adw.Window):
         box.append(Gtk.Label(label=label or T["cloning"]))
         self.set_content(box)
 
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
 
 class _OutputWindow(Adw.Window):
     __gtype_name__ = "CloneRepoOutputWindow"
@@ -612,6 +624,12 @@ class _OutputWindow(Adw.Window):
 
         tv.set_content(body)
         self.set_content(tv)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
 
 class CommitDialog(Adw.Window):
@@ -662,6 +680,12 @@ class CommitDialog(Adw.Window):
 
         tv.set_content(body)
         self.set_content(tv)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
     def set_callback(self, cb):
         self._callback = cb
@@ -734,6 +758,12 @@ class BranchDialog(Adw.Window):
         self.set_content(tv)
 
         threading.Thread(target=self._load_branches, daemon=True).start()
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
 
     def set_callback(self, cb):
         self._callback = cb
