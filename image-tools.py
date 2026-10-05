@@ -21,10 +21,14 @@
 #
 # NAME: Image Tools – Nautilus Python Extension
 # DESC: Pillow-based image processing tools in an "Image Tools" submenu
-#       (grayscale, invert, crop, circle, resize, combine, watermark, optimize)
-#       plus a "Remove AI watermarks" submenu bridging every
+#       (grayscale, invert, crop, circle, resize, combine, watermark, optimize,
+#       colorize) plus a nested "Convert image" submenu
+#       (PNG/JPEG/WebP/ICO/256px square), an "Annotate" single-image editor
+#       (rect/ellipse/arrow/text with Ctrl+Z / Ctrl+Y undo-redo) and a
+#       "Remove AI watermarks" submenu bridging every
 #       `remove-ai-watermarks` CLI function for images, videos and folders.
 # REQUIRES: python3-nautilus (>= 4.0), python3-pil, python3-gi, gir1.2-adw-1,
+#           python3-cairo (annotate tool),
 #           `remove-ai-watermarks` CLI on PATH (AI watermark entries only),
 #           ffmpeg (video entries only).
 # INSTALL:
@@ -35,12 +39,16 @@
 # UPSTREAM (AI watermark removal): https://github.com/wiltodelta/remove-ai-watermarks
 
 import os
+import io
 import locale
+import math
 import shlex
 import shutil
 import signal
 import subprocess
 import threading
+
+import cairo
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -49,7 +57,7 @@ try:
     gi.require_version("Nautilus", "4.0")
 except ValueError:
     pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
-from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus, Pango
+from gi.repository import GObject, Gtk, Adw, Gio, Gdk, GLib, Nautilus, Pango
 
 try:
     from PIL import Image, ImageOps, ImageDraw, ImageFont
@@ -73,6 +81,32 @@ if _lang.startswith("fr"):
         "combine":        "Fusionner les images…",
         "watermark":      "Filigrane…",
         "optimize":       "Optimiser pour le Web…",
+        "colorize":        "Coloriser…",
+        "colorize_tip":    "Teinter les images en préservant la luminance et l'alpha",
+        "cz_title":        "Coloriser les images",
+        "cz_color":        "Couleur",
+        "cz_strength":     "Intensité",
+        "an_label":        "Annoter l'image…",
+        "an_tip":          "Annoter cette image : rectangle, ellipse, flèche, texte",
+        "an_title":        "Annoter l'image",
+        "an_rect":         "Rectangle",
+        "an_ellipse":      "Ellipse",
+        "an_arrow":        "Flèche",
+        "an_text":         "Texte",
+        "an_undo":         "Annuler",
+        "an_redo":         "Rétablir",
+        "an_save":         "Enregistrer",
+        "an_save_as":      "Enregistrer sous…",
+        "an_thickness":    "Épaisseur",
+        "an_opacity":      "Opacité",
+        "an_color":        "Couleur",
+        "an_text_prompt":  "Saisir le texte",
+        "an_text_ok":      "OK",
+        "an_text_cancel":  "Annuler",
+        "an_zoom_in":      "Zoom avant",
+        "an_zoom_out":     "Zoom arrière",
+        "an_zoom_fit":     "Ajuster à la fenêtre",
+        "an_zoom_reset":   "Taille réelle (100%)",
         "processing":     "Traitement…",
         "done_title":     "Traitement terminé",
         "done_msg":       "{count} image(s) traitée(s) avec succès.",
@@ -84,6 +118,7 @@ if _lang.startswith("fr"):
         "err_empty":      "Le texte du filigrane ne peut pas être vide.",
         "err_choose":     "Veuillez choisir une image de filigrane.",
         "err_combine":    "Sélectionnez au moins deux images.",
+        "err_annotate":    "Impossible d’ouvrir cette image dans l’annotateur.",
         "crop_title":     "Recadrage centré",
         "crop_width":     "Largeur",
         "crop_height":    "Hauteur",
@@ -116,6 +151,7 @@ if _lang.startswith("fr"):
         "s_circle":     "-cercle",
         "s_resize":     "-redimensionné",
         "s_watermark":  "-filigrané",
+        "s_colorize":   "-colorisé",
         # --- Remove AI watermarks (CLI bridge) ---
         "top_menu":        "Supprimer les filigranes IA",
         "top_tip":         "Supprimer les filigranes IA (visible, invisible, métadonnées)",
@@ -180,6 +216,20 @@ if _lang.startswith("fr"):
         "err_no_bin_hint": "Installez-le avec :\nuv tool install \"remove-ai-watermarks[all]\"\npuis relancez Nautilus (nautilus -q).",
         "err_no_compat":   "Aucun fichier compatible sélectionné.",
         "files":           "Fichier(s)",
+        # --- Convert image (format conversion) ---
+        "convert_menu":    "Convertir l'image",
+        "convert_tip":     "Convertir les images sélectionnées dans un autre format (Pillow)",
+        "cv_png":          "Convertir en PNG",
+        "cv_jpeg":         "Convertir en JPEG",
+        "cv_webp":         "Convertir en WebP",
+        "cv_ico":          "Enregistrer en ICO",
+        "cv_square":       "Carré 256×256 PNG",
+        "cv_tip_ico":      "Fichier .ico multi-tailles (16–256) — sous Linux, sert surtout "
+                           "aux favicons (compatibles partout)",
+        "cv_done_msg":     "{count} image(s) convertie(s) avec succès.",
+        "cv_done_failed":  "{count} image(s) convertie(s), {failed} échec(s).",
+        "cv_nothing":      "Aucune conversion nécessaire — {count} fichier(s) déjà au format cible.",
+        "done_skip":       "{skipped} fichier(s) ignoré(s) (déjà au format cible).",
     }
 elif _lang.startswith("de"):
     T = {
@@ -193,6 +243,32 @@ elif _lang.startswith("de"):
         "combine":        "Bilder zusammenfügen…",
         "watermark":      "Wasserzeichen…",
         "optimize":       "Für Web optimieren…",
+        "colorize":        "Colorieren…",
+        "colorize_tip":    "Bilder einfärben, dabei Leuchtdichte und Alpha erhalten",
+        "cz_title":        "Bilder colorieren",
+        "cz_color":        "Farbe",
+        "cz_strength":     "Intensität",
+        "an_label":        "Bild bearbeiten…",
+        "an_tip":          "Dieses Bild annotieren: Rechteck, Ellipse, Pfeil, Text",
+        "an_title":        "Bild bearbeiten",
+        "an_rect":         "Rechteck",
+        "an_ellipse":      "Ellipse",
+        "an_arrow":        "Pfeil",
+        "an_text":         "Text",
+        "an_undo":         "Rückgängig machen",
+        "an_redo":         "Wiederherstellen",
+        "an_save":         "Speichern",
+        "an_save_as":      "Speichern unter…",
+        "an_thickness":    "Strichstärke",
+        "an_opacity":      "Deckkraft",
+        "an_color":        "Farbe",
+        "an_text_prompt":  "Text eingeben",
+        "an_text_ok":      "OK",
+        "an_text_cancel":  "Abbrechen",
+        "an_zoom_in":      "Vergrößern",
+        "an_zoom_out":     "Verkleinern",
+        "an_zoom_fit":     "An Fenster anpassen",
+        "an_zoom_reset":   "Originalgröße (100%)",
         "processing":     "Verarbeitung…",
         "done_title":     "Verarbeitung abgeschlossen",
         "done_msg":       "{count} Bild(er) erfolgreich verarbeitet.",
@@ -204,6 +280,7 @@ elif _lang.startswith("de"):
         "err_empty":      "Der Wasserzeichentext darf nicht leer sein.",
         "err_choose":     "Bitte ein Wasserzeichenbild auswählen.",
         "err_combine":    "Wählen Sie mindestens zwei Bilder aus.",
+        "err_annotate":    "Diese Bild kann nicht im Annotator geöffnet werden.",
         "crop_title":     "Zentriert zuschneiden",
         "crop_width":     "Breite",
         "crop_height":    "Höhe",
@@ -236,6 +313,7 @@ elif _lang.startswith("de"):
         "s_circle":     "-kreis",
         "s_resize":     "-skaliert",
         "s_watermark":  "-wasserzeichen",
+        "s_colorize":   "-coloriert",
         # --- Remove AI watermarks (CLI bridge) ---
         "top_menu":        "KI-Wasserzeichen entfernen",
         "top_tip":         "KI-Wasserzeichen entfernen (sichtbar, unsichtbar, Metadaten)",
@@ -300,6 +378,20 @@ elif _lang.startswith("de"):
         "err_no_bin_hint": "Installieren mit:\nuv tool install \"remove-ai-watermarks[all]\"\nDanach Nautilus neu starten (nautilus -q).",
         "err_no_compat":   "Keine kompatible Datei ausgewählt.",
         "files":           "Datei(en)",
+        # --- Convert image (format conversion) ---
+        "convert_menu":    "Bild konvertieren",
+        "convert_tip":     "Ausgewählte Bilder in ein anderes Format konvertieren (Pillow)",
+        "cv_png":          "In PNG konvertieren",
+        "cv_jpeg":         "In JPEG konvertieren",
+        "cv_webp":         "In WebP konvertieren",
+        "cv_ico":          "Als ICO speichern",
+        "cv_square":       "Quadrat 256×256 PNG",
+        "cv_tip_ico":      "Mehrgrößen-.ico (16–256) — unter Linux hauptsächlich für "
+                           "Favicons nützlich (plattformübergreifend)",
+        "cv_done_msg":     "{count} Bild(er) erfolgreich konvertiert.",
+        "cv_done_failed":  "{count} Bild(er) konvertiert, {failed} fehlgeschlagen.",
+        "cv_nothing":      "Keine Konvertierung nötig — {count} Datei(en) bereits im Zielformat.",
+        "done_skip":       "{skipped} Datei(en) übersprungen (bereits im Zielformat).",
     }
 elif _lang.startswith("es"):
     T = {
@@ -313,6 +405,32 @@ elif _lang.startswith("es"):
         "combine":        "Combinar imágenes…",
         "watermark":      "Marca de agua…",
         "optimize":       "Optimizar para web…",
+        "colorize":        "Colorear…",
+        "colorize_tip":    "Teñir las imágenes conservando la luminancia y el alfa",
+        "cz_title":        "Colorear imágenes",
+        "cz_color":        "Color",
+        "cz_strength":     "Intensidad",
+        "an_label":        "Anotar imagen…",
+        "an_tip":          "Anotar esta imagen: rectángulo, elipse, flecha, texto",
+        "an_title":        "Anotar imagen",
+        "an_rect":         "Rectángulo",
+        "an_ellipse":      "Elipse",
+        "an_arrow":        "Flecha",
+        "an_text":         "Texto",
+        "an_undo":         "Deshacer",
+        "an_redo":         "Rehacer",
+        "an_save":         "Guardar",
+        "an_save_as":      "Guardar como…",
+        "an_thickness":    "Grosor",
+        "an_opacity":      "Opacidad",
+        "an_color":        "Color",
+        "an_text_prompt":  "Introducir texto",
+        "an_text_ok":      "OK",
+        "an_text_cancel":  "Cancelar",
+        "an_zoom_in":      "Acercar",
+        "an_zoom_out":     "Alejar",
+        "an_zoom_fit":     "Ajustar a la ventana",
+        "an_zoom_reset":   "Tamaño real (100%)",
         "processing":     "Procesando…",
         "done_title":     "Procesamiento completado",
         "done_msg":       "{count} imagen(es) procesada(s) correctamente.",
@@ -324,6 +442,7 @@ elif _lang.startswith("es"):
         "err_empty":      "El texto de la marca de agua no puede estar vacío.",
         "err_choose":     "Seleccione una imagen de marca de agua.",
         "err_combine":    "Seleccione al menos dos imágenes.",
+        "err_annotate":    "No se puede abrir esta imagen en el anotador.",
         "crop_title":     "Recorte centrado",
         "crop_width":     "Ancho",
         "crop_height":    "Alto",
@@ -356,6 +475,7 @@ elif _lang.startswith("es"):
         "s_circle":     "-circulo",
         "s_resize":     "-redimensionada",
         "s_watermark":  "-marca-agua",
+        "s_colorize":   "-coloreada",
         # --- Remove AI watermarks (CLI bridge) ---
         "top_menu":        "Eliminar marcas de agua de IA",
         "top_tip":         "Eliminar marcas de agua IA (visibles, invisibles, metadatos)",
@@ -420,6 +540,20 @@ elif _lang.startswith("es"):
         "err_no_bin_hint": "Instálelo con:\nuv tool install \"remove-ai-watermarks[all]\"\nluego reinicie Nautilus (nautilus -q).",
         "err_no_compat":   "Ningún archivo compatible seleccionado.",
         "files":           "Archivo(s)",
+        # --- Convert image (format conversion) ---
+        "convert_menu":    "Convertir imagen",
+        "convert_tip":     "Convertir las imágenes seleccionadas a otro formato (Pillow)",
+        "cv_png":          "Convertir a PNG",
+        "cv_jpeg":         "Convertir a JPEG",
+        "cv_webp":         "Convertir a WebP",
+        "cv_ico":          "Guardar como ICO",
+        "cv_square":       "Cuadrado 256×256 PNG",
+        "cv_tip_ico":      "Archivo .ico multitamaño (16–256) — en Linux sirve sobre todo "
+                           "para favicons (compatible en cualquier plataforma)",
+        "cv_done_msg":     "{count} imagen(es) convertida(s) correctamente.",
+        "cv_done_failed":  "{count} imagen(es) convertida(s), {failed} fallo(s).",
+        "cv_nothing":      "No hace falta conversión — {count} archivo(s) ya tienen el formato destino.",
+        "done_skip":       "{skipped} archivo(s) omitido(s) (ya en el formato destino).",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -433,6 +567,32 @@ elif _lang.startswith("pt"):
         "combine":        "Combinar imagens…",
         "watermark":      "Marca d'água…",
         "optimize":       "Otimizar para web…",
+        "colorize":        "Colorir…",
+        "colorize_tip":    "Tingir as imagens preservando a luminância e o alfa",
+        "cz_title":        "Colorir imagens",
+        "cz_color":        "Cor",
+        "cz_strength":     "Intensidade",
+        "an_label":        "Anotar imagem…",
+        "an_tip":          "Anotar esta imagem: retângulo, elipse, seta, texto",
+        "an_title":        "Anotar imagem",
+        "an_rect":         "Retângulo",
+        "an_ellipse":      "Elipse",
+        "an_arrow":        "Seta",
+        "an_text":         "Texto",
+        "an_undo":         "Desfazer",
+        "an_redo":         "Refazer",
+        "an_save":         "Salvar",
+        "an_save_as":      "Salvar como…",
+        "an_thickness":    "Espessura",
+        "an_opacity":      "Opacidade",
+        "an_color":        "Cor",
+        "an_text_prompt":  "Digite o texto",
+        "an_text_ok":      "OK",
+        "an_text_cancel":  "Cancelar",
+        "an_zoom_in":      "Aproximar",
+        "an_zoom_out":     "Afastar",
+        "an_zoom_fit":     "Ajustar à janela",
+        "an_zoom_reset":   "Tamanho real (100%)",
         "processing":     "Processando…",
         "done_title":     "Processamento concluído",
         "done_msg":       "{count} imagem(ns) processada(s) com sucesso.",
@@ -444,6 +604,7 @@ elif _lang.startswith("pt"):
         "err_empty":      "O texto da marca d'água não pode ficar vazio.",
         "err_choose":     "Escolha uma imagem de marca d'água.",
         "err_combine":    "Selecione pelo menos duas imagens.",
+        "err_annotate":    "Não foi possível abrir esta imagem no anotador.",
         "crop_title":     "Recorte central",
         "crop_width":     "Largura",
         "crop_height":    "Altura",
@@ -476,6 +637,7 @@ elif _lang.startswith("pt"):
         "s_circle":     "-circulo",
         "s_resize":     "-redimensionada",
         "s_watermark":  "-marca-dagua",
+        "s_colorize":   "-colorida",
         # --- Remove AI watermarks (CLI bridge) ---
         "top_menu":        "Remover marcas d'água de IA",
         "top_tip":         "Remover marcas d'água de IA (visível, invisível, metadados)",
@@ -540,6 +702,20 @@ elif _lang.startswith("pt"):
         "err_no_bin_hint": "Instale com:\nuv tool install \"remove-ai-watermarks[all]\"\ndepois reinicie o Nautilus (nautilus -q).",
         "err_no_compat":   "Nenhum arquivo compatível selecionado.",
         "files":           "Arquivo(s)",
+        # --- Convert image (format conversion) ---
+        "convert_menu":    "Converter imagem",
+        "convert_tip":     "Converter as imagens selecionadas para outro formato (Pillow)",
+        "cv_png":          "Converter para PNG",
+        "cv_jpeg":         "Converter para JPEG",
+        "cv_webp":         "Converter para WebP",
+        "cv_ico":          "Salvar como ICO",
+        "cv_square":       "Quadrado 256×256 PNG",
+        "cv_tip_ico":      "Arquivo .ico multi-tamanho (16–256) — no Linux serve "
+                           "principalmente para favicons (cross-platform)",
+        "cv_done_msg":     "{count} imagem(ns) convertida(s) com sucesso.",
+        "cv_done_failed":  "{count} imagem(ns) convertida(s), {failed} falha(s).",
+        "cv_nothing":      "Nenhuma conversão necessária — {count} arquivo(s) já estão no formato de destino.",
+        "done_skip":       "{skipped} arquivo(s) ignorado(s) (já no formato de destino).",
     }
 else:
     T = {
@@ -553,6 +729,32 @@ else:
         "combine":        "Combine Images…",
         "watermark":      "Watermark…",
         "optimize":       "Optimize for Web…",
+        "colorize":        "Colorize…",
+        "colorize_tip":    "Tint images preserving luminance and alpha",
+        "cz_title":        "Colorize Images",
+        "cz_color":        "Color",
+        "cz_strength":     "Strength",
+        "an_label":        "Annotate image…",
+        "an_tip":          "Annotate this image: rectangle, ellipse, arrow, text",
+        "an_title":        "Annotate image",
+        "an_rect":         "Rectangle",
+        "an_ellipse":      "Ellipse",
+        "an_arrow":        "Arrow",
+        "an_text":         "Text",
+        "an_undo":         "Undo",
+        "an_redo":         "Redo",
+        "an_save":         "Save",
+        "an_save_as":      "Save as…",
+        "an_thickness":    "Thickness",
+        "an_opacity":      "Opacity",
+        "an_color":        "Color",
+        "an_text_prompt":  "Enter text",
+        "an_text_ok":      "OK",
+        "an_text_cancel":  "Cancel",
+        "an_zoom_in":      "Zoom in",
+        "an_zoom_out":     "Zoom out",
+        "an_zoom_fit":     "Fit to window",
+        "an_zoom_reset":   "Actual size (100%)",
         "processing":     "Processing…",
         "done_title":     "Processing complete",
         "done_msg":       "{count} image(s) processed successfully.",
@@ -564,6 +766,7 @@ else:
         "err_empty":      "Watermark text cannot be empty.",
         "err_choose":     "Please choose a watermark image.",
         "err_combine":    "Select at least two images.",
+        "err_annotate":    "Cannot open this image in the annotator.",
         "crop_title":     "Crop Center",
         "crop_width":     "Width",
         "crop_height":    "Height",
@@ -596,6 +799,7 @@ else:
         "s_circle":     "-circle",
         "s_resize":     "-resized",
         "s_watermark":  "-watermarked",
+        "s_colorize":   "-colorized",
         # --- Remove AI watermarks (CLI bridge) ---
         "top_menu":        "Remove AI Watermarks",
         "top_tip":         "Remove AI watermarks (visible, invisible, metadata)",
@@ -660,15 +864,43 @@ else:
         "err_no_bin_hint": "Install it with:\nuv tool install \"remove-ai-watermarks[all]\"\nthen restart Nautilus (nautilus -q).",
         "err_no_compat":   "No compatible file selected.",
         "files":           "File(s)",
+        # --- Convert image (format conversion) ---
+        "convert_menu":    "Convert Image",
+        "convert_tip":     "Convert selected images to another format (Pillow)",
+        "cv_png":          "Convert to PNG",
+        "cv_jpeg":         "Convert to JPEG",
+        "cv_webp":         "Convert to WebP",
+        "cv_ico":          "Save as ICO",
+        "cv_square":       "Square 256×256 PNG",
+        "cv_tip_ico":      "Multi-size .ico (16–256) — on Linux mainly useful for "
+                           "favicons (cross-platform)",
+        "cv_done_msg":     "{count} image(s) converted successfully.",
+        "cv_done_failed":  "{count} image(s) converted, {failed} failed.",
+        "cv_nothing":      "No conversion needed — {count} file(s) already have the target format.",
+        "done_skip":       "{skipped} file(s) skipped (already in the target format).",
     }
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".ico",
+                   ".tif", ".tiff")
 _FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG",
-            ".webp": "WEBP", ".bmp": "BMP"}
+            ".webp": "WEBP", ".bmp": "BMP", ".ico": "ICO",
+            ".tif": "TIFF", ".tiff": "TIFF"}
+_ALPHA_FORMATS = ("PNG", "WEBP", "ICO")
 _COMBINE_OUTPUT = "combined_images.png"
+_CONVERT_JPEG_QUALITY = 92
+_SQUARE_SIZE = 256
+_SQUARE_MARK = "-256x256"
+_ICO_SIZES = ((16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256))
+
+_CONVERT_MSGS = {
+    "done": T["cv_done_msg"],
+    "failed": T["cv_done_failed"],
+    "skip": T["done_skip"],
+    "nothing": T["cv_nothing"],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -717,19 +949,24 @@ def _suffix(src: str, suffix: str, force_ext=None) -> str:
     return f"{base}{suffix}{ext}"
 
 
-def _save(img, dst: str):
+def _same_path(a: str, b: str) -> bool:
+    return os.path.abspath(a).lower() == os.path.abspath(b).lower()
+
+
+def _save(img, dst: str, params=None):
     """Sauvegarde img dans dst en gérant alpha selon le format cible."""
     ext = os.path.splitext(dst)[1].lower()
     fmt = _FORMATS.get(ext, "PNG")
     mode = img.mode
     if mode in ("RGBA", "LA", "PA"):
-        if fmt not in ("PNG", "WEBP"):
+        if fmt not in _ALPHA_FORMATS:
             flat = Image.new("RGB", img.size, (255, 255, 255))
             flat.paste(img, mask=img.split()[-1])
             img = flat
     elif mode == "P":
-        img = img.convert("RGB" if fmt not in ("PNG", "WEBP") else "RGBA")
-    img.save(dst, fmt)
+        img = img.convert("RGB" if fmt not in _ALPHA_FORMATS else "RGBA")
+    opts = dict(params or {})
+    img.save(dst, fmt, **opts)
 
 
 # ---------------------------------------------------------------------------
@@ -953,6 +1190,93 @@ def op_optimize(src, max_dim, quality):
     return dst
 
 
+def _hex_lut(factor: int) -> list:
+    return [int(i * factor / 255) for i in range(256)]
+
+
+def op_colorize(src, rgba_color, strength):
+    """Multiplie chaque canal RGB par la cible en conservant la luminance
+    (niveaux de gris) et l'alpha, puis blend selon la force. Jamais in-place :
+    sortie séparée avec suffixe traduit."""
+    dst = _suffix(src, T["s_colorize"])
+    r = min(255, max(0, int(rgba_color.red * 255)))
+    g = min(255, max(0, int(rgba_color.green * 255)))
+    b = min(255, max(0, int(rgba_color.blue * 255)))
+    alpha = min(100, max(0, strength))
+    with Image.open(src) as im:
+        rgba = im.convert("RGBA")
+        lum = rgba.convert("L")
+        colored = Image.merge(
+            "RGB",
+            (lum.point(_hex_lut(r)), lum.point(_hex_lut(g)), lum.point(_hex_lut(b))),
+        ).convert("RGBA")
+        colored.putalpha(rgba.split()[3])
+        if alpha == 0:
+            result = rgba
+        elif alpha == 100:
+            result = colored
+        else:
+            result = Image.blend(rgba, colored, alpha / 100.0)
+        _save(result, dst)
+    return dst
+
+
+# ---------------------------------------------------------------------------
+# Format conversion ops
+# ---------------------------------------------------------------------------
+# Each op replaces the source extension instead of adding a suffix (unlike the
+# editing ops above) and returns None when the file already is the target
+# format, so ProgressDialog can report it as skipped instead of converted.
+
+
+def _convert_to(src, ext, params=None):
+    dst = _suffix(src, "", force_ext=ext)
+    if _same_path(dst, src):
+        return None
+    with Image.open(src) as im:
+        _save(im.convert("RGBA"), dst, params)
+    return dst
+
+
+def op_to_png(src):
+    return _convert_to(src, ".png")
+
+
+def op_to_jpeg(src):
+    return _convert_to(src, ".jpg", {"quality": _CONVERT_JPEG_QUALITY,
+                                     "optimize": True, "progressive": True})
+
+
+def op_to_webp(src):
+    return _convert_to(src, ".webp")
+
+
+def op_to_ico(src):
+    dst = _suffix(src, "", force_ext=".ico")
+    if _same_path(dst, src):
+        return None
+    with Image.open(src) as im:
+        im.convert("RGBA").save(dst, "ICO", sizes=_ICO_SIZES)
+    return dst
+
+
+def op_to_square(src):
+    dst = _suffix(src, _SQUARE_MARK, force_ext=".png")
+    with Image.open(src) as im:
+        rgba = im.convert("RGBA")
+        w, h = rgba.size
+        scale = min(_SQUARE_SIZE / w, _SQUARE_SIZE / h)
+        nw = max(1, round(w * scale))
+        nh = max(1, round(h * scale))
+        if (nw, nh) != (w, h):
+            rgba = rgba.resize((nw, nh), Image.LANCZOS)
+        canvas = Image.new("RGBA", (_SQUARE_SIZE, _SQUARE_SIZE), (0, 0, 0, 0))
+        canvas.paste(rgba, ((_SQUARE_SIZE - nw) // 2, (_SQUARE_SIZE - nh) // 2),
+                     rgba)
+        canvas.save(dst, "PNG")
+    return dst
+
+
 # ---------------------------------------------------------------------------
 # Batch progress dialog
 # ---------------------------------------------------------------------------
@@ -960,7 +1284,7 @@ def op_optimize(src, max_dim, quality):
 class ProgressDialog(Adw.Window):
     __gtype_name__ = "ImageToolsProgressDialog"
 
-    def __init__(self, tasks):
+    def __init__(self, tasks, messages=None):
         super().__init__(title=T["done_title"])
         self.set_modal(True)
         self.set_transient_for(_nautilus_window())
@@ -971,6 +1295,14 @@ class ProgressDialog(Adw.Window):
         self._cancelled = False
         self._done = 0
         self._failed = 0
+        self._skipped = 0
+        self._processed = 0
+
+        msgs = messages or {}
+        self._msg_done = msgs.get("done", T["done_msg"])
+        self._msg_failed = msgs.get("failed", T["done_failed"])
+        self._msg_skip = msgs.get("skip")
+        self._msg_nothing = msgs.get("nothing")
 
         self._header = Adw.HeaderBar()
         self._header.set_decoration_layout(":close")
@@ -1022,18 +1354,22 @@ class ProgressDialog(Adw.Window):
         self._cancel_btn.set_sensitive(False)
 
     def _set_status(self):
-        self._bar.set_fraction(self._done / max(len(self._tasks), 1))
-        self._status_lbl.set_label("{0}/{1}".format(self._done, len(self._tasks)))
+        self._bar.set_fraction(self._processed / max(len(self._tasks), 1))
+        self._status_lbl.set_label("{0}/{1}".format(
+            self._processed, len(self._tasks)))
 
     def _run(self):
         for task in self._tasks:
             if self._cancelled:
                 break
             try:
-                task()
+                if task() is None:
+                    self._skipped += 1
+                else:
+                    self._done += 1
             except Exception:
                 self._failed += 1
-            self._done += 1
+            self._processed += 1
             GObject.idle_add(self._set_status)
         GObject.idle_add(self._finish)
 
@@ -1041,11 +1377,19 @@ class ProgressDialog(Adw.Window):
         if self._cancelled:
             self.destroy()
             return
-        if self._failed:
-            msg = T["done_failed"].format(count=self._done, failed=self._failed)
+        if self._done or self._failed:
+            if self._failed:
+                line = self._msg_failed.format(count=self._done,
+                                                failed=self._failed)
+            else:
+                line = self._msg_done.format(count=self._done)
+        elif self._skipped and self._msg_nothing:
+            line = self._msg_nothing.format(count=self._skipped)
         else:
-            msg = T["done_msg"].format(count=self._done)
-        _show_message(msg)
+            line = self._msg_done.format(count=0)
+        if self._skipped and self._msg_skip:
+            line += "\n" + self._msg_skip.format(skipped=self._skipped)
+        _show_message(line)
         self.destroy()
 
 
@@ -1378,6 +1722,34 @@ class CombineDialog(_BaseDialog):
 
     def _values(self):
         return {"vertical": self._v.get_active()}
+
+
+class ColorizeDialog(_BaseDialog):
+    __gtype_name__ = "ImageToolsColorizeDialog"
+
+    def __init__(self):
+        super().__init__(T["cz_title"])
+
+    def _build(self, body):
+        body.append(self._section(T["cz_color"]))
+        self._color_btn = Gtk.ColorButton()
+        rgba = Gdk.RGBA()
+        rgba.red, rgba.green, rgba.blue, rgba.alpha = 0.25, 0.45, 0.95, 1.0
+        self._color_btn.set_rgba(rgba)
+        self._color_btn.set_halign(Gtk.Align.START)
+        body.append(self._color_btn)
+
+        body.append(self._section(T["cz_strength"]))
+        self._strength = Gtk.Scale.new_with_range(
+            Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        self._strength.set_value(100)
+        self._strength.set_hexpand(True)
+        self._strength.set_draw_value(False)
+        body.append(self._strength)
+
+    def _values(self):
+        return {"color": self._color_btn.get_rgba(),
+                "strength": int(self._strength.get_value())}
 
 
 # ---------------------------------------------------------------------------
@@ -2167,6 +2539,600 @@ class _RaiwVideoInvisibleDialog(_RaiwDialog):
 
 
 # ---------------------------------------------------------------------------
+# Annotate: single-image editor (rect / ellipse / arrow / text + undo-redo)
+# ---------------------------------------------------------------------------
+# Ported from the former standalone annotate-image.py extension. Kept its own
+# editor window rather than reusing a settings dialog: it is a full-screen
+# canvas, and it must NOT be modal/transient — Mutter hides min/max on dialog
+# windows, and the original was an independent window on purpose.
+
+_ANNOT_TOOLS = ("rect", "ellipse", "arrow", "text")
+
+# Adwaita ships no draw-rectangle-symbolic / draw-ellipse-symbolic, so asking
+# the icon theme for them renders an empty tool button. Those two tools draw
+# their glyph with cairo instead (_ShapeIcon); the rest resolve from the theme.
+_ANNOT_ICONS = {
+    "arrow": "go-up-symbolic",
+    "text":  "format-text-bold-symbolic",
+}
+_ANNOT_SHAPES = ("rect", "ellipse")
+
+# Same GC guard as _raiw_windows: nautilus-python drops its Python reference as
+# soon as .present() returns, and a GC'd window stops responding to clicks.
+_annot_windows: list = []
+
+
+class Annotation:
+    __slots__ = ("tool", "x1", "y1", "x2", "y2", "color", "opacity",
+                 "thickness", "text")
+
+    def __init__(self, tool, x1, y1, x2, y2, color, opacity, thickness,
+                 text=""):
+        self.tool      = tool
+        self.x1, self.y1 = x1, y1
+        self.x2, self.y2 = x2, y2
+        self.color     = color      # (r, g, b) floats 0-1
+        self.opacity   = opacity    # float 0-1
+        self.thickness = thickness  # int px
+        self.text      = text
+
+
+def _draw_annotation(ctx, ann, scale=1.0):
+    """Dessine une annotation sur un contexte Cairo (coords image × scale)."""
+    r, g, b = ann.color
+    ctx.set_source_rgba(r, g, b, ann.opacity)
+    lw = max(ann.thickness * scale, 1.0)
+    ctx.set_line_width(lw)
+    ctx.set_line_cap(cairo.LINE_CAP_ROUND)
+    ctx.set_line_join(cairo.LINE_JOIN_ROUND)
+
+    x1, y1 = ann.x1 * scale, ann.y1 * scale
+    x2, y2 = ann.x2 * scale, ann.y2 * scale
+
+    if ann.tool == "rect":
+        ctx.rectangle(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+        ctx.stroke()
+
+    elif ann.tool == "ellipse":
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        rw, rh = abs(x2 - x1) / 2, abs(y2 - y1) / 2
+        if rw > 0 and rh > 0:
+            ctx.save()
+            ctx.translate(cx, cy)
+            ctx.scale(rw, rh)
+            ctx.arc(0, 0, 1, 0, 2 * math.pi)
+            ctx.restore()
+            ctx.stroke()
+
+    elif ann.tool == "arrow":
+        ctx.move_to(x1, y1)
+        ctx.line_to(x2, y2)
+        ctx.stroke()
+        angle     = math.atan2(y2 - y1, x2 - x1)
+        arr_len   = max(20 * scale, lw * 4)
+        arr_angle = math.pi / 6
+        for side in (-1, 1):
+            ctx.move_to(x2, y2)
+            ctx.line_to(
+                x2 - arr_len * math.cos(angle - side * arr_angle),
+                y2 - arr_len * math.sin(angle - side * arr_angle),
+            )
+        ctx.stroke()
+
+    elif ann.tool == "text":
+        font_size = max(12.0, ann.thickness * 7.0) * scale
+        ctx.select_font_face("Sans", cairo.FONT_SLANT_NORMAL,
+                             cairo.FONT_WEIGHT_BOLD)
+        ctx.set_font_size(font_size)
+        ctx.move_to(x1, y1)
+        ctx.show_text(ann.text)
+
+
+class _ShapeIcon(Gtk.DrawingArea):
+    """Stands in for the missing draw-rectangle/ellipse-symbolic icons; themes
+    automatically via Gtk.Widget.get_color()."""
+
+    __gtype_name__ = "ImageToolsShapeIcon"
+
+    def __init__(self, shape: str):
+        super().__init__()
+        self._shape = shape
+        self.set_size_request(16, 16)
+        self.set_halign(Gtk.Align.CENTER)
+        self.set_valign(Gtk.Align.CENTER)
+        self.set_draw_func(self._draw)
+
+    def _draw(self, _area, ctx, w, h):
+        rgba = self.get_color()
+        ctx.set_source_rgba(rgba.red, rgba.green, rgba.blue, rgba.alpha)
+        ctx.set_line_width(1.5)
+        inset = 2.5
+        if self._shape == "ellipse":
+            ctx.save()
+            ctx.translate(w / 2, h / 2)
+            ctx.scale(max(w / 2 - inset, 0.5), max(h / 2 - inset, 0.5))
+            ctx.arc(0, 0, 1, 0, 2 * math.pi)
+            ctx.restore()
+            ctx.stroke()
+        else:
+            ctx.rectangle(inset, inset, w - 2 * inset, h - 2 * inset)
+            ctx.stroke()
+
+
+def _annot_add_shortcuts(win):
+    """Bind Ctrl+Z / Ctrl+Y (plus the Shift variants) to the window's undo and
+    redo, so the keyboard and the header buttons share one code path."""
+    ctrl = Gtk.ShortcutController()
+    # MANAGED (as in _raiw_add_escape), not GLOBAL: GtkWindow *is* a
+    # GtkShortcutManager, so this covers the whole window and fires whenever it
+    # is focused, without escaping past it.
+    ctrl.set_scope(Gtk.ShortcutScope.MANAGED)
+    # parse_string only understands the "<Control>z" spelling; "Ctrl+z" aborts
+    # the process with "constructor returned NULL".
+    for accel, cb in (("<Control>z", win.undo),
+                      ("<Control>y", win.redo),
+                      ("<Control><Shift>z", win.redo),
+                      ("<Control><Shift>y", win.redo)):
+        trigger = Gtk.ShortcutTrigger.parse_string(accel)
+        ctrl.add_shortcut(Gtk.Shortcut.new(
+            trigger,
+            Gtk.CallbackAction.new(lambda *a, cb=cb: (cb(), True)[1])))
+    win.add_controller(ctrl)
+
+
+def _annot_load_surface(path: str):
+    """Load any supported image into a Cairo surface.
+
+    cairo only decodes PNG, so every other format goes through Pillow and is
+    re-encoded as PNG in memory first — this is what lets the annotate entry
+    sit next to the other Image Tools items on JPEG/WebP/TIFF selections.
+    """
+    if _ext(path) == ".png":
+        return cairo.ImageSurface.create_from_png(path)
+    with Image.open(path) as im:
+        buf = io.BytesIO()
+        im.convert("RGBA").save(buf, "PNG")
+    buf.seek(0)
+    return cairo.ImageSurface.create_from_png(buf)
+
+
+def _annot_write_surface(surface, path: str):
+    """Inverse of _annot_load_surface: write PNG bytes straight out for .png,
+    otherwise transcode so a .jpg never receives a PNG payload."""
+    if _ext(path) == ".png":
+        surface.write_to_png(path)
+        return
+    buf = io.BytesIO()
+    surface.write_to_png(buf)
+    buf.seek(0)
+    with Image.open(buf) as im:
+        _save(im.convert("RGBA"), path)
+
+
+class AnnotatorWindow(Adw.Window):
+    __gtype_name__ = "ImageToolsAnnotatorWindow"
+
+    def __init__(self, image_path: str):
+        super().__init__(title=T["an_title"])
+        self.set_default_size(1100, 750)
+        self.set_deletable(False)
+
+        self._path         = image_path
+        self._annotations  = []
+        self._redo_stack   = []
+        self._tool         = "rect"
+        self._color        = (1.0, 0.0, 0.0)
+        self._opacity      = 0.85
+        self._thickness    = 3
+        self._drawing      = False
+        self._drag_start_w = (0.0, 0.0)
+        self._current_ann  = None
+        self._scale        = 1.0
+        self._zoom         = None   # None = ajusté à la fenêtre ; sinon manuel
+        self._offset_x     = 0.0
+        self._offset_y     = 0.0
+
+        self._surface = _annot_load_surface(image_path)
+        self._img_w   = self._surface.get_width()
+        self._img_h   = self._surface.get_height()
+
+        _annot_windows.append(self)
+        self.connect("destroy", lambda *_: _annot_windows.remove(self)
+                     if self in _annot_windows else None)
+
+        self._build_ui()
+        _annot_add_shortcuts(self)
+
+    def present(self):
+        # Wayland: presenting synchronously from a menu-activate handler leaves
+        # pointer events stuck on the dying Nautilus menu, so the popup shows up
+        # with dead buttons. One idle turn lets the menu dismiss first.
+        GLib.idle_add(super().present)
+
+    # -- Construction UI -----------------------------------------------------
+
+    def _build_ui(self):
+        tv = Adw.ToolbarView()
+
+        header = Adw.HeaderBar()
+        header.set_decoration_layout(":minimize,maximize,close")
+
+        self._undo_btn = Gtk.Button(icon_name="edit-undo-symbolic")
+        self._undo_btn.set_tooltip_text(T["an_undo"])
+        self._undo_btn.connect("clicked", lambda _: self.undo())
+        header.pack_start(self._undo_btn)
+
+        self._redo_btn = Gtk.Button(icon_name="edit-redo-symbolic")
+        self._redo_btn.set_tooltip_text(T["an_redo"])
+        self._redo_btn.connect("clicked", lambda _: self.redo())
+        header.pack_start(self._redo_btn)
+
+        save_btn = Gtk.Button(label=T["an_save"])
+        save_btn.add_css_class("suggested-action")
+        save_btn.connect("clicked", lambda _: self._save(self._path))
+        header.pack_end(save_btn)
+
+        saveas_btn = Gtk.Button(icon_name="document-save-as-symbolic")
+        saveas_btn.set_tooltip_text(T["an_save_as"])
+        saveas_btn.connect("clicked", self._save_as)
+        header.pack_end(saveas_btn)
+
+        tv.add_top_bar(header)
+
+        tb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        tb.set_margin_top(6)
+        tb.set_margin_bottom(6)
+        tb.set_margin_start(10)
+        tb.set_margin_end(10)
+
+        self._tool_btns = {}
+        group = None
+        for tool in _ANNOT_TOOLS:
+            btn = Gtk.ToggleButton()
+            if tool in _ANNOT_SHAPES:
+                btn.set_child(_ShapeIcon(tool))
+            else:
+                btn.set_icon_name(_ANNOT_ICONS[tool])
+            btn.set_tooltip_text(T["an_" + tool])
+            btn.tool_id = tool
+            if group is None:
+                group = btn
+                btn.set_active(True)
+            else:
+                btn.set_group(group)
+            btn.connect("toggled", self._on_tool_toggled)
+            tb.append(btn)
+            self._tool_btns[tool] = btn
+
+        tb.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+
+        self._color_btn = Gtk.ColorButton()
+        rgba = Gdk.RGBA()
+        rgba.red, rgba.green, rgba.blue, rgba.alpha = 1.0, 0.0, 0.0, 1.0
+        self._color_btn.set_rgba(rgba)
+        self._color_btn.set_tooltip_text(T["an_color"])
+        self._color_btn.connect("color-set", self._on_color_set)
+        tb.append(self._color_btn)
+
+        tb.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+
+        tb.append(Gtk.Label(label="{0} :".format(T["an_thickness"])))
+        self._thick_spin = Gtk.SpinButton.new_with_range(1, 20, 1)
+        self._thick_spin.set_value(3)
+        self._thick_spin.connect(
+            "value-changed",
+            lambda s: setattr(self, "_thickness", int(s.get_value())))
+        tb.append(self._thick_spin)
+
+        tb.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+
+        tb.append(Gtk.Label(label="{0} :".format(T["an_opacity"])))
+        self._op_scale = Gtk.Scale.new_with_range(
+            Gtk.Orientation.HORIZONTAL, 0.1, 1.0, 0.05)
+        self._op_scale.set_value(0.85)
+        self._op_scale.set_size_request(120, -1)
+        self._op_scale.set_draw_value(False)
+        self._op_scale.connect(
+            "value-changed",
+            lambda s: setattr(self, "_opacity", s.get_value()))
+        tb.append(self._op_scale)
+
+        tb.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        tb.append(spacer)
+
+        zoom_out_btn = Gtk.Button(icon_name="zoom-out-symbolic")
+        zoom_out_btn.set_tooltip_text(T["an_zoom_out"])
+        zoom_out_btn.connect("clicked", lambda _: self._zoom_step(1 / 1.25))
+        tb.append(zoom_out_btn)
+
+        self._zoom_lbl = Gtk.Button(label="100%")
+        self._zoom_lbl.set_tooltip_text(T["an_zoom_reset"])
+        self._zoom_lbl.add_css_class("flat")
+        self._zoom_lbl.set_size_request(60, -1)
+        self._zoom_lbl.connect("clicked", lambda _: self._set_zoom(1.0))
+        tb.append(self._zoom_lbl)
+
+        zoom_in_btn = Gtk.Button(icon_name="zoom-in-symbolic")
+        zoom_in_btn.set_tooltip_text(T["an_zoom_in"])
+        zoom_in_btn.connect("clicked", lambda _: self._zoom_step(1.25))
+        tb.append(zoom_in_btn)
+
+        zoom_fit_btn = Gtk.Button(icon_name="zoom-fit-best-symbolic")
+        zoom_fit_btn.set_tooltip_text(T["an_zoom_fit"])
+        zoom_fit_btn.connect("clicked", lambda _: self._set_zoom(None))
+        tb.append(zoom_fit_btn)
+
+        tv.add_top_bar(tb)
+
+        self._canvas = Gtk.DrawingArea()
+        self._canvas.set_vexpand(True)
+        self._canvas.set_hexpand(True)
+        self._canvas.set_draw_func(self._on_draw)
+        self._canvas.set_cursor(Gdk.Cursor.new_from_name("crosshair"))
+
+        drag = Gtk.GestureDrag()
+        drag.connect("drag-begin",  self._drag_begin)
+        drag.connect("drag-update", self._drag_update)
+        drag.connect("drag-end",    self._drag_end)
+        self._canvas.add_controller(drag)
+
+        scroll_ctrl = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll_ctrl.connect("scroll", self._on_scroll)
+        self._canvas.add_controller(scroll_ctrl)
+
+        self._canvas.connect("resize", self._on_canvas_resize)
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_hexpand(True)
+        scroll.set_child(self._canvas)
+
+        tv.set_content(scroll)
+        self.set_content(tv)
+        self.connect("map", self._on_map)
+        self._sync_history()
+
+    # -- Map / scale / zoom --------------------------------------------------
+
+    def _on_map(self, *_):
+        self._apply_scale()
+        self._update_canvas_size()
+        self._update_zoom_label()
+
+    def _on_canvas_resize(self, area, w, h):
+        if self._zoom is None:
+            self._apply_scale()
+            self._update_zoom_label()
+            self._canvas.queue_draw()
+
+    def _apply_scale(self):
+        if self._zoom is None:
+            cw = self._canvas.get_width()  or (self.get_width()  - 20)
+            ch = self._canvas.get_height() or (self.get_height() - 130)
+            if cw > 0 and ch > 0:
+                self._scale = min(cw / self._img_w, ch / self._img_h, 2.0)
+        else:
+            self._scale = self._zoom
+
+    def _update_canvas_size(self):
+        if self._zoom is None:
+            self._canvas.set_content_width(0)
+            self._canvas.set_content_height(0)
+        else:
+            self._canvas.set_content_width(int(self._img_w * self._scale + 40))
+            self._canvas.set_content_height(int(self._img_h * self._scale + 40))
+
+    def _update_zoom_label(self):
+        self._zoom_lbl.set_label("{0}%".format(int(round(self._scale * 100))))
+
+    def _set_zoom(self, zoom):
+        self._zoom = zoom
+        self._apply_scale()
+        self._update_canvas_size()
+        self._update_zoom_label()
+        self._canvas.queue_draw()
+
+    def _zoom_step(self, factor):
+        base = self._scale if self._scale > 0 else 1.0
+        self._set_zoom(max(0.1, min(8.0, base * factor)))
+
+    def _on_scroll(self, ctrl, dx, dy):
+        ev = ctrl.get_current_event()
+        state = ev.get_modifier_state() if ev else 0
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            self._zoom_step(1 / 1.25 if dy > 0 else 1.25)
+            return True
+        return False
+
+    # -- Draw ----------------------------------------------------------------
+
+    def _on_draw(self, area, ctx, w, h):
+        self._apply_scale()
+        s  = self._scale
+        ox = (w - self._img_w * s) / 2
+        oy = (h - self._img_h * s) / 2
+        self._offset_x = ox
+        self._offset_y = oy
+
+        ctx.set_source_rgb(0.13, 0.13, 0.13)
+        ctx.paint()
+
+        ctx.save()
+        ctx.translate(ox, oy)
+        ctx.scale(s, s)
+        ctx.set_source_surface(self._surface, 0, 0)
+        ctx.paint()
+        ctx.restore()
+
+        ctx.save()
+        ctx.translate(ox, oy)
+        for ann in self._annotations:
+            _draw_annotation(ctx, ann, scale=s)
+        if self._current_ann:
+            _draw_annotation(ctx, self._current_ann, scale=s)
+        ctx.restore()
+
+    # -- Coord conversion ----------------------------------------------------
+
+    def _to_img(self, wx, wy):
+        s = self._scale
+        return (wx - self._offset_x) / s, (wy - self._offset_y) / s
+
+    # -- Drag events ---------------------------------------------------------
+
+    def _drag_begin(self, gesture, x, y):
+        self._drag_start_w = (x, y)
+        ix, iy = self._to_img(x, y)
+
+        if self._tool == "text":
+            self._ask_text(ix, iy)
+            return
+
+        self._drawing = True
+        self._current_ann = Annotation(
+            self._tool, ix, iy, ix, iy,
+            self._color, self._opacity, self._thickness,
+        )
+
+    def _drag_update(self, gesture, dx, dy):
+        if not self._drawing or not self._current_ann:
+            return
+        ix, iy = self._to_img(self._drag_start_w[0] + dx,
+                              self._drag_start_w[1] + dy)
+        self._current_ann.x2 = ix
+        self._current_ann.y2 = iy
+        self._canvas.queue_draw()
+
+    def _drag_end(self, gesture, dx, dy):
+        if not self._drawing or not self._current_ann:
+            return
+        ann = self._current_ann
+        if abs(ann.x2 - ann.x1) > 2 or abs(ann.y2 - ann.y1) > 2:
+            self._push(ann)
+        self._current_ann = None
+        self._drawing     = False
+        self._canvas.queue_draw()
+
+    # -- Text tool -----------------------------------------------------------
+
+    def _ask_text(self, ix, iy):
+        dlg = Adw.Window(title=T["an_text_prompt"])
+        dlg.set_modal(True)
+        dlg.set_transient_for(self)
+        dlg.set_default_size(340, -1)
+
+        tv = Adw.ToolbarView()
+        tv.add_top_bar(Adw.HeaderBar())
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_top(14)
+        box.set_margin_bottom(14)
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+
+        entry = Gtk.Entry()
+        entry.set_placeholder_text(T["an_text_prompt"])
+        box.append(entry)
+
+        def on_ok(_btn):
+            text = entry.get_text().strip()
+            if text:
+                self._push(Annotation(
+                    "text", ix, iy, ix, iy,
+                    self._color, self._opacity, self._thickness, text,
+                ))
+            dlg.destroy()
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label=T["an_text_cancel"])
+        cancel_btn.connect("clicked", lambda _: dlg.destroy())
+        btn_box.append(cancel_btn)
+
+        ok_btn = Gtk.Button(label=T["an_text_ok"])
+        ok_btn.add_css_class("suggested-action")
+        ok_btn.connect("clicked", on_ok)
+        btn_box.append(ok_btn)
+        box.append(btn_box)
+
+        entry.connect("activate", on_ok)
+
+        tv.set_content(box)
+        dlg.set_content(tv)
+        dlg.present()
+        entry.grab_focus()
+
+    # -- History -------------------------------------------------------------
+
+    def _push(self, ann):
+        self._annotations.append(ann)
+        self._redo_stack.clear()
+        self._sync_history()
+        self._canvas.queue_draw()
+
+    def _sync_history(self):
+        self._undo_btn.set_sensitive(bool(self._annotations))
+        self._redo_btn.set_sensitive(bool(self._redo_stack))
+
+    def undo(self):
+        if self._annotations:
+            self._redo_stack.append(self._annotations.pop())
+            self._sync_history()
+            self._canvas.queue_draw()
+
+    def redo(self):
+        if self._redo_stack:
+            self._annotations.append(self._redo_stack.pop())
+            self._sync_history()
+            self._canvas.queue_draw()
+
+    # -- Tools / settings ----------------------------------------------------
+
+    def _on_tool_toggled(self, btn):
+        if btn.get_active():
+            self._tool = btn.tool_id
+
+    def _on_color_set(self, btn):
+        rgba = btn.get_rgba()
+        self._color = (rgba.red, rgba.green, rgba.blue)
+
+    # -- Save ----------------------------------------------------------------
+
+    def _render(self):
+        """Rend image + annotations dans une ImageSurface Cairo en résolution native."""
+        out = cairo.ImageSurface(cairo.FORMAT_ARGB32, self._img_w, self._img_h)
+        ctx = cairo.Context(out)
+        ctx.set_source_surface(self._surface, 0, 0)
+        ctx.paint()
+        for ann in self._annotations:
+            _draw_annotation(ctx, ann, scale=1.0)
+        return out
+
+    def _save(self, path: str):
+        _annot_write_surface(self._render(), path)
+        Gtk.AlertDialog(
+            message="✓  {0}".format(os.path.basename(path))).show(self)
+
+    def _save_as(self, *_):
+        base = os.path.splitext(os.path.basename(self._path))[0]
+        dlg = Gtk.FileDialog(title=T["an_save_as"])
+        dlg.set_initial_folder(
+            Gio.File.new_for_path(os.path.dirname(self._path)))
+        dlg.set_initial_name("{0}-annotated.png".format(base))
+        dlg.save(self, None, self._on_save_as_done)
+
+    def _on_save_as_done(self, dlg, result):
+        try:
+            self._save(dlg.save_finish(result).get_path())
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Nautilus extension with submenu
 # ---------------------------------------------------------------------------
 
@@ -2251,6 +3217,26 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         item.set_submenu(submenu)
         return item
 
+    def _convert_item(self, images):
+        submenu = Nautilus.Menu()
+        for name, label, op in (
+            ("ToPNG", T["cv_png"], op_to_png),
+            ("ToJPEG", T["cv_jpeg"], op_to_jpeg),
+            ("ToWebP", T["cv_webp"], op_to_webp),
+            ("ToICO", T["cv_ico"], op_to_ico),
+            ("Square256", T["cv_square"], op_to_square),
+        ):
+            tip = T["cv_tip_ico"] if name == "ToICO" else T["convert_tip"]
+            self._add(submenu, name, label, self._cb_convert, images, op,
+                      tip=tip)
+        item = Nautilus.MenuItem(
+            name="ImageTools::Convert",
+            label=T["convert_menu"],
+            tip=T["convert_tip"],
+        )
+        item.set_submenu(submenu)
+        return item
+
     def _classify(self, paths):
         images = [p for p in paths if os.path.isfile(p) and _is_image_path(p)]
         videos = [p for p in paths if os.path.isfile(p) and _is_raiw_video(p)]
@@ -2289,6 +3275,13 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
                       self._cb_watermark, images)
             self._add(submenu, "Optimize", T["optimize"],
                       self._cb_optimize, images)
+            self._add(submenu, "Colorize", T["colorize"],
+                      self._cb_colorize, images, tip=T["colorize_tip"])
+            if len(images) == 1:
+                # The annotator edits one canvas at a time.
+                self._add(submenu, "Annotate", T["an_label"],
+                          self._cb_annotate, images[0], tip=T["an_tip"])
+            submenu.append_item(self._convert_item(images))
 
         raiw = self._raiw_submenu(images, videos, dirs)
         if raiw is not None:
@@ -2314,8 +3307,14 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             return False
         return True
 
-    def _start_batch(self, tasks):
-        ProgressDialog(tasks).present()
+    def _start_batch(self, tasks, messages=None):
+        ProgressDialog(tasks, messages).present()
+
+    def _cb_convert(self, _item, paths, op):
+        if not self._guard_pillow():
+            return
+        self._start_batch([lambda p=p, op=op: op(p) for p in paths],
+                          messages=_CONVERT_MSGS)
 
     def _cb_simple(self, _item, paths, op):
         if not self._guard_pillow():
@@ -2371,3 +3370,21 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
                 [lambda p=p, s=s: op_optimize(p, s["max"], s["qual"])
                  for p in paths]))
         dlg.present()
+
+    def _cb_colorize(self, _item, paths):
+        if not self._guard_pillow():
+            return
+        dlg = ColorizeDialog()
+        dlg.set_callback(
+            lambda s: s is not None and self._start_batch(
+                [lambda p=p, s=s: op_colorize(p, s["color"], s["strength"])
+                 for p in paths]))
+        dlg.present()
+
+    def _cb_annotate(self, _item, path):
+        if not self._guard_pillow():
+            return
+        try:
+            AnnotatorWindow(path).present()
+        except Exception:
+            _show_message(T["err_annotate"])

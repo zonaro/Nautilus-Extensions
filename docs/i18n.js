@@ -42,9 +42,8 @@ en: {
   c20h: "📋 Paste Into File", c20p: "Save clipboard as .txt/.png/.jpg/.zip with preview.",
   c21h: "🧰 File Tools", c21p: "Friendly rename, copy path, bulk rename, clean empty, timestamps, symlinks, Base64.",
   c22h: "🔧 Dev Tools Minify", c22p: "Regex minifier for JS/CSS with a savings report.",
-  c23h: "🖼️ Image Tools", c23p: "Grayscale, invert, crop, resize, watermark, optimize, remove AI watermarks — images, video and folders.",
+  c23h: "🖼️ Image Tools", c23p: "Grayscale, invert, crop, resize, watermark, optimize, convert format, remove AI watermarks — images, video and folders.",
   c25h: "🌈 Colorize Image", c25p: "Duotone tint preserving luminance and alpha.",
-  c26h: "🔄 Convert Image", c26p: "To PNG/JPEG/WebP/ICO plus square 256 PNG.",
   c27h: "📥 Clone Repository", c27p: "Clone any git repo into the current folder (URL paste + gh autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash.",
   foot: 'Made with 💙 for Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
@@ -90,9 +89,8 @@ fr: {
   c20h: "📋 Coller dans un fichier", c20p: "Enregistre le presse-papiers en .txt/.png/.jpg/.zip avec aperçu.",
   c21h: "🧰 Outils de fichiers", c21p: "Renommage, copie du chemin, renommage en lot, nettoyage, horodatage, liens, Base64.",
   c22h: "🔧 Minifier JS/CSS", c22p: "Minificateur JS/CSS par regex avec rapport de gain.",
-  c23h: "🖼️ Outils d'image", c23p: "Niveaux de gris, inversion, recadrage, redimensionnement, filigrane, optimisation, suppression des filigranes IA — images, vidéo et dossiers.",
+  c23h: "🖼️ Outils d'image", c23p: "Niveaux de gris, inversion, recadrage, redimensionnement, filigrane, optimisation, conversion de format, suppression des filigranes IA — images, vidéo et dossiers.",
   c25h: "🌈 Coloriser", c25p: "Teinte duotone qui préserve la luminance et l'alpha.",
-  c26h: "🔄 Convertir l'image", c26p: "Vers PNG/JPEG/WebP/ICO plus PNG carré 256.",
   c27h: "📥 Cloner le dépôt", c27p: "Clonez un dépôt dans le dossier courant (collage URL + autocomplétion gh) ; dans un dépôt, un sous-menu Git offre Pull/Push/Fetch/État/Journal/Commit/Branche/Stash.",
   foot: 'Fait avec 💙 pour Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
@@ -138,9 +136,8 @@ de: {
   c20h: "📋 In Datei einfügen", c20p: "Zwischenablage als .txt/.png/.jpg/.zip mit Vorschau speichern.",
   c21h: "🧰 Dateiwerkzeuge", c21p: "Friendly Rename, Pfad kopieren, Stapel-Umbenennen, aufräumen, Zeitstempel, Symlinks, Base64.",
   c22h: "🔧 JS/CSS minifizieren", c22p: "Regex-Minifizierer für JS/CSS mit Einsparungsbericht.",
-  c23h: "🖼️ Bildwerkzeuge", c23p: "Graustufen, Invertieren, Crop, Skalieren, Wasserzeichen, Optimieren, KI-Wasserzeichen entfernen — Bilder, Video und Ordner.",
+  c23h: "🖼️ Bildwerkzeuge", c23p: "Graustufen, Invertieren, Crop, Skalieren, Wasserzeichen, Optimieren, Formatkonvertierung, KI-Wasserzeichen entfernen — Bilder, Video und Ordner.",
   c25h: "🌈 Colorieren", c25p: "Duoton-Färbung, die Luminanz und Alpha erhält.",
-  c26h: "🔄 Bild konvertieren", c26p: "Zu PNG/JPEG/WebP/ICO plus quadratischem 256-PNG.",
   c27h: "📥 Repository klonen", c27p: "Repos in den aktuellen Ordner klonen (URL einfügen + gh-Autovervollständigung); in Repos bietet ein Git-Untermenü Pull/Push/Fetch/Status/Verlauf/Commit/Branch/Stash.",
   foot: 'Mit 💙 für Fedora &amp; GNOME gemacht · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (Fork von <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
@@ -186,9 +183,8 @@ de: {
   c20h: "📋 Colar em arquivo", c20p: "Salva a área de transferência como .txt/.png/.jpg/.zip com prévia.",
   c21h: "🧰 Ferramentas de arquivo", c21p: "Renomear amigável, copiar caminho, renomear em lote, limpar vazios, data, symlinks, Base64.",
   c22h: "🔧 Minificar JS/CSS", c22p: "Minificador de JS/CSS por regex com relatório de ganho.",
-  c23h: "🖼️ Ferramentas de imagem", c23p: "Escala de cinza, inverter, recortar, redimensionar, marca d'água, otimizar, remover marcas d'água de IA — imagens, vídeo e pastas.",
+  c23h: "🖼️ Ferramentas de imagem", c23p: "Escala de cinza, inverter, recortar, redimensionar, marca d'água, otimizar, converter formato, remover marcas d'água de IA — imagens, vídeo e pastas.",
   c25h: "🌈 Colorir", c25p: "Tingimento duotone preservando luminância e alfa.",
-  c26h: "🔄 Converter imagem", c26p: "Para PNG/JPEG/WebP/ICO + PNG quadrado 256.",
   c27h: "📥 Clonar repositório", c27p: "Clone repos na pasta atual (colar URL + autocompletar gh); dentro de repos, o submenu Git oferece Pull/Push/Fetch/Status/Histórico/Commit/Branch/Stash.",
   foot: 'Feito com 💙 para Fedora &amp; GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 },
@@ -234,9 +230,8 @@ es: {
   c20h: "📋 Pegar en un archivo", c20p: "Guarda el portapapeles como .txt/.png/.jpg/.zip con vista previa.",
   c21h: "🧰 Herramientas de archivos", c21p: "Renombrado, copiar ruta, por lotes, limpiar vacíos, fecha, enlaces, Base64.",
   c22h: "🔧 Minificar JS/CSS", c22p: "Minificador de JS/CSS por regex con informe de ahorro.",
-  c23h: "🖼️ Herramientas de imagen", c23p: "Escala de grises, invertir, recortar, redimensionar, marca de agua, optimizar, eliminar marcas de agua de IA — imágenes, vídeo y carpetas.",
+  c23h: "🖼️ Herramientas de imagen", c23p: "Escala de grises, invertir, recortar, redimensionar, marca de agua, optimizar, convertir formato, eliminar marcas de agua de IA — imágenes, vídeo y carpetas.",
   c25h: "🌈 Colorear", c25p: "Tinte duotono que preserva luminancia y alfa.",
-  c26h: "🔄 Convertir imagen", c26p: "A PNG/JPEG/WebP/ICO además de PNG cuadrado 256.",
   c27h: "📥 Clonar repositorio", c27p: "Clona repos en la carpeta actual (pegar URL + autocompletado gh); dentro de repos, el submenú Git ofrece Pull/Push/Fetch/Estado/Historial/Commit/Rama/Stash.",
   foot: 'Hecho con 💙 para Fedora y GNOME · GPL-3.0 · <a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork de <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>)'
 }

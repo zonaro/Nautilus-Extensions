@@ -29,7 +29,6 @@ sudo apt install \
   nautilus-extensions-manager \
   nautilus-archive-browser \
   nautilus-extract-here \
-  nautilus-annotate-image \
   nautilus-compress-pdf \
   nautilus-merge-pdf \
   nautilus-watermark-pdf \
@@ -64,7 +63,6 @@ nautilus -q
 | ⚙️ **Extensions Manager** | `nautilus-extensions-manager` | Enable/disable extensions on the fly |
 | 🗜️ **Archive Browser** | `nautilus-archive-browser` | Browse, extract and **create** archives |
 | 📦 **Extract Here** | `nautilus-extract-here` | Fast extraction (7z, rar, zip…) with multi-volume & password |
-| 🎨 **Annotate Image** | `nautilus-annotate-image` | Full-featured PNG annotation editor |
 | 🗜️ **Compress PDF** | `nautilus-compress-pdf` | PDF compression via Ghostscript |
 | 🔗 **Merge PDF** | `nautilus-merge-pdf` | Merge multiple PDFs into one |
 | 🔏 **Watermark PDF** | `nautilus-watermark-pdf` | Secure watermarking with flattening |
@@ -80,10 +78,8 @@ nautilus -q
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
 | 🗂️ **File Tools** | — (manual install) | Friendly-name, copy-path, enum-rename, clean-empty, timestamp-folder, symlinks, base64, copy-content |
-| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Remove AI Watermarks** submenu for images, video and folders (`remove-ai-watermarks` CLI) |
+| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
-| 🎨 **Colorize Image** | — (manual install) | Tint images preserving luminance & alpha (Pillow) |
-| 🔄 **Convert Image** | — (manual install) | Convert to PNG/JPEG/WebP/ICO + square 256×256 PNG |
 | 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
@@ -272,21 +268,6 @@ Streamlined archive extraction without opening file-roller.
 
 ---
 
-## 🎨 Featured: Annotate Image
-
-A lightweight image annotation tool — no need to open GIMP for quick marks.
-
-- Right-click any PNG/JPG → **Annotate**
-- Draw arrows, rectangles, ellipses, lines, freehand
-- Add text annotations with custom font and size
-- Color picker with theme integration
-- Adjustable stroke width
-- Undo/redo
-- Zoom controls (buttons, Ctrl+wheel, fit / actual size)
-- Save in place or as new file
-
----
-
 ## 📄 PDF tools
 
 Three complementary tools for everyday PDF tasks, all powered by Ghostscript or pypdf.
@@ -369,13 +350,11 @@ Ideas ported from [Contextrion](https://github.com/zonaro/Contextrion) (Windows 
 
 - **`paste-into-file.py`** — right-click folder background → **Paste Into File**: saves clipboard text (`.txt`), image (`.png`/`.jpg`) or copied files (`.zip`, structure preserved) with a preview dialog and `Clipboard_YYYYMMDD_HHMMSS` default name.
 - **`file-tools.py`** — **File Tools** (root context menu): friendly URL rename, copy path, enum bulk rename (`file (#).ext`), clean empty folders & `YYYY/MM/DD` timestamp folder (folders only — also from the folder background menu), symlinks (destination folder + name prompt), copy as Base64 Data URL (files only), copy `.txt`/image content (text/image files only).
-- **`image-tools.py`** — **Image Tools** submenu (Pillow, always saves a new copy): grayscale, invert, center crop, circle crop, resize, vertical/horizontal combine, text/image watermark (50% alpha, centered), optimize for web. Includes a nested **Remove AI Watermarks** submenu (via the `remove-ai-watermarks` CLI) with visible/invisible watermark removal, C2PA/metadata stripping, ffmpeg video support and folder batch processing.
+- **`image-tools.py`** — **Image Tools** submenu (Pillow, always saves a new copy): grayscale, invert, center crop, circle crop, resize, vertical/horizontal combine, text/image watermark (50% alpha, centered), optimize for web, colorize (target color + strength, preserving luminance and alpha — port of `IconColorizer`). Also hosts **Annotate**, a full-screen single-image editor (rectangle / ellipse / arrow / text, color picker, stroke width, opacity, undo-redo via Ctrl+Z / Ctrl+Y or the header buttons, zoom buttons + Ctrl+wheel + fit / actual size, save in place or as new file). Includes a nested **Convert Image** submenu (to PNG / JPEG (q92) / WebP / multi-size ICO (favicon) + square 256×256 PNG) and a nested **Remove AI Watermarks** submenu (via the `remove-ai-watermarks` CLI) with visible/invisible watermark removal, C2PA/metadata stripping, ffmpeg video support and folder batch processing.
 - **`dev-tools-minify.py`** — **Minify** on `.js`/`.css` (regex-based, stdlib only), side-by-side `name.min.ext` with savings report. Skips already-minified files.
-- **`colorize-image.py`** — **Colorize** images with a target color (color picker + strength), preserving luminance and alpha (port of `IconColorizer`).
-- **`convert-image.py`** — **Convert Image** submenu: to PNG / JPEG (q92) / WebP / multi-size ICO (favicon) + square 256×256 PNG (port of `IconImportService`, minus DLL extraction).
 - Copy Content (`file-tools.py`) also combines selected images straight to the clipboard.
 
-> DLL icon extraction was intentionally **not** ported (Windows-only). C2PA/metadata stripping is covered by the Image Tools → **Remove AI Watermarks** submenu.
+> The Image Tools → **Convert Image** submenu is a port of `IconImportService`. DLL icon extraction was intentionally **not** ported (Windows-only). C2PA/metadata stripping is covered by the Image Tools → **Remove AI Watermarks** submenu.
 
 ## ⌨️ Keyboard shortcuts
 
