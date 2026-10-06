@@ -35,8 +35,11 @@ en: [
   desc:"Reliable text content search and replace — no Tracker3 indexing needed. (F8)",
   feats:["grep or ripgrep for speed, threaded search","Extension filters, recursion, case and regex options","Live red→green preview with per-line checkboxes","Confirmation dialog plus automatic .bak backups"]},
  {id:"video-to-audio", name:"🎵 Video to Audio",
-  desc:"Batch audio extraction from video files with ffmpeg.",
-  feats:["MP3, M4A, OGG, OPUS, FLAC and WAV output","320 / 192 / 128 kbps or stream copy","Real-time progress bar with per-file ✓ / ✗ status","Cancel kills the ffmpeg process group cleanly"]},
+   desc:"Batch audio extraction from video files with ffmpeg.",
+   feats:["MP3, M4A, OGG, OPUS, FLAC and WAV output","320 / 192 / 128 kbps or stream copy","Real-time progress bar with per-file ✓ / ✗ status","Cancel kills the ffmpeg process group cleanly"]},
+  {id:"media-converter", name:"🎬 Media Converter",
+   desc:"Convert video, audio and images between formats — FFmpeg plus Pillow with saved presets.",
+   feats:["Video, audio and image conversion from one menu","Quality presets you can save and reuse","Optional audio extraction straight from video","Batch conversion of whole selections"]},
  {id:"duration-column", name:"⏱️ Duration Column",
   desc:"A sortable Duration column (HH:MM:SS) for audio and video files via ffprobe.",
   feats:["Works for audio and video alike","Sortable like any native column","Zero configuration"]},
@@ -106,8 +109,11 @@ fr: [
   desc:"Recherche et remplacement fiables, sans indexation Tracker3. (F8)",
   feats:["grep ou ripgrep, recherche parallélisée","Filtres d'extensions, récursif, casse, regex","Aperçu rouge→vert avec cases par ligne","Confirmation + sauvegardes .bak auto"]},
  {id:"video-to-audio", name:"🎵 Vidéo vers audio",
-  desc:"Extraction audio par lots avec ffmpeg.",
-  feats:["Sorties MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou copie de flux","Progression temps réel, statut ✓/✗ par fichier","Annulation propre du processus ffmpeg"]},
+   desc:"Extraction audio par lots avec ffmpeg.",
+   feats:["Sorties MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou copie de flux","Progression temps réel, statut ✓/✗ par fichier","Annulation propre du processus ffmpeg"]},
+  {id:"media-converter", name:"🎬 Convertisseur média",
+   desc:"Convertissez vidéo, audio et images — FFmpeg plus Pillow, avec préréglages enregistrés.",
+   feats:["Conversion vidéo, audio et image depuis un seul menu","Préréglages de qualité à enregistrer et réutiliser","Extraction audio directe depuis la vidéo","Conversion par lots des sélections"]},
  {id:"duration-column", name:"⏱️ Colonne durée",
   desc:"Colonne Durée triable (HH:MM:SS) via ffprobe.",
   feats:["Audio et vidéo","Triable comme toute colonne native","Zéro configuration"]},
@@ -177,8 +183,11 @@ de: [
   desc:"Verlässliche Inhaltssuche ohne Tracker3-Index. (F8)",
   feats:["grep oder ripgrep, parallele Suche","Extensionsfilter, rekursiv, Case, Regex","Live-rot→grün-Vorschau mit Checkboxen pro Zeile","Bestätigungsdialog + automatische .bak-Backups"]},
  {id:"video-to-audio", name:"🎵 Video zu Audio",
-  desc:"Audio-Stapelextraktion mit ffmpeg.",
-  feats:["MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps oder Stream-Copy","Echtzeit-Fortschritt mit ✓/✗ pro Datei","Sauberes Killen von ffmpeg bei Abbruch"]},
+   desc:"Audio-Stapelextraktion mit ffmpeg.",
+   feats:["MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps oder Stream-Copy","Echtzeit-Fortschritt mit ✓/✗ pro Datei","Sauberes Killen von ffmpeg bei Abbruch"]},
+  {id:"media-converter", name:"🎬 Medienkonverter",
+   desc:"Video, Audio und Bilder umwandeln — FFmpeg plus Pillow, mit speicherbaren Presets.",
+   feats:["Video-, Audio- und Bildkonvertierung aus einem Menü","Eigene Qualitäts-Presets speichern und wiederverwenden","Audio direkt aus Video extrahieren","Stapelumwandlung ganzer Auswahlen"]},
  {id:"duration-column", name:"⏱️ Dauer-Spalte",
   desc:"Sortierbare Dauer-Spalte (HH:MM:SS) via ffprobe.",
   feats:["Für Audio und Video","Sortierbar wie jede native Spalte","Keine Konfiguration"]},
@@ -248,8 +257,11 @@ de: [
   desc:"Busca e substituição confiáveis, sem indexação Tracker3. (F8)",
   feats:["grep ou ripgrep, busca paralelizada","Filtros de extensão, recursivo, caixa, regex","Prévia vermelho→verde com caixas por linha","Confirmação + backups .bak automáticos"]},
  {id:"video-to-audio", name:"🎵 Vídeo para áudio",
-  desc:"Extração de áudio em lote com ffmpeg.",
-  feats:["Saídas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou cópia de stream","Progresso ao vivo, status ✓/✗ por arquivo","Cancela matando o ffmpeg de forma limpa"]},
+   desc:"Extração de áudio em lote com ffmpeg.",
+   feats:["Saídas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou cópia de stream","Progresso ao vivo, status ✓/✗ por arquivo","Cancela matando o ffmpeg de forma limpa"]},
+  {id:"media-converter", name:"🎬 Conversor de mídia",
+   desc:"Converta vídeo, áudio e imagens entre formatos — FFmpeg mais Pillow, com presets salvos.",
+   feats:["Conversão de vídeo, áudio e imagem num só menu","Presets de qualidade para salvar e reutilizar","Extração de áudio direto do vídeo","Conversão em lote da seleção"]},
  {id:"duration-column", name:"⏱️ Coluna de duração",
   desc:"Coluna de duração ordenável (HH:MM:SS) via ffprobe.",
   feats:["Áudio e vídeo","Ordenável como coluna nativa","Zero configuração"]},
@@ -319,8 +331,11 @@ es: [
   desc:"Búsqueda y reemplazo fiables, sin índice Tracker3. (F8)",
   feats:["grep o ripgrep, búsqueda paralelizada","Filtros de extensión, recursivo, caja, regex","Vista rojo→verde con casillas por línea","Confirmación + copias .bak automáticas"]},
  {id:"video-to-audio", name:"🎵 Vídeo a audio",
-  desc:"Extracción de audio por lotes con ffmpeg.",
-  feats:["Salidas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps o copia de stream","Progreso en vivo, estado ✓/✗ por archivo","Cancela matando ffmpeg limpiamente"]},
+   desc:"Extracción de audio por lotes con ffmpeg.",
+   feats:["Salidas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps o copia de stream","Progreso en vivo, estado ✓/✗ por archivo","Cancela matando ffmpeg limpiamente"]},
+  {id:"media-converter", name:"🎬 Conversor multimedia",
+   desc:"Convierta vídeo, audio e imágenes entre formatos — FFmpeg más Pillow, con ajustes guardados.",
+   feats:["Conversión de vídeo, audio e imagen desde un solo menú","Preajustes de calidad para guardar y reutilizar","Extracción de audio directa desde el vídeo","Conversión por lotes de la selección"]},
  {id:"duration-column", name:"⏱️ Columna de duración",
   desc:"Columna de duración ordenable (HH:MM:SS) vía ffprobe.",
   feats:["Audio y vídeo","Ordenable como columna nativa","Cero configuración"]},
@@ -357,14 +372,63 @@ es: [
 ]
 };
 
+/* IDs with a hand-built static showcase in index.html — skipped by the dynamic renderer. */
+const STATIC_IDS = new Set(["dual-panel", "search-content", "video-to-audio", "deb-installer", "archive-browser"]);
+/* Installed filename shown on each grid card. */
+const EXT_FILE = {
+  "dual-panel": "dual-panel.py", "column-browser": "column-browser.py",
+  "extensions-manager": "extensions-manager.py", "archive-browser": "archive-browser.py",
+  "extract-here": "extract-here.py", "compress-pdf": "compress-pdf.py",
+  "merge-pdf": "merge-pdf.py", "watermark-pdf": "watermark-pdf.py",
+  "preview-panel": "preview-panel.py", "deb-installer": "deb-installer.py",
+  "search-content": "search-content.py", "video-to-audio": "video-to-audio.py",
+  "media-converter": "media-converter.py", "duration-column": "duration-column.py",
+  "cut-dim": "cut-dim.py", "progress-mirror": "progress-mirror.py",
+  "edit-with": "nautilus_edit_ext.py", "folder-color-revival": "folder-color-revival.py",
+  "hidden-dim": "hidden-dim-icon.py + hidden-dim-all.py",
+  "paste-into-file": "paste-into-file.py", "file-tools": "file-tools.py",
+  "dev-tools-minify": "dev-tools-minify.py", "image-tools": "image-tools.py",
+  "clone-repository": "clone-repository.py"
+};
+
+function escName(name) {
+  const i = name.indexOf(" ");
+  return i < 0 ? { ei: "📦", rest: name } : { ei: name.slice(0, i), rest: name.slice(i + 1) };
+}
+
 function renderExtSections(lang) {
-  const list = SITE_EXTS[lang] || SITE_EXTS.en;
-  const host = document.getElementById("ext-sections");
+  const list = (SITE_EXTS[lang] || SITE_EXTS.en).filter((e) => !STATIC_IDS.has(e.id));
+  const host = document.getElementById("more");
   if (!host) return;
-  host.innerHTML = list.map((e) =>
-    '<section id="ext-' + e.id + '"><h2>' + e.name + '</h2><div class="spotlight"><p>' +
-    e.desc + '</p><ul class="feat">' +
-    e.feats.map((f) => '<li>' + f + '</li>').join("") +
-    '</ul></div></section>'
-  ).join("");
+  host.innerHTML = list.map((e, i) => {
+    const cls = i % 2 ? "feature alt flip" : "feature";
+    const rows = e.feats.slice(0, 4).map((f) =>
+      '<div class="frow"><span class="chk" style="color:var(--zorin-bright)">✓</span><span>' + f + '</span></div>'
+    ).join("");
+    return '<section class="' + cls + '"><div class="wrap">' +
+      '<div class="copy"><div class="ftag">' + e.name + '</div>' +
+      '<h3>' + e.name.replace(/^(\S+)\s*/, "") + '</h3>' +
+      '<p class="intro">' + e.desc + '</p>' +
+      '<div class="flist">' + e.feats.map((f) =>
+        '<div class="fi"><span class="chk">✓</span><span>' + f + '</span></div>').join("") +
+      '</div></div>' +
+      '<div class="visual reveal"><div class="win win-sm">' +
+      '<div class="titlebar"><span class="ttl">' + e.name + '</span><div class="winbtn">✕</div></div>' +
+      '<div class="filelist" style="min-height:180px;padding:10px">' + rows + '</div>' +
+      '<div class="toolbar"><span class="pill-btn accent">Nautilus</span><span class="spacer"></span>' +
+      '<span style="font-size:.72rem;color:var(--adw-dim);font-family:var(--mono)">' + (EXT_FILE[e.id] || e.id + ".py") + '</span></div>' +
+      '</div></div></div></section>';
+  }).join("");
+}
+
+function renderGrid(lang) {
+  const list = SITE_EXTS[lang] || SITE_EXTS.en;
+  const host = document.getElementById("grid");
+  if (!host) return;
+  host.innerHTML = list.map((e) => {
+    const n = escName(e.name);
+    const short = e.desc.length > 110 ? e.desc.slice(0, 110).replace(/ [&—–-]?[^ &—–-]*$/, "") + "…" : e.desc;
+    return '<div class="ecard reveal"><div class="ei">' + n.ei + '</div><h4>' + n.rest + '</h4><p>' +
+      short + '</p><code>' + (EXT_FILE[e.id] || e.id + ".py") + '</code></div>';
+  }).join("");
 }
