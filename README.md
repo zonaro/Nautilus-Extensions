@@ -38,6 +38,7 @@ sudo apt install \
   nautilus-video-to-audio \
   nautilus-duration-column \
   nautilus-cut-dim \
+  nautilus-progress-mirror \
   nautilus-edit-gedit \
   nautilus-folder-color-revival \
   nautilus-hidden-dim-icon
@@ -72,13 +73,14 @@ nautilus -q
 | 🎵 **Video to Audio** | `nautilus-video-to-audio` | Extract audio from videos (MP3, M4A, OGG, OPUS, FLAC, WAV) |
 | ⏱️ **Duration Column** | `nautilus-duration-column` | Duration column for audio/video files |
 | ✂️ **Cut Item Dimmer** | `nautilus-cut-dim` | Visual dimming of cut (Ctrl+X) files |
+| 📊 **Progress Mirror** | `nautilus-progress-mirror` | Pop-up window mirroring long copy/move progress |
 | ✏️ **Edit With** | `nautilus-edit-gedit` | Open text files with any installed editor (alphabetical submenu) |
 | 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging + Dolphin (KDE) color import |
 | 👁️ **Hidden Dim (icon)** | `nautilus-hidden-dim-icon` | Dim only the icon of hidden files |
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
 | 🗂️ **File Tools** | — (manual install) | Friendly-name, copy-path, enum-rename, clean-empty, timestamp-folder, symlinks, base64, copy-content |
-| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
+| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Annotate** editor (rectangle/ellipse/arrow/text, undo-redo, zoom) and nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
@@ -182,7 +184,7 @@ A fast, standalone Miller-columns (macOS Finder style) folder browser — for wh
 
 - Chained, horizontally-scrolling folder columns — drill down without losing your place
 - Drag-to-resize columns
-- Threaded per-column loading — no UI stall on large folders
+- Asynchronous per-column loading through GIO (the same mechanism Nautilus uses) — large folders open instantly
 - Deliberately single-pane and read-focused; for copy/move between locations, use **Dual Panel**
 
 ---
@@ -341,6 +343,7 @@ A central hub to manage all the other extensions without manually moving files.
 - **`nautilus-duration-column`** — adds a sortable Duration column (HH:MM:SS) for audio/video files via `ffprobe`
 - **`nautilus-folder-color-revival`** — revive the classic folder colorizer; imports Dolphin (KDE) folder colors automatically; works on modern Nautilus 46+
 - **`nautilus-edit-gedit`** — open text files with any installed editor via an alphabetical "Edit With" submenu (filtered by extension to avoid clutter)
+- **`nautilus-progress-mirror`** — a small window appears over Nautilus during long copies/moves, mirroring the native progress (bar, details, cancel button); short operations stay silent and the native progress circle is left untouched
 
 ---
 
