@@ -1,63 +1,101 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# NAME: Progress Mirror — Nautilus Python Extension
-# DESC: Affiche automatiquement une petite fenêtre devant Nautilus pendant les
-#       copies/déplacements un peu longs, en recopiant (lecture seule) la
-#       progression des widgets natifs de la bulle. Le cercle de progression
-#       natif n'est pas touché.
+# NAME: Progress Mirror – Nautilus Python Extension
+# AUTHOR: Tof
+# VERSION: 1.0
 # LICENSE: GNU General Public License v3.0
 #
-# PREMIER JET -- non testé sur une vraie version de Nautilus : les hypothèses
-# sur la structure interne (voir "HYPOTHÈSES" plus bas) sont à valider avec
-# l'inspecteur GTK (GTK_DEBUG=interactive nautilus) ou avec DEBUG = True.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# NAME: Progress Mirror – Nautilus Python Extension
+# DESC: Pops up a small window in front of Nautilus during long copy/move
+#       operations, mirroring (read-only) the progress of the native bubble
+#       widgets. Short operations stay silent and the native progress circle
+#       is left untouched; the mirror's cancel button relays to the native
+#       cancel button, so Nautilus keeps owning its GCancellable.
+# REQUIRES: python3-nautilus (>= 4.0), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1
 # INSTALL:
 #   cp progress-mirror.py ~/.local/share/nautilus-python/extensions/
 #   rm -rf ~/.local/share/nautilus-python/extensions/__pycache__
 #   nautilus -q
 #
-# HYPOTHÈSES (d'après nautilus-progress-info-widget.c, à confirmer) :
-#   1. Une opération = un widget de type "NautilusProgressInfoWidget", présent
-#      dans l'arbre des widgets de la fenêtre Nautilus (dans le popover).
-#   2. Ses enfants : un Gtk.ProgressBar, deux Gtk.Label (dans l'ordre : statut,
-#      puis détails) et un Gtk.Button (annulation).
-#   3. Il y a deux indicateurs dans Nautilus (barre d'en-tête et barre du bas
-#      pour les fenêtres étroites) : la même opération apparaît donc deux fois.
-#      On dédoublonne sur le texte du statut.
+# ASSUMPTIONS (from nautilus-progress-info-widget.c — verify with
+# GTK_DEBUG=interactive nautilus, or with DEBUG = True):
+#   1. One operation = one "NautilusProgressInfoWidget" widget, present in the
+#      Nautilus window's widget tree (inside the popover).
+#   2. Its children: a Gtk.ProgressBar, two Gtk.Labels (order: status, then
+#      details) and a Gtk.Button (cancel).
+#   3. Nautilus has two indicators (header bar and a bottom bar on narrow
+#      windows), so the same operation appears twice. We de-duplicate on the
+#      status text.
 
-import gi
 import time
 import locale
 
-gi.require_version("Nautilus", "4.0")
+import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+try:
+    gi.require_version("Nautilus", "4.0")
+except ValueError:
+    pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
 from gi.repository import Nautilus, GObject, Gtk, Adw, GLib, Pango
 
 # ---------------------------------------------------------------------------
-# Réglages
+# Settings
 # ---------------------------------------------------------------------------
-DEBUG       = False   # True : affiche dans le terminal les types "Progress" trouvés
-TICK_MS     = 250     # fréquence de lecture des widgets natifs
-SHOW_DELAY  = 0.5     # secondes : n'affiche la boîte que si l'opération dure
-                      # plus longtemps (évite le clignotement sur NVMe)
+DEBUG       = False   # True: print the "Progress" widget types found in the terminal
+TICK_MS     = 250     # how often the native widgets are polled
+SHOW_DELAY  = 0.5     # seconds: only show the box if the operation outlives this
+                      # (avoids flicker on NVMe)
 NATIVE_TYPE = "NautilusProgressInfoWidget"
 
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
 _lang = locale.getlocale()[0] or ""
+
 if _lang.startswith("fr"):
-    T = {"title": "Opérations en cours", "cancel": "Annuler"}
+    T = {
+        "title":  "Opérations en cours",
+        "cancel": "Annuler",
+    }
 elif _lang.startswith("de"):
-    T = {"title": "Laufende Vorgänge", "cancel": "Abbrechen"}
+    T = {
+        "title":  "Laufende Vorgänge",
+        "cancel": "Abbrechen",
+    }
+elif _lang.startswith("es"):
+    T = {
+        "title":  "Operaciones en curso",
+        "cancel": "Cancelar",
+    }
+elif _lang.startswith("pt"):
+    T = {
+        "title":  "Operações em andamento",
+        "cancel": "Cancelar",
+    }
 else:
-    T = {"title": "File operations", "cancel": "Cancel"}
+    T = {
+        "title":  "File operations",
+        "cancel": "Cancel",
+    }
 
 
 # ---------------------------------------------------------------------------
-# Lecture des widgets natifs
+# Reading the native widgets
 # ---------------------------------------------------------------------------
 def _collect_natives(widget, out):
     if type(widget).__name__ == NATIVE_TYPE:
@@ -83,7 +121,7 @@ def _gather(widget, labels, bars, buttons):
 
 
 class _Info:
-    """Instantané de l'état d'une opération, lu sur le widget natif."""
+    """Snapshot of one operation's state, read off the native widget."""
 
     def __init__(self, native):
         labels, bars, buttons = [], [], []
@@ -92,7 +130,7 @@ class _Info:
         self.details  = labels[1].get_text() if len(labels) > 1 else ""
         self.fraction = bars[0].get_fraction() if bars else 0.0
         self.button   = buttons[0] if buttons else None
-        self.key      = self.status          # clé de dédoublonnage
+        self.key      = self.status          # de-duplication key
         self.done     = self.fraction >= 0.999
 
 
@@ -113,13 +151,13 @@ def _debug_dump(window):
 
 
 # ---------------------------------------------------------------------------
-# Centrage sur la fenêtre Nautilus (X11)
+# Centering over the Nautilus window (X11)
 # ---------------------------------------------------------------------------
 def _center_on_parent_x11(win, parent):
-    """GTK4 n'offre aucune API pour positionner une fenêtre de premier niveau,
-    et Mutter ne centre pas ces fenêtres sur leur parent. Sous X11, on la
-    déplace donc à la main via Xlib (ctypes, connexion X séparée). Sous
-    Wayland (ou si quoi que ce soit manque) : ne fait rien, sans erreur."""
+    """GTK4 offers no API to position a toplevel, and Mutter does not center
+    those windows on their parent. Under X11 the window is therefore moved
+    manually via Xlib (ctypes, separate X connection). Under Wayland (or
+    whenever anything is missing): silently does nothing."""
     try:
         import ctypes
         import ctypes.util
@@ -181,11 +219,11 @@ def _center_on_parent_x11(win, parent):
             x11.XCloseDisplay(dpy)
     except Exception as exc:
         if DEBUG:
-            print(f"[progress-mirror] centrage impossible : {exc}")
+            print(f"[progress-mirror] centering unavailable: {exc}")
 
 
 # ---------------------------------------------------------------------------
-# Fenêtre miroir
+# Mirror window
 # ---------------------------------------------------------------------------
 class _MirrorRow:
     def __init__(self, on_cancel):
@@ -224,7 +262,7 @@ class _MirrorRow:
         self.status.set_text(info.status)
         self.details.set_text(info.details)
         if info.fraction <= 0.0:
-            self.bar.pulse()                   # mode "activité" (pas de fraction connue)
+            self.bar.pulse()                   # activity mode (no fraction known)
         else:
             self.bar.set_fraction(min(info.fraction, 1.0))
 
@@ -243,8 +281,8 @@ class _MirrorWindow(Adw.Window):
         for side in ("top", "bottom", "start", "end"):
             getattr(self._list, f"set_margin_{side}")(16)
 
-        # Adw.Window + ToolbarView : mêmes coins arrondis que tes autres
-        # outils (un Gtk.Window nu ne les reçoit pas du thème).
+        # Adw.Window + ToolbarView: same rounded corners as the other tools
+        # (a bare Gtk.Window does not get them from the theme).
         header = Adw.HeaderBar()
         header.set_decoration_layout(":close")
         toolbar = Adw.ToolbarView()
@@ -255,14 +293,14 @@ class _MirrorWindow(Adw.Window):
         self.connect("close-request", self._on_close)
 
     def _on_close(self, _win):
-        # L'utilisateur ferme la boîte : on la masque et on mémorise les
-        # opérations en cours pour ne pas la rouvrir à chaque tick.
+        # The user closed the box: hide it and remember the operations still
+        # running, so it is not reopened on every tick.
         self._on_user_close(set(self._rows))
         self.set_visible(False)
         return True
 
     def _cancel(self, row):
-        # Annulation relayée au bouton natif : Nautilus gère le GCancellable.
+        # Cancel relayed to the native button: Nautilus owns the GCancellable.
         if row.native_button is not None:
             try:
                 row.native_button.emit("clicked")
@@ -270,7 +308,7 @@ class _MirrorWindow(Adw.Window):
                 pass
 
     def sync(self, active):
-        """active : dict clé -> _Info. Met à jour, ajoute, retire les lignes."""
+        """active : dict key -> _Info. Updates, adds and drops rows."""
         for key in list(self._rows):
             if key not in active:
                 self._list.remove(self._rows.pop(key).box)
@@ -294,9 +332,9 @@ class ProgressMirror(GObject.GObject, Nautilus.MenuProvider):
 
     def __init__(self):
         super().__init__()
-        self._first_seen = {}     # clé -> instant de première apparition
-        self._dismissed  = set()  # clés fermées à la main par l'utilisateur
-        self._win        = None   # référence forte, sinon le ramasse-miettes la ferme
+        self._first_seen = {}     # key -> when it first appeared
+        self._dismissed  = set()  # keys the user closed by hand
+        self._win        = None   # strong ref, else the GC closes it
         self._debug_done = False
         GLib.timeout_add(TICK_MS, self._tick)
 
@@ -314,7 +352,7 @@ class ProgressMirror(GObject.GObject, Nautilus.MenuProvider):
             _collect_natives(win, natives)
             for native in natives:
                 info = _Info(native)
-                if info.key and info.key not in seen:   # dédoublonnage
+                if info.key and info.key not in seen:   # de-duplication
                     seen[info.key] = info
                     parent = parent or win
         self._debug_done = True
@@ -323,7 +361,7 @@ class ProgressMirror(GObject.GObject, Nautilus.MenuProvider):
         for key in seen:
             self._first_seen.setdefault(key, now)
         for key in list(self._first_seen):
-            if key not in seen:                          # opération disparue
+            if key not in seen:                          # operation gone
                 del self._first_seen[key]
                 self._dismissed.discard(key)
 
@@ -347,11 +385,20 @@ class ProgressMirror(GObject.GObject, Nautilus.MenuProvider):
         self._win.sync(active)
         if not self._win.get_visible():
             if parent is not None:
-                self._win.set_transient_for(parent)   # ici voulu : comportement "dialogue"
+                self._win.set_transient_for(parent)   # wanted here: "dialog" feel
+            # Idle turn instead of presenting straight from the tick: gives the
+            # window manager a beat to map the toplevel first, which is what
+            # keeps the cancel button clickable on Wayland (same rationale as
+            # the settings dialogs across this repo).
+            GLib.idle_add(self._present, parent)
+
+    def _present(self, parent):
+        if self._win is not None and not self._win.get_visible():
             self._win.present()
             if parent is not None:
-                # Laisser le temps à la fenêtre d'être affichée avant de la déplacer.
+                # Give the window a moment to be shown before moving it.
                 GLib.timeout_add(120, self._center, parent)
+        return False
 
     def _center(self, parent):
         if self._win is not None and self._win.get_visible():
