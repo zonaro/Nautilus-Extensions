@@ -1,0 +1,20 @@
+zonaro-nautilus-extensions
+==========================
+
+This directory is the system payload for the zonaro Nautilus extensions.
+
+Every extension package installs its Python module(s) here.  Because Nautilus
+Python only loads extensions from the per-user directory, the shared helper
+/usr/bin/zonaro-nautilus-link (shipped by zonaro-nautilus-common) symlinks the
+contents of this directory into:
+
+    ~/.local/share/nautilus-python/extensions/
+
+The linker runs automatically at session start through the XDG autostart entry
+/etc/xdg/autostart/zonaro-nautilus-link.desktop.
+
+Extensions disabled with the Extensions Manager are moved to the "disabled/"
+subfolder of the per-user directory and are skipped by the linker, so the
+choice is preserved across logins.
+
+Do not edit the files in this directory by hand: they are managed by apt.

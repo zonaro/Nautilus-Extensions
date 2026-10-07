@@ -372,6 +372,22 @@ es: [
 ]
 };
 
+/* APT package for each showcase id (this fork's PPA). install.sh uses the same slug. */
+const EXT_PKG = {
+  "dual-panel": "zonaro-nautilus-dual-panel", "column-browser": "zonaro-nautilus-column-browser",
+  "extensions-manager": "zonaro-nautilus-extensions-manager", "archive-browser": "zonaro-nautilus-archive-browser",
+  "extract-here": "zonaro-nautilus-extract-here", "compress-pdf": "zonaro-nautilus-compress-pdf",
+  "merge-pdf": "zonaro-nautilus-merge-pdf", "watermark-pdf": "zonaro-nautilus-watermark-pdf",
+  "preview-panel": "zonaro-nautilus-preview-panel", "deb-installer": "zonaro-nautilus-deb-installer",
+  "search-content": "zonaro-nautilus-search-content", "video-to-audio": "zonaro-nautilus-video-to-audio",
+  "media-converter": "zonaro-nautilus-media-converter", "duration-column": "zonaro-nautilus-duration-column",
+  "cut-dim": "zonaro-nautilus-cut-dim", "progress-mirror": "zonaro-nautilus-progress-mirror",
+  "edit-with": "zonaro-nautilus-edit-with", "folder-color-revival": "zonaro-nautilus-folder-color-revival",
+  "hidden-dim": "zonaro-nautilus-hidden-dim-icon | -all",
+  "paste-into-file": "zonaro-nautilus-paste-into-file", "file-tools": "zonaro-nautilus-file-tools",
+  "dev-tools-minify": "zonaro-nautilus-dev-tools-minify", "image-tools": "zonaro-nautilus-image-tools",
+  "clone-repository": "zonaro-nautilus-clone-repository"
+};
 /* IDs with a hand-built static showcase in index.html — skipped by the dynamic renderer. */
 const STATIC_IDS = new Set(["dual-panel", "search-content", "video-to-audio", "deb-installer", "archive-browser"]);
 /* Installed filename shown on each grid card. */
@@ -416,7 +432,7 @@ function renderExtSections(lang) {
       '<div class="titlebar"><span class="ttl">' + e.name + '</span><div class="winbtn">✕</div></div>' +
       '<div class="filelist" style="min-height:180px;padding:10px">' + rows + '</div>' +
       '<div class="toolbar"><span class="pill-btn accent">Nautilus</span><span class="spacer"></span>' +
-      '<span style="font-size:.72rem;color:var(--adw-dim);font-family:var(--mono)">' + (EXT_FILE[e.id] || e.id + ".py") + '</span></div>' +
+      '<span style="font-size:.72rem;color:var(--adw-dim);font-family:var(--mono)" title="' + (EXT_FILE[e.id] || e.id + ".py") + '">' + (EXT_PKG[e.id] || "zonaro-nautilus-" + e.id) + '</span></div>' +
       '</div></div></div></section>';
   }).join("");
 }
@@ -429,6 +445,6 @@ function renderGrid(lang) {
     const n = escName(e.name);
     const short = e.desc.length > 110 ? e.desc.slice(0, 110).replace(/ [&—–-]?[^ &—–-]*$/, "") + "…" : e.desc;
     return '<div class="ecard reveal"><div class="ei">' + n.ei + '</div><h4>' + n.rest + '</h4><p>' +
-      short + '</p><code>' + (EXT_FILE[e.id] || e.id + ".py") + '</code></div>';
+      short + '</p><code title="' + (EXT_FILE[e.id] || e.id + ".py") + '">' + (EXT_PKG[e.id] || "zonaro-nautilus-" + e.id) + '</code></div>';
   }).join("");
 }

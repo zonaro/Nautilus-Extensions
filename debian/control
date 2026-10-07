@@ -1,0 +1,224 @@
+Source: zonaro-nautilus-extensions
+Section: gnome
+Priority: optional
+Maintainer: Kaizonaro <zonaro@outlook.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+Homepage: https://github.com/zonaro/Nautilus-Extensions
+Vcs-Browser: https://github.com/zonaro/Nautilus-Extensions
+Vcs-Git: https://github.com/zonaro/Nautilus-Extensions.git
+
+Package: zonaro-nautilus-common
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0
+Description: shared infrastructure for the zonaro Nautilus extensions
+ Provides the system payload directory (/usr/share/zonaro-nautilus-extensions),
+ the per-user linker (/usr/bin/zonaro-nautilus-link) and an XDG autostart
+ entry that links every installed extension into
+ ~/.local/share/nautilus-python/extensions at session start.
+ .
+ Extensions disabled through the Extensions Manager (moved to the disabled/
+ subfolder) are left untouched, so a user's choice survives across logins.
+
+Package: zonaro-nautilus-archive-browser
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, p7zip-full, unrar | unrar-free, python3-libarchive-c
+Description: browse, extract and create archives from Nautilus
+ Full archive manager for Nautilus supporting ZIP, 7z, RAR, TAR, GZ, BZ2, XZ,
+ CAB and ISO, including multi-volume archives, password prompts, a collapsible
+ tree view and archive creation from the selection.
+
+Package: zonaro-nautilus-clone-repository
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, git, gh
+Description: clone git repositories from the Nautilus context menu
+ Clone any git repository into the current folder with URL paste and gh
+ autocompletion. Inside a repository a Git submenu offers Pull, Push, Fetch,
+ Status, History, Commit, Branch and Stash actions.
+
+Package: zonaro-nautilus-column-browser
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: Miller-columns folder browser for Nautilus
+ A fast, read-focused, chained column browser (macOS Finder style), launched
+ with F9 or from the context menu, with drag-to-resize columns and asynchronous
+ per-column loading through GIO.
+
+Package: zonaro-nautilus-compress-pdf
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ghostscript, python3-pypdf, python3-pil, poppler-utils
+Description: compress PDF files from Nautilus
+ Batch PDF compression through Ghostscript with four quality presets, live
+ before/after size comparison and optional OCR preprocessing.
+
+Package: zonaro-nautilus-cut-dim
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: visually dim items cut with Ctrl+X in Nautilus
+ Dims files that were cut to the clipboard so you never forget what is waiting
+ to be pasted.
+
+Package: zonaro-nautilus-deb-installer
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, policykit-1 | polkitd
+Description: install .deb packages graphically from Nautilus
+ Right-click a .deb file to inspect its metadata, check for missing
+ dependencies and install it with real-time output, authenticating through
+ pkexec.
+
+Package: zonaro-nautilus-dev-tools-minify
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: minify JS/CSS files from the Nautilus context menu
+ Regex-based, dependency-free minifier that writes a side-by-side name.min.ext
+ file and reports the size savings, skipping already-minified files.
+
+Package: zonaro-nautilus-dual-panel
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, rsync
+Description: dual-pane file manager inside Nautilus
+ A complete double-pane file manager launched with F3 or from the context
+ menu, with list/grid views, drag and drop, an rsync progress bar, cross-panel
+ copy/move and cross-extension awareness.
+
+Package: zonaro-nautilus-duration-column
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg
+Description: duration column for audio/video files in Nautilus
+ Adds a sortable HH:MM:SS Duration column for audio and video files, using
+ ffprobe.
+
+Package: zonaro-nautilus-extensions-manager
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: enable or disable zonaro Nautilus extensions
+ A central hub listing every installed extension (active and disabled) with
+ one-click enable/disable toggles and a Restart Nautilus button. Disabled
+ extensions stay disabled across logins thanks to the common linker.
+
+Package: zonaro-nautilus-extract-here
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, p7zip-full, unrar | unrar-free
+Description: fast archive extraction in place from Nautilus
+ Right-click an archive to extract it here, with multi-volume 7z and RAR
+ support, password prompts and a live progress dialog.
+
+Package: zonaro-nautilus-file-tools
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, python3-pil
+Description: assorted file utilities for the Nautilus context menu
+ Friendly URL rename, copy path, enum bulk rename, clean empty folders,
+ YYYY/MM/DD timestamp folders, symlink creation, Base64 Data URL copy and
+ clipboard copy of text or image content.
+
+Package: zonaro-nautilus-folder-color-revival
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, python3-pil
+Description: folder color and emblem tagging for Nautilus
+ Revives folder colourisation on modern Nautilus, with custom colours, emblem
+ tagging and automatic import of Dolphin (KDE) folder colours. Ships its
+ name_to_color helper and colour database.
+
+Package: zonaro-nautilus-hidden-dim-all
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Conflicts: zonaro-nautilus-hidden-dim-icon
+Replaces: zonaro-nautilus-hidden-dim-icon
+Description: dim icon and label of hidden files in Nautilus
+ Event-driven dimming of both the icon and the label of dot-prefixed hidden
+ files when "Show hidden files" is enabled.
+
+Package: zonaro-nautilus-hidden-dim-icon
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Conflicts: zonaro-nautilus-hidden-dim-all
+Replaces: zonaro-nautilus-hidden-dim-all
+Description: dim the icon of hidden files in Nautilus
+ Event-driven dimming of only the icon of dot-prefixed hidden files when
+ "Show hidden files" is enabled.
+
+Package: zonaro-nautilus-image-tools
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, python3-pil, python3-cairo, ffmpeg, zonaro-nautilus-media-converter
+Description: image editing tools for the Nautilus context menu
+ Grayscale, invert, crop, circle, resize, combine, watermark, colourise and
+ web-optimise actions built on Pillow, plus an annotate editor and nested
+ convert-image and remove-AI-watermarks submenus.
+
+Package: zonaro-nautilus-media-converter
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil
+Description: convert audio, video and image files from Nautilus
+ Batch media conversion powered by FFmpeg and Pillow, with presets, hardware
+ acceleration detection and a shared media_core library.
+ .
+ This package also ships the shared media_core Python library used by the
+ image-tools and video-to-audio extensions.
+
+Package: zonaro-nautilus-merge-pdf
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ghostscript, python3-pypdf, python3-pil, poppler-utils
+Description: merge PDF files from Nautilus
+ Merge multiple PDFs with drag-and-drop reordering, per-file page selection
+ and a custom output name.
+
+Package: zonaro-nautilus-edit-with
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: open text files with any installed editor from Nautilus
+ Adds an alphabetical "Open with" submenu listing every installed text editor,
+ filtered by file extension to avoid clutter.
+
+Package: zonaro-nautilus-paste-into-file
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: paste clipboard contents into a new file from Nautilus
+ Saves clipboard text (.txt), images (.png/.jpg) or copied files (.zip,
+ structure preserved) with a preview dialog and a timestamped default name.
+
+Package: zonaro-nautilus-preview-panel
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, poppler-utils, python3-pil
+Description: preview panel for selected files in Nautilus
+ A dynamic side preview showing images, video thumbnails, first PDF pages and
+ text content, toggled from the context menu or with F4.
+
+Package: zonaro-nautilus-progress-mirror
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: mirror long copy/move progress in a small window
+ Shows a small window over Nautilus during long copy or move operations,
+ mirroring the native progress bar and cancel button while staying silent for
+ short operations.
+
+Package: zonaro-nautilus-search-content
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ripgrep | grep
+Description: search and replace text content from Nautilus
+ Reliable recursive text search with extension filters and live search-and-
+ replace preview (grep, or ripgrep when available), skipping binary files and
+ heavy folders. Launchable with F8.
+
+Package: zonaro-nautilus-video-to-audio
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil, zonaro-nautilus-media-converter
+Description: extract audio tracks from video files in Nautilus
+ Batch audio extraction with ffmpeg in six output formats and four quality
+ levels, with a live progress bar and clean cancellation.
+
+Package: zonaro-nautilus-watermark-pdf
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ghostscript, python3-pypdf, python3-pil, poppler-utils
+Description: watermark PDF files from Nautilus
+ Text or image watermarks with configurable font, size, colour, opacity,
+ position, rotation and per-page or whole-document application, with optional
+ output flattening.
+
+Package: zonaro-nautilus-all
+Architecture: all
+Depends: ${misc:Depends}, zonaro-nautilus-common, zonaro-nautilus-archive-browser, zonaro-nautilus-clone-repository, zonaro-nautilus-column-browser, zonaro-nautilus-compress-pdf, zonaro-nautilus-cut-dim, zonaro-nautilus-deb-installer, zonaro-nautilus-dev-tools-minify, zonaro-nautilus-dual-panel, zonaro-nautilus-duration-column, zonaro-nautilus-extensions-manager, zonaro-nautilus-extract-here, zonaro-nautilus-file-tools, zonaro-nautilus-folder-color-revival, zonaro-nautilus-hidden-dim-all, zonaro-nautilus-image-tools, zonaro-nautilus-media-converter, zonaro-nautilus-merge-pdf, zonaro-nautilus-edit-with, zonaro-nautilus-paste-into-file, zonaro-nautilus-preview-panel, zonaro-nautilus-progress-mirror, zonaro-nautilus-search-content, zonaro-nautilus-video-to-audio, zonaro-nautilus-watermark-pdf
+Description: metapackage installing all zonaro Nautilus extensions
+ Depends on every zonaro Nautilus extension. Note that it pulls in
+ zonaro-nautilus-hidden-dim-all, which conflicts with and replaces
+ zonaro-nautilus-hidden-dim-icon (install only one dimming variant).

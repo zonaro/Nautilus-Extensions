@@ -371,7 +371,7 @@
 <header class="hero">
   <div class="hero-bg"></div>
   <div class="wrap hero-in">
-    <span class="eyebrow"><span class="dot"></span> <span data-i18n="hero_eyebrow">24 extensions · Fedora · GNOME 46+ · GPL-3.0</span></span>
+    <span class="eyebrow"><span class="dot"></span> <span data-i18n="hero_eyebrow">25 extensions · PPA + multi-distro · GNOME 46+ · GPL-3.0</span></span>
     <h1 data-i18n="hero_title">The toolkit GNOME's file manager<br><span class="accent">Nautilus</span> has been <span class="accent">missing</span>.</h1>
     <p class="lede" data-i18n="hero_lede">A collection of native Python extensions that add a dual-pane manager, real search &amp; replace, an archive browser, PDF tools and more — right inside the right-click menu of Nautilus.</p>
     <div class="hero-actions">
@@ -440,7 +440,7 @@
 <!-- ───────────── STATS ───────────── -->
 <section class="stats">
   <div class="wrap"><div class="stats-in">
-    <div class="stat"><div class="n">24<span class="u">+</span></div><div class="l" data-i18n="s1l">Extensions shipped</div></div>
+    <div class="stat"><div class="n">25</div><div class="l" data-i18n="s1l">Extensions shipped</div></div>
     <div class="stat"><div class="n">5<span class="u">×</span></div><div class="l" data-i18n="s2l">Languages — FR · EN · DE · PT-BR · ES</div></div>
     <div class="stat"><div class="n">GTK<span class="u">4</span></div><div class="l" data-i18n="s3l">Native libadwaita UI</div></div>
     <div class="stat"><div class="n">0<span class="u">%</span></div><div class="l" data-i18n="s4l">Telemetry, ads, nonsense</div></div>
@@ -677,8 +677,8 @@
   <div class="wrap">
     <div class="sec-head">
       <div class="sec-tag" data-i18n="grid_tag">The full collection</div>
-      <h2 data-i18n="grid_title">Twenty-four tools, one right-click away.</h2>
-      <p data-i18n="grid_sub">One install script, everything local — every extension runs on your machine, no telemetry.</p>
+      <h2 data-i18n="grid_title">Twenty-five tools, one right-click away.</h2>
+      <p data-i18n="grid_sub">PPA with per-extension packages, or one selective script — everything local, no telemetry.</p>
     </div>
     <div class="egrid" id="grid"></div>
   </div>
@@ -689,12 +689,12 @@
   <div class="wrap">
     <div class="sec-head">
       <div class="sec-tag" data-i18n="inst_tag">Get started</div>
-      <h2 data-i18n="inst_title">One line to a better file manager.</h2>
-      <p data-i18n="inst_sub">Fedora / GNOME (Nautilus 46+, GTK4) — the <b>install.sh</b> script installs dependencies and every extension, then restarts Nautilus.</p>
+      <h2 data-i18n="inst_title">Two ways to a better file manager.</h2>
+      <p data-i18n="inst_sub">Ubuntu / Zorin OS / Mint via <b>PPA</b> (per-extension packages), or <b>install.sh</b> on apt · dnf · pacman · zypper (GNOME Nautilus 46+, GTK4) — pick one method per machine.</p>
     </div>
     <div class="codeblock reveal">
       <div class="code-top">
-        <span class="ttl">Terminal</span>
+        <span class="ttl">Terminal — PPA (Ubuntu / Zorin / Mint)</span>
         <div class="ctools">
           <span class="ctool" title="Search"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><line x1="10.2" y1="10.2" x2="13.5" y2="13.5" stroke-linecap="round"/></svg></span>
           <span class="ctool" title="Menu">⋮</span>
@@ -703,11 +703,34 @@
           <span class="cbtn" title="Close">✕</span>
         </div>
       </div>
-      <div class="code-body"><span class="c"># Fedora / GNOME — one line, no manual clone</span><br>
+      <div class="code-body"><span class="c"># everything at once</span><br>
+<span class="p">$</span> sudo add-apt-repository ppa:zonaro/nautilus-extensions<br>
+<span class="p">$</span> sudo apt update &amp;&amp; sudo apt install zonaro-nautilus-all<br><br>
+<span class="c"># …or individual extensions (apt pulls only what each needs)</span><br>
+<span class="p">$</span> sudo apt install zonaro-nautilus-dual-panel zonaro-nautilus-image-tools<br><br>
+<span class="c"># activate now (otherwise at next login)</span><br>
+<span class="p">$</span> zonaro-nautilus-link &amp;&amp; nautilus -q</div>
+    </div>
+    <div class="codeblock reveal" style="margin-top:18px">
+      <div class="code-top">
+        <span class="ttl">Terminal — install.sh (multi-distro, selective)</span>
+        <div class="ctools">
+          <span class="ctool" title="Search"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><line x1="10.2" y1="10.2" x2="13.5" y2="13.5" stroke-linecap="round"/></svg></span>
+          <span class="ctool" title="Menu">⋮</span>
+          <span class="cbtn" title="Minimize">−</span>
+          <span class="cbtn" title="Maximize">▢</span>
+          <span class="cbtn" title="Close">✕</span>
+        </div>
+      </div>
+      <div class="code-body"><span class="c"># one line, everything (Fedora / GNOME — no manual clone)</span><br>
 <span class="p">$</span> curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash<br><br>
+<span class="c"># …or pick extensions (25 slugs — see --list)</span><br>
+<span class="p">$</span> ./install.sh --list<br>
+<span class="p">$</span> ./install.sh --only dual-panel,edit-with<br>
+<span class="p">$</span> ./install.sh --exclude hidden-dim-all<br><br>
 <span class="c"># restart is applied automatically (nautilus -q)</span></div>
     </div>
-    <p class="note" data-i18n="inst_note">Prefer it manual? Clone the repo and copy the <code>.py</code> files plus <code>color_database.json</code> into <code>~/.local/share/nautilus-python/extensions/</code>, then run <code>nautilus -q</code>.</p>
+    <p class="note" data-i18n="inst_note">Upstream PPA? The original <code>ppa:nourpon/nautilus-extensions</code> (<code>nautilus-*</code>) still works — this fork just ships its own <code>zonaro-nautilus-*</code> packages plus the script above. Prefer it manual? Clone the repo and copy the <code>.py</code> files plus <code>color_database.json</code> into <code>~/.local/share/nautilus-python/extensions/</code>, then run <code>nautilus -q</code>.</p>
   </div>
 </section>
 
@@ -722,7 +745,7 @@
       <a href="#install" data-i18n="nav_install">Install</a>
     </div>
     <p class="tribute" data-i18n="foot_tribute">In memory of <b>Lola</b> — some scripts in this collection bear her name, in tribute to a dear sysadmin friend. <span class="heart">♥</span></p>
-    <p class="foot-meta" data-i18n="foot_meta"><a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>) <span class="sep">·</span> GPL-3.0 <span class="sep">·</span> Made with 💜 for Fedora &amp; GNOME <span class="sep">·</span> No telemetry, no nonsense</p>
+    <p class="foot-meta" data-i18n="foot_meta"><a href="https://github.com/zonaro/Nautilus-Extensions">zonaro/Nautilus-Extensions</a> (fork of <a href="https://github.com/ToFpon/Nautilus-Extensions">ToFpon/Nautilus-Extensions</a>) <span class="sep">·</span> GPL-3.0 <span class="sep">·</span> Made with 💜 for Ubuntu, Fedora &amp; GNOME <span class="sep">·</span> No telemetry, no nonsense</p>
   </div>
 </footer>
 

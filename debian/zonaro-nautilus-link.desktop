@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Zonaro Nautilus Extensions Linker
+Comment=Link installed zonaro Nautilus extensions into the user profile
+Exec=/usr/bin/zonaro-nautilus-link
+TryExec=/usr/bin/zonaro-nautilus-link
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

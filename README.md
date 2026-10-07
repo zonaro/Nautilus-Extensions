@@ -53,6 +53,65 @@ nautilus -q
 
 > 💡 You can also install individual packages — `apt` will pull only what each one needs.
 
+> ℹ️ Above is the **upstream** PPA (`ppa:nourpon/nautilus-extensions`, packages `nautilus-*`,
+> paths under `/usr/share/nautilus-extensions-tof/`). This fork keeps full compatibility with
+> those extensions, but also ships its **own namespaced packaging** (no file conflicts with
+> upstream) plus a selective manual installer. Pick **one** method per machine.
+
+---
+
+## 🚀 PPA próprio (fork zonaro — Ubuntu / Zorin OS / Mint)
+
+Build a partir de `debian/` neste repo (ver `debian/README.launchpad.md`). Nomes e caminhos usam
+o prefixo `zonaro-` para não conflitar com o PPA upstream.
+
+```bash
+sudo add-apt-repository ppa:zonaro/nautilus-extensions
+sudo apt update
+
+# Tudo de uma vez
+sudo apt install zonaro-nautilus-all
+
+# Ou extensões individuais — o apt puxa só as dependências de cada uma
+sudo apt install zonaro-nautilus-dual-panel zonaro-nautilus-image-tools
+sudo apt install zonaro-nautilus-archive-browser zonaro-nautilus-extract-here
+# (instale hidden-dim-all OU hidden-dim-icon — eles conflitam entre si)
+
+# Ativa na hora (ou no próximo login via autostart):
+zonaro-nautilus-link
+nautilus -q
+```
+
+Correspondência de nomes: `nautilus-<slug>` (upstream) → `zonaro-nautilus-<slug>` (este fork),
+ex.: `nautilus-dual-panel` → `zonaro-nautilus-dual-panel`, `nautilus-edit-gedit` → `zonaro-nautilus-edit-with`.
+Este fork ainda empacota as extensões novas que no upstream são só manuais:
+`paste-into-file`, `file-tools`, `image-tools`, `dev-tools-minify`, `clone-repository`,
+`media-converter` (+ `media_core/`).
+
+---
+
+## 🐧 install.sh (manual, multi-distro, seletivo)
+
+Funciona em **apt / dnf / pacman / zypper**, instala só as dependências do que você escolher e
+coexiste com o PPA (avisa se `/usr/share/zonaro-nautilus-extensions` existir).
+
+```bash
+# Tudo (one-liner, mesmo comportamento de antes no Fedora):
+curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash
+
+# Local:
+./install.sh --list                              # lista os 25 slugs
+./install.sh --only dual-panel,edit-with         # só essas
+./install.sh --exclude hidden-dim-all            # tudo menos essas
+./install.sh --all --yes --no-optional           # não-interativo
+```
+
+Compatibilidade: o `install.sh` antigo era Fedora/dnf-only e copiava tudo para
+`~/.local/share/nautilus-python/extensions/` — o novo mantém esse default (`--all`),
+então **não quebrou nada do PPA**: o PPA instala em `/usr/share/...` + symlinks por usuário,
+o `install.sh` copia arquivos reais para o mesmo destino por usuário. Não use os dois
+ao mesmo tempo na mesma máquina.
+
 ---
 
 ## 📦 Extensions

@@ -1,0 +1,3 @@
+debian/zonaro-nautilus-link usr/bin/
+debian/zonaro-nautilus-link.desktop etc/xdg/autostart/
+debian/payload/README usr/share/zonaro-nautilus-extensions/README

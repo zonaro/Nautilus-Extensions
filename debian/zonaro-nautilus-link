@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# zonaro-nautilus-link -- link the system-installed zonaro Nautilus extensions
+# into the per-user Nautilus Python extensions directory.
+#
+# The extensions live in /usr/share/zonaro-nautilus-extensions (shipped by the
+# per-extension packages).  Nautilus Python only loads extensions from the
+# per-user directory, so this script creates symlinks for every user.
+#
+# It is safe to run at every session start (idempotent) and honours the
+# extensions disabled by the Extensions Manager: files moved to
+# ~/.local/share/nautilus-python/extensions/disabled/ are never re-linked.
+
+set -eu
+
+SRC="/usr/share/zonaro-nautilus-extensions"
+DEST="${XDG_DATA_HOME:-$HOME/.local/share}/nautilus-python/extensions"
+DISABLED="$DEST/disabled"
+
+[ -d "$SRC" ] || exit 0
+[ -n "${HOME:-}" ] || exit 0
+
+mkdir -p "$DEST"
+
+for src in "$SRC"/*; do
+    [ -e "$src" ] || continue
+    name=$(basename "$src")
+
+    case "$name" in
+        __pycache__|*.pyc) continue ;;
+    esac
+
+    # Respect the Extensions Manager's disabled/ state.
+    if [ -e "$DISABLED/$name" ] || [ -L "$DISABLED/$name" ]; then
+        continue
+    fi
+
+    dest="$DEST/$name"
+
+    if [ -L "$dest" ]; then
+        # Refresh the link so it always points at the current payload.
+        ln -sfn "$src" "$dest"
+    elif [ -e "$dest" ]; then
+        # A real user file or folder: never clobber it.
+        continue
+    else
+        ln -s "$src" "$dest"
+    fi
+done
+
+exit 0
