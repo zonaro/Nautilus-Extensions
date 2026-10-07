@@ -40,6 +40,9 @@ except ValueError:
     pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
 from gi.repository import GObject, Gtk, Adw, GLib, Pango, Gdk, Nautilus
 
+from media_core.registry import ConversionRegistry
+from media_core.models import MediaItem, MediaCategory
+
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------

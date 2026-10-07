@@ -64,6 +64,16 @@ try:
 except ImportError:
     Image = None
 
+try:
+    from media_core.registry import ConversionRegistry
+    from media_core.models import MediaItem, MediaCategory
+    from pathlib import Path
+except Exception:
+    ConversionRegistry = None
+    MediaItem = None
+    MediaCategory = None
+    Path = None
+
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------

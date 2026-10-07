@@ -44,6 +44,13 @@ except ValueError:
     pass  # Nautilus >= 4.1 pre-loaded by nautilus-python (e.g. Nautilus 50)
 from gi.repository import GObject, Gtk, Adw, Gdk, Gio, GLib, Pango, Nautilus
 
+try:
+    from media_core.registry import ConversionRegistry
+    from media_core.models import MediaCategory
+except Exception:
+    ConversionRegistry = None
+    MediaCategory = None
+
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
@@ -2118,20 +2125,43 @@ class DualPanelExtension(GObject.GObject, Nautilus.MenuProvider):
         self._key_handler = DualPanelKeyHandler()
 
     def get_file_items(self, files):
-        # Afficher uniquement sur dossier ou espace vide
+        if not files:
+            return []
+        # Check for directories
         dirs = [f for f in files
                 if f.get_uri_scheme() == "file" and f.is_directory()]
-        if not dirs:
-            return []
+        items = []
+        if dirs:
+            item = Nautilus.MenuItem(
+                name="DualPanel::Open",
+                label=T["menu_label"],
+                tip="Open a dual-panel file manager starting here",
+                icon="view-dual-symbolic",
+            )
+            item.connect("activate", self._on_activate, dirs[0])
+            items.append(item)
 
-        item = Nautilus.MenuItem(
-            name="DualPanel::Open",
-            label=T["menu_label"],
-            tip="Open a dual-panel file manager starting here",
-            icon="view-dual-symbolic",
-        )
-        item.connect("activate", self._on_activate, dirs[0])
-        return [item]
+        # Also offer convert for media files if registry available
+        try:
+            if ConversionRegistry is not None:
+                reg = ConversionRegistry()
+                paths = []
+                for f in files:
+                    if f.get_uri_scheme() != "file" or f.is_directory():
+                        continue
+                    p = f.get_location().get_path()
+                    if p:
+                        paths.append(p)
+                if paths:
+                    from media_converter import MediaConverterExtension
+                    # reuse logic
+                    mce = MediaConverterExtension()
+                    conv_items = mce.get_file_items(files)
+                    items.extend(conv_items)
+        except Exception:
+            pass
+
+        return items
 
     def get_background_items(self, folder):
         if folder:
