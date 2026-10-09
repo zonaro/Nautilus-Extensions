@@ -236,7 +236,10 @@ class _MirrorRow:
 
         self.status = Gtk.Label(xalign=0.0)
         self.status.set_ellipsize(Pango.EllipsizeMode.END)
-        self.status.set_max_width_chars(45)
+        self.status.set_hexpand(True)
+        # Safety cap only (the window adapts to the text up to this limit):
+        # without it, a very long volume name would make an oversized window.
+        self.status.set_max_width_chars(80)
         left.append(self.status)
 
         self.bar = Gtk.ProgressBar()
@@ -250,10 +253,8 @@ class _MirrorRow:
 
         self.box.append(left)
 
-        self.cancel = Gtk.Button.new_from_icon_name("window-close-symbolic")
-        self.cancel.set_tooltip_text(T["cancel"])
+        self.cancel = Gtk.Button(label=T["cancel"])
         self.cancel.set_valign(Gtk.Align.CENTER)
-        self.cancel.add_css_class("circular")
         self.cancel.connect("clicked", lambda _b: on_cancel(self))
         self.box.append(self.cancel)
 
@@ -272,7 +273,10 @@ class _MirrorWindow(Adw.Window):
 
     def __init__(self, on_user_close):
         super().__init__(title=T["title"])
-        self.set_default_size(420, -1)
+        # No imposed width: the window takes its content's natural width (so it
+        # widens to show the full title), with a 480 px total minimum
+        # (448 + 2 x 16 of margin, see below).
+        self.set_default_size(-1, -1)
         self.set_resizable(False)
         self._rows = {}
         self._on_user_close = on_user_close
@@ -280,6 +284,7 @@ class _MirrorWindow(Adw.Window):
         self._list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         for side in ("top", "bottom", "start", "end"):
             getattr(self._list, f"set_margin_{side}")(16)
+        self._list.set_size_request(448, -1)
 
         # Adw.Window + ToolbarView: same rounded corners as the other tools
         # (a bare Gtk.Window does not get them from the theme).
