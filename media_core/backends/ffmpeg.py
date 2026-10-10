@@ -143,6 +143,10 @@ class FFmpegBackend:
         else:
             raise FFmpegConversionError(f"Unsupported category: {item.category}")
 
+        # Machine-readable progress on stdout, consumed line by line in
+        # convert_item to feed _parse_progress_ratio. Without this flag
+        # ffmpeg prints nothing to stdout and the progress bar never moves.
+        cmd += ["-progress", "pipe:1", "-nostats"]
         cmd.append(str(output))
         return cmd
 
