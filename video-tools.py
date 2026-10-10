@@ -189,9 +189,8 @@ class VideoToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         submenu = Nautilus.Menu()
         top.set_submenu(submenu)
 
-        # Convert to video formats (quick presets)
         conv = Nautilus.Menu()
-        for fmt in VIDEO_QUICK:
+        for fmt in VIDEO_ALL:
             sub = Nautilus.MenuItem(
                 name="VideoTools::To{0}".format(fmt.upper()),
                 label=fmt.upper(),
@@ -199,6 +198,13 @@ class VideoToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             )
             sub.connect("activate", self._cb_quick_video, paths, fmt)
             conv.append_item(sub)
+        adv = Nautilus.MenuItem(
+            name="VideoTools::Advanced",
+            label=T["advanced"],
+            tip=T["menu_tip"],
+        )
+        adv.connect("activate", self._cb_advanced, paths)
+        conv.append_item(adv)
         conv_item = Nautilus.MenuItem(
             name="VideoTools::ConvertTo",
             label=T["convert_to"],
@@ -226,9 +232,6 @@ class VideoToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         )
         a_item.set_submenu(amenu)
         submenu.append_item(a_item)
-
-        self._add(submenu, "Advanced", T["advanced"], self._cb_advanced,
-                  paths)
         return [top]
 
     def get_file_items(self, files):

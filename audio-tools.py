@@ -549,14 +549,29 @@ class AudioToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         top.set_submenu(submenu)
 
         if has_ffmpeg:
-            for fmt in AUDIO_QUICK:
+            conv = Nautilus.Menu()
+            for fmt in AUDIO_ALL:
                 sub = Nautilus.MenuItem(
                     name="AudioTools::To{0}".format(fmt.upper()),
                     label=fmt.upper(),
                     tip=T["menu_tip"],
                 )
                 sub.connect("activate", self._cb_quick, paths, fmt)
-                submenu.append_item(sub)
+                conv.append_item(sub)
+            adv = Nautilus.MenuItem(
+                name="AudioTools::Advanced",
+                label=T["advanced"],
+                tip=T["menu_tip"],
+            )
+            adv.connect("activate", self._cb_advanced, paths)
+            conv.append_item(adv)
+            conv_item = Nautilus.MenuItem(
+                name="AudioTools::ConvertTo",
+                label=T["convert_to"],
+                tip=T["menu_tip"],
+            )
+            conv_item.set_submenu(conv)
+            submenu.append_item(conv_item)
 
         if has_tags:
             tags = Nautilus.MenuItem(
@@ -567,14 +582,6 @@ class AudioToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             tags.connect("activate", self._cb_tags, paths)
             submenu.append_item(tags)
 
-        if has_ffmpeg:
-            adv = Nautilus.MenuItem(
-                name="AudioTools::Advanced",
-                label=T["advanced"],
-                tip=T["menu_tip"],
-            )
-            adv.connect("activate", self._cb_advanced, paths)
-            submenu.append_item(adv)
         return [top]
 
     def get_file_items(self, files):

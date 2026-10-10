@@ -229,6 +229,7 @@ if _lang.startswith("fr"):
         "files":           "Fichier(s)",
         # --- Convert image (format conversion) ---
         "convert_menu":    "Convertir l'image",
+        "convert_to":      "Convertir en",
         "convert_tip":     "Convertir les images sélectionnées dans un autre format (Pillow)",
         "cv_png":          "Convertir en PNG",
         "cv_jpeg":         "Convertir en JPEG",
@@ -392,6 +393,7 @@ elif _lang.startswith("de"):
         "files":           "Datei(en)",
         # --- Convert image (format conversion) ---
         "convert_menu":    "Bild konvertieren",
+        "convert_to":      "Konvertieren nach",
         "convert_tip":     "Ausgewählte Bilder in ein anderes Format konvertieren (Pillow)",
         "cv_png":          "In PNG konvertieren",
         "cv_jpeg":         "In JPEG konvertieren",
@@ -555,6 +557,7 @@ elif _lang.startswith("es"):
         "files":           "Archivo(s)",
         # --- Convert image (format conversion) ---
         "convert_menu":    "Convertir imagen",
+        "convert_to":      "Convertir a",
         "convert_tip":     "Convertir las imágenes seleccionadas a otro formato (Pillow)",
         "cv_png":          "Convertir a PNG",
         "cv_jpeg":         "Convertir a JPEG",
@@ -718,6 +721,7 @@ elif _lang.startswith("pt"):
         "files":           "Arquivo(s)",
         # --- Convert image (format conversion) ---
         "convert_menu":    "Converter imagem",
+        "convert_to":      "Converter para",
         "convert_tip":     "Converter as imagens selecionadas para outro formato (Pillow)",
         "cv_png":          "Converter para PNG",
         "cv_jpeg":         "Converter para JPEG",
@@ -881,6 +885,7 @@ else:
         "files":           "File(s)",
         # --- Convert image (format conversion) ---
         "convert_menu":    "Convert Image",
+        "convert_to":      "Convert to",
         "convert_tip":     "Convert selected images to another format (Pillow)",
         "cv_png":          "Convert to PNG",
         "cv_jpeg":         "Convert to JPEG",
@@ -3319,8 +3324,6 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         return item
 
     def _convert_item(self, images):
-        # Conversion lives here, inside "Ferramentas de imagem", powered by
-        # media_core (Pillow first, FFmpeg fallback) with dest + progress UI.
         try:
             from media_core.presets_manager import Presets
             _quick = [f for f in Presets.IMAGE if f.lower() != "jpeg"]
@@ -3343,7 +3346,7 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
                   tip=T.get("convert_tip"))
         item = Nautilus.MenuItem(
             name="ImageTools::Convert",
-            label=T["convert_menu"],
+            label=T.get("convert_to", T["convert_menu"]),
             tip=T["convert_tip"],
         )
         item.set_submenu(submenu)
