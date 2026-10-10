@@ -125,7 +125,8 @@ slug_deps() {
     duration-column)              echo "ffmpeg";;
     file-tools|paste-into-file)   echo "pillow";;
     image-tools)                  echo "pillow ffmpeg";;
-    audio-tools|video-tools)      echo "ffmpeg";;
+    audio-tools)                  echo "ffmpeg mutagen";;
+    video-tools)                  echo "ffmpeg";;
     media-converter)              echo "ffmpeg pillow";;
     merge-pdf)                    echo "pypdf";;
     preview-panel)                echo "pillow cairo ffmpeg ffmpegthumbnailer poppler";;
@@ -271,6 +272,7 @@ pkg_name() {
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
         pillow)              echo "python3-pil";;
+        mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
         p7zip)               echo "p7zip-full";;
         p7zip-plugins)       echo "";;
@@ -294,6 +296,7 @@ pkg_name() {
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
         pillow)              echo "python3-pillow";;
+        mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
         p7zip)               echo "p7zip";;
         p7zip-plugins)       echo "p7zip-plugins";;
@@ -317,6 +320,7 @@ pkg_name() {
         pypdf)               echo "python-pypdf";;
         cairo)               echo "python-cairo";;
         pillow)              echo "python-pillow";;
+        mutagen)             echo "python-mutagen";;
         libarchive-c)        echo "python-libarchive-c";;
         p7zip)               echo "p7zip";;
         p7zip-plugins)       echo "";;
@@ -340,6 +344,7 @@ pkg_name() {
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
         pillow)              echo "python3-Pillow";;
+        mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
         p7zip)               echo "p7zip";;
         p7zip-plugins)       echo "";;
