@@ -9,7 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 
 SUPPORTED_EXTS: frozenset[str] = frozenset(
-    {".mp3", ".m4a", ".m4b", ".ogg", ".oga", ".opus", ".flac"})
+    {".mp3", ".m4a", ".m4b", ".ogg", ".oga", ".opus", ".flac",
+     ".wav", ".aiff", ".aif"})
+
+# WAV/AIFF carry a plain ID3v2 chunk. Support is kept but reduced: text
+# frames + APIC cover only, always saved as ID3v2.3 (the version most
+# players tolerate inside RIFF/IFF containers).
+RIFF_EXTS: frozenset[str] = frozenset({".wav", ".aiff", ".aif"})
 
 FIELDS: tuple[str, ...] = (
     "title", "artist", "album", "albumartist", "genre", "date",
@@ -42,7 +48,7 @@ def read_tags(path: str | Path) -> dict[str, str]:
     tags = blank_tags()
     try:
         ext = Path(path).suffix.lower()
-        if ext == ".mp3":
+        if ext == ".mp3" or ext in RIFF_EXTS:
             _read_mp3(str(path), tags)
         elif ext in (".m4a", ".m4b"):
             _read_mp4(str(path), tags)
@@ -59,7 +65,7 @@ def read_cover(path: str | Path) -> tuple[str, bytes] | None:
     """(mime, data) of the front cover, or None."""
     try:
         ext = Path(path).suffix.lower()
-        if ext == ".mp3":
+        if ext == ".mp3" or ext in RIFF_EXTS:
             return _read_mp3_cover(str(path))
         if ext in (".m4a", ".m4b"):
             return _read_mp4_cover(str(path))
@@ -86,7 +92,7 @@ def write_tags(path: str | Path, tags: dict[str, str] | None = None,
         raise ValueError(f"Unsupported audio type: {ext}")
     tags = tags or {}
     cover = cover or ("keep",)
-    if ext == ".mp3":
+    if ext == ".mp3" or ext in RIFF_EXTS:
         _write_mp3(str(path), tags, cover)
     elif ext in (".m4a", ".m4b"):
         _write_mp4(str(path), tags, cover)
@@ -109,19 +115,42 @@ _MP3_TEXT = {
 
 
 def _mp3_or_add(path: str):
-    from mutagen.mp3 import MP3
+    """Open MP3/WAV/AIFF via their ID3 chunk, creating it when missing.
+
+    Returns (audio, force_v23): WAV/AIFF are saved back as ID3v2.3.
+    """
     from mutagen.id3 import ID3
+    ext = Path(path).suffix.lower()
+    if ext in RIFF_EXTS:
+        if ext == ".wav":
+            from mutagen.wave import WAVE as Kind
+        else:
+            from mutagen.aiff import AIFF as Kind
+        force_v23 = True
+    else:
+        from mutagen.mp3 import MP3 as Kind
+        force_v23 = False
     try:
-        audio = MP3(path, ID3=ID3)
+        audio = Kind(path, ID3=ID3)
     except Exception:
-        audio = MP3(path)
+        audio = Kind(path)
     if audio.tags is None:
         audio.add_tags()
-    return audio
+    return audio, force_v23
+
+
+def _id3_save(audio, force_v23: bool) -> None:
+    if force_v23:
+        try:
+            audio.tags.save(audio.filename, v2_version=3)
+            return
+        except Exception:
+            pass
+    audio.save()
 
 
 def _read_mp3(path: str, tags: dict) -> None:
-    audio = _mp3_or_add(path)
+    audio, _force_v23 = _mp3_or_add(path)
     for field, frame in _MP3_TEXT.items():
         if frame in audio.tags:
             try:
@@ -151,7 +180,7 @@ def _read_mp3(path: str, tags: dict) -> None:
 
 
 def _read_mp3_cover(path: str) -> tuple[str, bytes] | None:
-    audio = _mp3_or_add(path)
+    audio, _force_v23 = _mp3_or_add(path)
     for apic in audio.tags.getall("APIC"):
         try:
             if apic.data:
@@ -164,7 +193,7 @@ def _read_mp3_cover(path: str) -> tuple[str, bytes] | None:
 def _write_mp3(path: str, tags: dict, cover: tuple) -> None:
     from mutagen.id3 import TIT2, TPE1, TALB, TPE2, TCON, TDRC, TCOM, TRCK, TPOS, COMM, APIC
 
-    audio = _mp3_or_add(path)
+    audio, force_v23 = _mp3_or_add(path)
     makers = {"title": TIT2, "artist": TPE1, "album": TALB,
               "albumartist": TPE2, "genre": TCON, "date": TDRC,
               "composer": TCOM}
@@ -212,7 +241,7 @@ def _write_mp3(path: str, tags: dict, cover: tuple) -> None:
         audio.tags.delall("APIC")
         audio.tags.add(APIC(encoding=3, mime=mime, type=3, desc="",
                             data=bytes(data)))
-    audio.save()
+    _id3_save(audio, force_v23)
 
 
 # -- MP4 / M4A ----------------------------------------------------------------

@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from media_core import audio_tags as AT
 
 GEN = [("mp3", "libmp3lame"), ("m4a", "aac"), ("ogg", "libvorbis"),
-       ("opus", "libopus"), ("flac", "flac")]
+       ("opus", "libopus"), ("flac", "flac"), ("wav", "pcm_s16le"),
+       ("aiff", "pcm_s16be")]
 
 
 def _gen(d):
@@ -40,8 +41,22 @@ class TestAudioTags(unittest.TestCase):
 
     def test_can_edit(self):
         self.assertTrue(AT.can_edit("x.mp3"))
-        self.assertFalse(AT.can_edit("x.wav"))
+        self.assertTrue(AT.can_edit("x.wav"))
+        self.assertTrue(AT.can_edit("x.aiff"))
         self.assertFalse(AT.can_edit("x.txt"))
+
+    def test_riff_saved_as_v23(self):
+        from mutagen.id3 import ID3
+        from mutagen.wave import WAVE
+        from mutagen.aiff import AIFF
+        kinds = {"wav": WAVE, "aiff": AIFF}
+        for ext, kind in kinds.items():
+            with self.subTest(fmt=ext):
+                p = self.files.get(ext)
+                if p is None:
+                    self.skipTest(f"no {ext} fixture")
+                AT.write_tags(p, {"title": "V"}, ("keep",))
+                self.assertEqual(kind(p).tags.version, (2, 3, 0))
 
     def test_roundtrip_all_formats(self):
         from PIL import Image
@@ -71,7 +86,7 @@ class TestAudioTags(unittest.TestCase):
 
     def test_unsupported_raises(self):
         with self.assertRaises(ValueError):
-            AT.write_tags("/tmp/x.wav", {"title": "X"})
+            AT.write_tags("/tmp/x.txt", {"title": "X"})
 
 
 if __name__ == "__main__":
