@@ -83,3 +83,55 @@ _capabilities = Capabilities()
 
 def get_capabilities() -> dict:
     return _capabilities.detect()
+
+
+_VIDEO_CODEC_LABELS: tuple[tuple[str, str], ...] = (
+    ("libx264", "H.264"),
+    ("libx265", "H.265 / HEVC"),
+    ("libvpx-vp9", "VP9"),
+    ("libaom-av1", "AV1"),
+    ("libsvtav1", "AV1 (SVT)"),
+    ("mpeg4", "MPEG-4"),
+    ("libtheora", "Theora"),
+    ("mpeg2video", "MPEG-2"),
+    ("wmv2", "WMV2"),
+)
+
+_AUDIO_CODEC_LABELS: tuple[tuple[str, str], ...] = (
+    ("aac", "AAC"),
+    ("libmp3lame", "MP3"),
+    ("libopus", "Opus"),
+    ("libvorbis", "Vorbis"),
+    ("flac", "FLAC"),
+    ("pcm_s16le", "PCM 16-bit"),
+    ("pcm_s16be", "PCM 16-bit BE"),
+    ("ac3", "AC-3"),
+    ("wmav2", "WMA"),
+    ("alac", "ALAC"),
+)
+
+
+def available_video_codecs() -> list[tuple[str, str]]:
+    encoders = get_capabilities().get("encoders", set())
+    return [(e, l) for e, l in _VIDEO_CODEC_LABELS if e in encoders]
+
+
+def available_audio_codecs() -> list[tuple[str, str]]:
+    encoders = get_capabilities().get("encoders", set())
+    return [(e, l) for e, l in _AUDIO_CODEC_LABELS if e in encoders]
+
+
+def available_hw() -> list[str]:
+    caps = get_capabilities()
+    accels = " ".join(str(h).lower() for h in caps.get("hwaccels", []))
+    encoders = caps.get("encoders", set())
+    out = ["Auto", "CPU"]
+    if "vaapi" in accels or "h264_vaapi" in encoders:
+        out.append("VAAPI")
+    if ("cuda" in accels
+            or any(f"{c}_nvenc" in encoders for c in ("h264", "hevc", "av1"))):
+        out.append("NVENC")
+    if ("qsv" in accels
+            or any(f"{c}_qsv" in encoders for c in ("h264", "hevc", "av1"))):
+        out.append("QSV")
+    return out

@@ -3432,7 +3432,7 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         from media_core.models import MediaCategory
         from media_dialogs import QuickConvertDialog, nautilus_window
         QuickConvertDialog(nautilus_window(), paths, fmt,
-                           MediaCategory.IMAGE).present()
+                           MediaCategory.IMAGE, autostart=True).present()
 
     def _cb_convert_advanced(self, _item, paths):
         from media_core.models import MediaCategory

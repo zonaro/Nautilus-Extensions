@@ -110,7 +110,7 @@ class AudioToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         from media_core.models import MediaCategory
         from media_dialogs import QuickConvertDialog, nautilus_window
         QuickConvertDialog(nautilus_window(), paths, fmt,
-                           MediaCategory.AUDIO).present()
+                           MediaCategory.AUDIO, autostart=True).present()
 
     def _cb_advanced(self, _item, paths):
         from media_core.models import MediaCategory

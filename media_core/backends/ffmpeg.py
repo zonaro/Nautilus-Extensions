@@ -90,7 +90,8 @@ class FFmpegBackend:
             if i > 999:
                 return base
 
-    def build_command(self, item: MediaItem, output: Path, hwaccel: str = "cpu") -> list[str]:
+    def build_command(self, item: MediaItem, output: Path, hwaccel: str = "cpu",
+                      opts: dict | None = None) -> list[str]:
         cmd: list[str] = [
             self._bin,
             "-hide_banner",
@@ -143,12 +144,104 @@ class FFmpegBackend:
         else:
             raise FFmpegConversionError(f"Unsupported category: {item.category}")
 
+        if opts:
+            self._apply_opts(cmd, item.target_format, opts)
+
         # Machine-readable progress on stdout, consumed line by line in
         # convert_item to feed _parse_progress_ratio. Without this flag
         # ffmpeg prints nothing to stdout and the progress bar never moves.
         cmd += ["-progress", "pipe:1", "-nostats"]
         cmd.append(str(output))
         return cmd
+
+    # -- advanced overrides -------------------------------------------------
+    _CRF_CODECS = frozenset(
+        {"libx264", "libx265", "libvpx-vp9", "libaom-av1", "libsvtav1"})
+    _SPEED_CODECS = frozenset({"libx264", "libx265"})
+    _LOSSLESS_AUDIO = frozenset({"flac", "wav", "aiff", "alac"})
+    _RESOLUTIONS = {
+        "480p": "-2:480",
+        "720p": "-2:720",
+        "1080p": "-2:1080",
+        "2160p": "-2:2160",
+    }
+
+    @staticmethod
+    def _set_opt(args: list[str], keys: tuple[str, ...], value: str) -> None:
+        for i, a in enumerate(args):
+            if a in keys and i + 1 < len(args):
+                args[i + 1] = value
+                return
+        args.extend([keys[0], value])
+
+    @staticmethod
+    def _opt_value(args: list[str], keys: tuple[str, ...]) -> str | None:
+        for i, a in enumerate(args):
+            if a in keys and i + 1 < len(args):
+                return args[i + 1]
+        return None
+
+    def _apply_opts(self, cmd: list[str], target_format: str,
+                    opts: dict) -> None:
+        from ..ffmpeg_format_args import normalize_video_format
+        fmt = normalize_video_format(str(target_format).lower())
+        if fmt == "gif":
+            return
+        has_audio = "-an" not in cmd
+
+        vcodec = opts.get("vcodec")
+        if vcodec and "-c:v" in cmd:
+            idx = cmd.index("-c:v")
+            if idx + 1 < len(cmd):
+                cmd[idx + 1] = vcodec
+        effective_v = (vcodec or self._opt_value(cmd, ("-c:v",)) or "")
+
+        crf = opts.get("crf")
+        if crf is not None:
+            if "-crf" in cmd:
+                self._set_opt(cmd, ("-crf",), str(crf))
+            elif effective_v in self._CRF_CODECS:
+                cmd.extend(["-crf", str(crf)])
+
+        speed = opts.get("speed")
+        if speed:
+            if "-preset" in cmd:
+                self._set_opt(cmd, ("-preset",), str(speed))
+            elif effective_v in self._SPEED_CODECS:
+                cmd.extend(["-preset", str(speed)])
+
+        res = opts.get("resolution")
+        if res and "-vf" not in cmd:
+            scale = self._RESOLUTIONS.get(str(res).lower())
+            if scale is None and "x" in str(res).lower():
+                try:
+                    w, h = str(res).lower().split("x", 1)
+                    int(w)
+                    int(h)
+                    scale = f"{w}:{h}"
+                except ValueError:
+                    scale = None
+            if scale:
+                cmd.extend(["-vf", f"scale={scale}"])
+
+        fps = opts.get("fps")
+        if fps and "-r" not in cmd:
+            cmd.extend(["-r", str(fps)])
+
+        if has_audio:
+            acodec = opts.get("acodec")
+            if acodec:
+                if "-c:a" in cmd or "-acodec" in cmd:
+                    self._set_opt(cmd, ("-c:a", "-acodec"), str(acodec))
+                else:
+                    cmd.extend(["-c:a", str(acodec)])
+            abitrate = opts.get("abitrate")
+            if abitrate and fmt not in self._LOSSLESS_AUDIO:
+                self._set_opt(cmd, ("-b:a",), str(abitrate))
+            if opts.get("sample_rate"):
+                self._set_opt(cmd, ("-ar",), str(opts["sample_rate"]))
+            if opts.get("channels"):
+                self._set_opt(cmd, ("-ac",), str(opts["channels"]))
 
     def _parse_progress_ratio(self, line: str, duration_seconds: float | None) -> float | None:
         if duration_seconds is None or duration_seconds <= 0:
@@ -181,6 +274,7 @@ class FFmpegBackend:
         progress_callback: Callable[[float, MediaItem], None] | None = None,
         hwaccel: str = "cpu",
         overwrite: bool = False,
+        opts: dict | None = None,
     ) -> Path:
         if self._abort_requested:
             raise FFmpegAborted("Aborted")
@@ -188,7 +282,7 @@ class FFmpegBackend:
             raise FFmpegNotFoundError("ffmpeg not found")
 
         output = self.build_output_path(item, output_dir, overwrite=overwrite)
-        cmd = self.build_command(item, output, hwaccel=hwaccel)
+        cmd = self.build_command(item, output, hwaccel=hwaccel, opts=opts)
         duration = self._probe.get_duration(item.path)
 
         kwargs = {"text": True}
@@ -255,6 +349,7 @@ class FFmpegBackend:
         progress_callback: Callable[[float, MediaItem, int, int], None] | None = None,
         hwaccel: str = "cpu",
         overwrite: bool = False,
+        opts: dict | None = None,
     ) -> list[Path]:
         results = []
         item_list = list(items)
@@ -271,6 +366,7 @@ class FFmpegBackend:
                     ) if progress_callback else None,
                     hwaccel=hwaccel,
                     overwrite=overwrite,
+                    opts=opts,
                 )
                 results.append(out_path)
             except Exception as e:

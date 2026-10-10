@@ -74,6 +74,7 @@ class PillowBackend:
         quality: int = 92,
         overwrite: bool = False,
         progress_callback: Callable[[float], None] | None = None,
+        max_side: int | None = None,
     ) -> Path:
         if Image is None:
             raise PillowNotAvailableError("Pillow not available")
@@ -85,6 +86,8 @@ class PillowBackend:
 
         with Image.open(src_path) as img:
             img = img.copy()
+            if max_side and max_side > 0:
+                img.thumbnail((max_side, max_side), Image.LANCZOS)
             mode = img.mode
             if mode in ("RGBA", "LA", "PA"):
                 if fmt not in ALPHA_FORMATS:
@@ -122,6 +125,7 @@ class PillowBackend:
         quality: int = 92,
         overwrite: bool = False,
         progress_callback: Callable[[float, int, int], None] | None = None,
+        max_side: int | None = None,
     ) -> list[Path]:
         results = []
         items = list(src_paths)
@@ -137,6 +141,7 @@ class PillowBackend:
                     progress_callback=lambda f, idx=i: progress_callback(
                         (idx + f) / total, idx + 1, total
                     ) if progress_callback else None,
+                    max_side=max_side,
                 )
                 results.append(out)
             except Exception:

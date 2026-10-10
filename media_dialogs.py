@@ -48,6 +48,21 @@ if _lang.startswith("fr"):
         "error": "Erreur : {err}",
         "advanced": "Conversion avancée",
         "quick_title": "Convertir en {fmt}",
+        "vcodec": "Codec vidéo",
+        "acodec": "Codec audio",
+        "abitrate": "Débit audio",
+        "crf": "Qualité (CRF)",
+        "speed": "Preset vitesse",
+        "resolution": "Résolution",
+        "fps": "Images/s",
+        "hw": "Accélération",
+        "sample_rate": "Fréq. échant.",
+        "channels": "Canaux",
+        "max_side": "Grand côté (px)",
+        "orig": "Original",
+        "mono": "Mono",
+        "stereo": "Stéréo",
+        "auto_preset": "Auto (preset)",
     }
 elif _lang.startswith("de"):
     T = {
@@ -68,6 +83,21 @@ elif _lang.startswith("de"):
         "error": "Fehler: {err}",
         "advanced": "Erweiterte Konvertierung",
         "quick_title": "In {fmt} konvertieren",
+        "vcodec": "Video-Codec",
+        "acodec": "Audio-Codec",
+        "abitrate": "Audio-Bitrate",
+        "crf": "Qualität (CRF)",
+        "speed": "Geschwindigkeits-Preset",
+        "resolution": "Auflösung",
+        "fps": "Bildrate",
+        "hw": "Beschleunigung",
+        "sample_rate": "Abtastrate",
+        "channels": "Kanäle",
+        "max_side": "Lange Seite (px)",
+        "orig": "Original",
+        "mono": "Mono",
+        "stereo": "Stereo",
+        "auto_preset": "Auto (Preset)",
     }
 elif _lang.startswith("es"):
     T = {
@@ -88,6 +118,21 @@ elif _lang.startswith("es"):
         "error": "Error: {err}",
         "advanced": "Conversión avanzada",
         "quick_title": "Convertir a {fmt}",
+        "vcodec": "Códec de vídeo",
+        "acodec": "Códec de audio",
+        "abitrate": "Bitrate de audio",
+        "crf": "Calidad (CRF)",
+        "speed": "Preajuste velocidad",
+        "resolution": "Resolución",
+        "fps": "Fotogramas/s",
+        "hw": "Aceleración",
+        "sample_rate": "Frec. muestreo",
+        "channels": "Canales",
+        "max_side": "Lado mayor (px)",
+        "orig": "Original",
+        "mono": "Mono",
+        "stereo": "Estéreo",
+        "auto_preset": "Auto (preset)",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -108,6 +153,21 @@ elif _lang.startswith("pt"):
         "error": "Erro: {err}",
         "advanced": "Conversão avançada",
         "quick_title": "Converter para {fmt}",
+        "vcodec": "Codec de vídeo",
+        "acodec": "Codec de áudio",
+        "abitrate": "Bitrate de áudio",
+        "crf": "Qualidade (CRF)",
+        "speed": "Preset de velocidade",
+        "resolution": "Resolução",
+        "fps": "Quadros/s",
+        "hw": "Aceleração",
+        "sample_rate": "Taxa de amostragem",
+        "channels": "Canais",
+        "max_side": "Lado maior (px)",
+        "orig": "Original",
+        "mono": "Mono",
+        "stereo": "Estéreo",
+        "auto_preset": "Auto (preset)",
     }
 else:
     T = {
@@ -128,6 +188,21 @@ else:
         "error": "Error: {err}",
         "advanced": "Advanced conversion",
         "quick_title": "Convert to {fmt}",
+        "vcodec": "Video codec",
+        "acodec": "Audio codec",
+        "abitrate": "Audio bitrate",
+        "crf": "Quality (CRF)",
+        "speed": "Speed preset",
+        "resolution": "Resolution",
+        "fps": "Frame rate",
+        "hw": "Acceleration",
+        "sample_rate": "Sample rate",
+        "channels": "Channels",
+        "max_side": "Long side (px)",
+        "orig": "Original",
+        "mono": "Mono",
+        "stereo": "Stereo",
+        "auto_preset": "Auto (preset)",
     }
 
 
@@ -272,13 +347,16 @@ class _BaseDialog(Gtk.Dialog):
 class QuickConvertDialog(_BaseDialog):
     """Destino + progresso + batch. Usado pelo fluxo 'botão direito → formato'."""
 
-    def __init__(self, parent, paths, target_fmt, category, quality="medium"):
+    def __init__(self, parent, paths, target_fmt, category, quality="medium",
+                 autostart=False, opts=None, hwaccel="cpu"):
         super().__init__(title=T["quick_title"].format(fmt=str(target_fmt).upper()),
                          transient_for=parent, modal=True)
         self.paths = [str(p) for p in (paths or [])]
         self.target_fmt = str(target_fmt).lower()
         self.category = category
         self.quality = quality
+        self.opts = dict(opts) if opts else {}
+        self.hwaccel = hwaccel or "cpu"
         self._cancelled = False
         self._backend = None
         self._running = False
@@ -309,7 +387,13 @@ class QuickConvertDialog(_BaseDialog):
         self._btn_convert = self.add_button(T["convert"], Gtk.ResponseType.OK)
         self._btn_convert.add_css_class("suggested-action")
         self.connect("response", self._on_response)
-        # Wayland-safe present is done by callers via GLib.idle_add.
+        if autostart:
+            GLib.idle_add(self._autostart)
+
+    def _autostart(self):
+        if not self._running and not self._cancelled:
+            self._start()
+        return False
 
     def present(self):  # noqa: D102 - Wayland-safe
         GLib.idle_add(super().present)
@@ -375,21 +459,23 @@ class QuickConvertDialog(_BaseDialog):
                 if self.category == MediaCategory.IMAGE:
                     from media_core.backends.pillow import PillowBackend
                     from media_core.backends.ffmpeg import FFmpegBackend
-                    done_evt = {"be": None}
                     use_pillow = PillowBackend.can_register()
                     if use_pillow:
                         try:
                             be = PillowBackend()
                             self._backend = be
-                            q = {"high": 95, "medium": 92, "low": 80}.get(
-                                self.quality, 92)
+                            q = self.opts.get("quality")
+                            if q is None:
+                                q = {"high": 95, "medium": 92,
+                                     "low": 80}.get(self.quality, 92)
 
                             def _pcb(f, _i=i, _t=total):
                                 GLib.idle_add(self._set_progress, (_i + f) / _t)
                             be.convert_image(Path(src), Path(dest),
-                                             self.target_fmt, quality=q,
+                                             self.target_fmt, quality=int(q),
                                              overwrite=False,
-                                             progress_callback=_pcb)
+                                             progress_callback=_pcb,
+                                             max_side=self.opts.get("max_side"))
                             ok += 1
                             GLib.idle_add(self._set_progress, (i + 1) / total)
                             continue
@@ -415,7 +501,8 @@ class QuickConvertDialog(_BaseDialog):
                             return
                         GLib.idle_add(self._set_progress, (_i + f) / _t)
                     be.convert_item(item, Path(dest), progress_callback=_fcb,
-                                    overwrite=False)
+                                    overwrite=False, hwaccel=self.hwaccel,
+                                    opts=self.opts or None)
                     ok += 1
                     GLib.idle_add(self._set_progress, (i + 1) / total)
                 else:
@@ -436,7 +523,8 @@ class QuickConvertDialog(_BaseDialog):
                             return
                         GLib.idle_add(self._set_progress, (_i + f) / _t)
                     be.convert_item(item, Path(dest), progress_callback=_fcb2,
-                                    overwrite=False)
+                                    overwrite=False, hwaccel=self.hwaccel,
+                                    opts=self.opts or None)
                     ok += 1
                     GLib.idle_add(self._set_progress, (i + 1) / total)
             except Exception as e:  # noqa: BLE001 - report per-file, continue
@@ -469,48 +557,128 @@ class QuickConvertDialog(_BaseDialog):
 
 
 class AdvancedDialog(_BaseDialog):
-    """Formato + qualidade + destino, depois delega ao QuickConvertDialog."""
+    """All conversion settings per media type, then hands off to Quick."""
+
+    _SPEEDS = ("ultrafast", "superfast", "veryfast", "faster", "fast",
+               "medium", "slow", "slower", "veryslow")
+    _ABITRATES = ("64k", "96k", "128k", "192k", "256k", "320k")
 
     def __init__(self, parent, paths, category, formats):
         super().__init__(title=T["advanced"], transient_for=parent, modal=True)
+        from media_core.models import MediaCategory
         self.paths = [str(p) for p in (paths or [])]
         self.category = category
         self.formats = [str(f).lower() for f in (formats or [])]
+        self._ctl = {}
 
-        self.set_default_size(480, 260)
-        box = self.get_content_area()
+        self.set_default_size(540, 620)
+        outer = self.get_content_area()
         for m in ("margin_top", "margin_bottom", "margin_start", "margin_end"):
             try:
-                getattr(box, "set_" + m)(16)
+                getattr(outer, "set_" + m)(16)
             except Exception:
                 pass
-        box.set_spacing(12)
+        outer.set_spacing(12)
 
-        # Format
-        frow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        flbl = Gtk.Label(label=T["format"])
-        flbl.set_halign(Gtk.Align.START)
-        flbl.set_size_request(90, -1)
-        frow.append(flbl)
-        self._fmt = Gtk.DropDown.new_from_strings(
-            [f.upper() for f in self.formats] or ["MP4"])
-        self._fmt.set_hexpand(True)
-        self._fmt.set_selected(0)
-        frow.append(self._fmt)
-        box.append(frow)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        outer.append(scroll)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        scroll.set_child(box)
 
-        # Quality
-        qrow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        qlbl = Gtk.Label(label=T["quality"])
-        qlbl.set_halign(Gtk.Align.START)
-        qlbl.set_size_request(90, -1)
-        qrow.append(qlbl)
-        self._quality = Gtk.DropDown.new_from_strings(
-            [T["q_high"], T["q_medium"], T["q_low"]])
-        self._quality.set_hexpand(True)
-        self._quality.set_selected(1)
-        qrow.append(self._quality)
-        box.append(qrow)
+        def _row(label):
+            r = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            lab = Gtk.Label(label=label)
+            lab.set_halign(Gtk.Align.START)
+            lab.set_size_request(150, -1)
+            lab.set_wrap(True)
+            r.append(lab)
+            box.append(r)
+            return r
+
+        def _drop(items, active=0):
+            d = Gtk.DropDown.new_from_strings(list(items))
+            d.set_hexpand(True)
+            try:
+                d.set_selected(active)
+            except Exception:
+                pass
+            return d
+
+        def _spin(value, lo, hi, step=1):
+            s = Gtk.SpinButton.new_with_range(lo, hi, step)
+            s.set_value(value)
+            s.set_hexpand(True)
+            return s
+
+        # Format (all categories)
+        r = _row(T["format"])
+        self._fmt = _drop([f.upper() for f in self.formats] or ["MP4"])
+        r.append(self._fmt)
+
+        if category == MediaCategory.VIDEO:
+            try:
+                from media_core.capabilities import (
+                    available_video_codecs, available_audio_codecs,
+                    available_hw)
+                vcs = available_video_codecs()
+                acs = available_audio_codecs()
+                hws = available_hw()
+            except Exception:
+                vcs, acs, hws = [], [], ["Auto", "CPU"]
+            self._vcodecs = [None] + [e for e, _ in vcs]
+            r = _row(T["vcodec"])
+            self._ctl["vcodec"] = _drop(
+                [T["auto_preset"]] + [f"{lbl} ({e})" for e, lbl in vcs])
+            r.append(self._ctl["vcodec"])
+            r = _row(T["crf"])
+            self._ctl["crf"] = _spin(23, 0, 51)
+            r.append(self._ctl["crf"])
+            r = _row(T["speed"])
+            self._ctl["speed"] = _drop(["Auto"] + list(self._SPEEDS), 3)
+            r.append(self._ctl["speed"])
+            r = _row(T["resolution"])
+            self._resolutions = [None, "480p", "720p", "1080p", "2160p"]
+            self._ctl["resolution"] = _drop([T["orig"]] + self._resolutions[1:])
+            r.append(self._ctl["resolution"])
+            r = _row(T["fps"])
+            self._fps = [None, 24, 25, 30, 50, 60]
+            self._ctl["fps"] = _drop(
+                [T["orig"]] + [str(f) for f in self._fps[1:]])
+            r.append(self._ctl["fps"])
+            self._acodecs = [None] + [e for e, _ in acs]
+            r = _row(T["acodec"])
+            self._ctl["acodec"] = _drop(
+                [T["auto_preset"]] + [f"{lbl} ({e})" for e, lbl in acs])
+            r.append(self._ctl["acodec"])
+            r = _row(T["abitrate"])
+            self._ctl["abitrate"] = _drop(["Auto"] + list(self._ABITRATES), 4)
+            r.append(self._ctl["abitrate"])
+            self._hws = hws if hws else ["Auto", "CPU"]
+            r = _row(T["hw"])
+            self._ctl["hw"] = _drop(self._hws)
+            r.append(self._ctl["hw"])
+        elif category == MediaCategory.AUDIO:
+            r = _row(T["quality"])
+            self._quality = _drop([T["q_high"], T["q_medium"], T["q_low"]], 1)
+            r.append(self._quality)
+            r = _row(T["sample_rate"])
+            self._srates = [None, 44100, 48000]
+            self._ctl["sample_rate"] = _drop(
+                [T["orig"], "44100 Hz", "48000 Hz"])
+            r.append(self._ctl["sample_rate"])
+            r = _row(T["channels"])
+            self._chan = [None, 1, 2]
+            self._ctl["channels"] = _drop([T["orig"], T["mono"], T["stereo"]])
+            r.append(self._ctl["channels"])
+        else:
+            r = _row(T["quality"])
+            self._ctl["quality"] = _spin(92, 1, 100)
+            r.append(self._ctl["quality"])
+            r = _row(T["max_side"])
+            self._ctl["max_side"] = _spin(0, 0, 8000, 100)
+            r.append(self._ctl["max_side"])
 
         self._dest_row(box, _default_dest(self.paths))
 
@@ -522,6 +690,12 @@ class AdvancedDialog(_BaseDialog):
     def present(self):  # noqa: D102 - Wayland-safe
         GLib.idle_add(super().present)
 
+    def _sel(self, name, default=0):
+        try:
+            return self._ctl[name].get_selected()
+        except Exception:
+            return default
+
     def _on_response(self, _dlg, response):
         if response != Gtk.ResponseType.OK:
             try:
@@ -529,11 +703,76 @@ class AdvancedDialog(_BaseDialog):
             except Exception:
                 pass
             return
+        from media_core.models import MediaCategory
         try:
             fmt = self.formats[self._fmt.get_selected()]
         except Exception:
             fmt = self.formats[0] if self.formats else "mp4"
-        quality = ["high", "medium", "low"][self._quality.get_selected()]
+        opts: dict = {}
+        hwaccel = "cpu"
+        quality = "medium"
+        if self.category == MediaCategory.VIDEO:
+            vc = self._vcodecs[self._sel("vcodec")]
+            if vc:
+                opts["vcodec"] = vc
+            try:
+                opts["crf"] = str(int(self._ctl["crf"].get_value()))
+            except Exception:
+                pass
+            sp = self._sel("speed")
+            if sp > 0:
+                opts["speed"] = self._SPEEDS[sp - 1]
+            rs = self._sel("resolution")
+            if rs > 0:
+                opts["resolution"] = self._resolutions[rs]
+            fp = self._sel("fps")
+            if fp > 0:
+                opts["fps"] = self._fps[fp]
+            ac = self._acodecs[self._sel("acodec")]
+            if ac:
+                opts["acodec"] = ac
+            ab = self._sel("abitrate")
+            if ab > 0:
+                opts["abitrate"] = self._ABITRATES[ab - 1]
+            try:
+                hw = self._hws[self._ctl["hw"].get_selected()]
+            except Exception:
+                hw = "Auto"
+            if hw == "CPU":
+                hwaccel = "cpu"
+            elif hw in ("VAAPI", "NVENC", "QSV"):
+                hwaccel = hw.lower()
+            else:
+                hwaccel = "cpu"
+                for cand in self._hws[2:]:
+                    hwaccel = cand.lower()
+                    break
+        elif self.category == MediaCategory.AUDIO:
+            try:
+                quality = ["high", "medium", "low"][
+                    self._quality.get_selected()]
+            except Exception:
+                quality = "medium"
+            opts["abitrate"] = {"high": "256k", "medium": "192k",
+                                "low": "128k"}[quality]
+            sr = self._srates[self._sel("sample_rate")]
+            if sr:
+                opts["sample_rate"] = sr
+            ch = self._chan[self._sel("channels")]
+            if ch:
+                opts["channels"] = ch
+        else:
+            try:
+                q = int(self._ctl["quality"].get_value())
+            except Exception:
+                q = 92
+            try:
+                ms = int(self._ctl["max_side"].get_value())
+            except Exception:
+                ms = 0
+            opts["quality"] = q
+            if ms > 0:
+                opts["max_side"] = ms
         dest = self._dest_label.get_label()
         parent = self.get_transient_for()
         try:
@@ -541,8 +780,8 @@ class AdvancedDialog(_BaseDialog):
         except Exception:
             pass
         dlg = QuickConvertDialog(parent, self.paths, fmt, self.category,
-                                 quality=quality)
-        # Preselect the destination chosen in Advanced.
+                                 quality=quality, autostart=True,
+                                 opts=opts or None, hwaccel=hwaccel)
         try:
             dlg._dest_label.set_label(dest)
         except Exception:

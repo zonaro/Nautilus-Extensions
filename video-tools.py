@@ -132,13 +132,13 @@ class VideoToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         from media_core.models import MediaCategory
         from media_dialogs import QuickConvertDialog, nautilus_window
         QuickConvertDialog(nautilus_window(), paths, fmt,
-                           MediaCategory.VIDEO).present()
+                           MediaCategory.VIDEO, autostart=True).present()
 
     def _cb_quick_audio(self, _item, paths, fmt):
         from media_core.models import MediaCategory
         from media_dialogs import QuickConvertDialog, nautilus_window
         QuickConvertDialog(nautilus_window(), paths, fmt,
-                           MediaCategory.VIDEO).present()
+                           MediaCategory.VIDEO, autostart=True).present()
 
     def _cb_full_extraction(self, _item, paths):
         # Full dialog (quality levels, per-file status) moved here from the
