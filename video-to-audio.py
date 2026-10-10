@@ -570,37 +570,17 @@ class VideoToAudioWindow(Adw.Window):
 # ---------------------------------------------------------------------------
 
 class VideoToAudioExtension(GObject.GObject, Nautilus.MenuProvider):
+    """Legacy shim: the "Extract audio" entry moved into Video Tools.
+
+    VideoToAudioWindow is still provided here and reused by video-tools.py
+    ("Ferramentas de Vídeo" > "Extrair áudio" > "Extração completa…"), so
+    this module must stay importable. Its own context menu is disabled to
+    avoid a duplicate entry next to Video Tools.
+    """
     __gtype_name__ = "VideoToAudioExtension"
 
     def get_file_items(self, files):
-        if not files:
-            return []
-        # Filtrer les vidéos
-        videos = []
-        for f in files:
-            if f.get_uri_scheme() != "file":
-                return []
-            if f.is_directory():
-                return []
-            path = f.get_location().get_path()
-            if not path:
-                continue
-            ext = os.path.splitext(path)[1].lower()
-            if ext not in VIDEO_EXTS:
-                return []
-            videos.append(path)
-
-        if not videos:
-            return []
-
-        item = Nautilus.MenuItem(
-            name  = "VideoToAudio::Extract",
-            label = T["menu_label"],
-            tip   = "Extract audio track from video files",
-            icon  = "audio-x-generic-symbolic",
-        )
-        item.connect("activate", lambda *_: VideoToAudioWindow(videos).present())
-        return [item]
+        return []
 
     def get_background_items(self, folder):
         return []

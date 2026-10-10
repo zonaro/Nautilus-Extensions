@@ -346,10 +346,12 @@ _ARCHIVE_EXTS = {".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz",
                  ".iso", ".dmg", ".wim", ".vhd", ".vhdx", ".001"}
 
 def _video_to_audio_active():
-    """Retourne True si video-to-audio.py est dans les extensions."""
-    return os.path.isfile(os.path.join(
-        os.path.expanduser("~/.local/share/nautilus-python/extensions"),
-        "video-to-audio.py"))
+    """True if video conversion is available (video-tools.py, legacy video-to-audio.py)."""
+    ext_dir = os.path.expanduser("~/.local/share/nautilus-python/extensions")
+    for name in ("video-tools.py", "video-to-audio.py"):
+        if os.path.isfile(os.path.join(ext_dir, name)):
+            return True
+    return False
 
 _v2a_window_class = None  # cache de la classe pour éviter le re-register GType
 
@@ -2141,26 +2143,8 @@ class DualPanelExtension(GObject.GObject, Nautilus.MenuProvider):
             item.connect("activate", self._on_activate, dirs[0])
             items.append(item)
 
-        # Also offer convert for media files if registry available
-        try:
-            if ConversionRegistry is not None:
-                reg = ConversionRegistry()
-                paths = []
-                for f in files:
-                    if f.get_uri_scheme() != "file" or f.is_directory():
-                        continue
-                    p = f.get_location().get_path()
-                    if p:
-                        paths.append(p)
-                if paths:
-                    from media_converter import MediaConverterExtension
-                    # reuse logic
-                    mce = MediaConverterExtension()
-                    conv_items = mce.get_file_items(files)
-                    items.extend(conv_items)
-        except Exception:
-            pass
-
+        # Conversion entries are owned by Video/Audio/Image Tools, which
+        # register their own Nautilus menus — no duplication here.
         return items
 
     def get_background_items(self, folder):

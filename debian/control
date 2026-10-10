@@ -149,12 +149,27 @@ Description: image editing tools for the Nautilus context menu
 Package: zonaro-nautilus-media-converter
 Architecture: all
 Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil
-Description: convert audio, video and image files from Nautilus
- Batch media conversion powered by FFmpeg and Pillow, with presets, hardware
- acceleration detection and a shared media_core library.
+Description: shared media conversion library for Nautilus (no standalone menu)
+ Shared media_core Python library plus the shared media_dialogs GTK UI used
+ by the video-tools, audio-tools and image-tools extensions. This package
+ registers no context menu of its own (legacy shim only).
  .
- This package also ships the shared media_core Python library used by the
- image-tools and video-to-audio extensions.
+ Conversion entries live in "Video Tools", "Audio Tools" and "Image Tools".
+
+Package: zonaro-nautilus-video-tools
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, zonaro-nautilus-media-converter
+Description: convert videos and extract audio from Nautilus
+ "Video Tools" submenu: quick video conversion (MP4, MKV, WebM, MOV, AVI),
+ audio extraction (MP3, M4A, Opus, FLAC, WAV), the full extraction dialog
+ and an advanced conversion dialog, all batch-capable with progress.
+
+Package: zonaro-nautilus-audio-tools
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, zonaro-nautilus-media-converter
+Description: convert audio files from Nautilus
+ "Audio Tools" submenu: quick audio conversion (MP3, M4A, Opus, OGG, FLAC,
+ WAV) plus an advanced conversion dialog, batch-capable with progress.
 
 Package: zonaro-nautilus-merge-pdf
 Architecture: all
@@ -202,10 +217,11 @@ Description: search and replace text content from Nautilus
 
 Package: zonaro-nautilus-video-to-audio
 Architecture: all
-Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil, zonaro-nautilus-media-converter
-Description: extract audio tracks from video files in Nautilus
- Batch audio extraction with ffmpeg in six output formats and four quality
- levels, with a live progress bar and clean cancellation.
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil, zonaro-nautilus-media-converter, zonaro-nautilus-video-tools
+Description: legacy audio-extraction dialog reused by Video Tools (no menu)
+ Legacy shim kept for compatibility: provides the full extraction window
+ reused by "Video Tools" > "Extract audio" > "Full extraction…".
+ Registers no context menu of its own.
 
 Package: zonaro-nautilus-watermark-pdf
 Architecture: all
@@ -217,7 +233,7 @@ Description: watermark PDF files from Nautilus
 
 Package: zonaro-nautilus-all
 Architecture: all
-Depends: ${misc:Depends}, zonaro-nautilus-common, zonaro-nautilus-archive-browser, zonaro-nautilus-clone-repository, zonaro-nautilus-column-browser, zonaro-nautilus-compress-pdf, zonaro-nautilus-cut-dim, zonaro-nautilus-deb-installer, zonaro-nautilus-dev-tools-minify, zonaro-nautilus-dual-panel, zonaro-nautilus-duration-column, zonaro-nautilus-extensions-manager, zonaro-nautilus-extract-here, zonaro-nautilus-file-tools, zonaro-nautilus-folder-color-revival, zonaro-nautilus-hidden-dim-all, zonaro-nautilus-image-tools, zonaro-nautilus-media-converter, zonaro-nautilus-merge-pdf, zonaro-nautilus-edit-with, zonaro-nautilus-paste-into-file, zonaro-nautilus-preview-panel, zonaro-nautilus-progress-mirror, zonaro-nautilus-search-content, zonaro-nautilus-video-to-audio, zonaro-nautilus-watermark-pdf
+ Depends: ${misc:Depends}, zonaro-nautilus-common, zonaro-nautilus-archive-browser, zonaro-nautilus-audio-tools, zonaro-nautilus-clone-repository, zonaro-nautilus-column-browser, zonaro-nautilus-compress-pdf, zonaro-nautilus-cut-dim, zonaro-nautilus-deb-installer, zonaro-nautilus-dev-tools-minify, zonaro-nautilus-dual-panel, zonaro-nautilus-duration-column, zonaro-nautilus-extensions-manager, zonaro-nautilus-extract-here, zonaro-nautilus-file-tools, zonaro-nautilus-folder-color-revival, zonaro-nautilus-hidden-dim-all, zonaro-nautilus-image-tools, zonaro-nautilus-media-converter, zonaro-nautilus-merge-pdf, zonaro-nautilus-edit-with, zonaro-nautilus-paste-into-file, zonaro-nautilus-preview-panel, zonaro-nautilus-progress-mirror, zonaro-nautilus-search-content, zonaro-nautilus-video-to-audio, zonaro-nautilus-video-tools, zonaro-nautilus-watermark-pdf
 Description: metapackage installing all zonaro Nautilus extensions
  Depends on every zonaro Nautilus extension. Note that it pulls in
  zonaro-nautilus-hidden-dim-all, which conflicts with and replaces

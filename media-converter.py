@@ -82,6 +82,13 @@ IMAGE_FORMATS = Presets.IMAGE
 
 
 class MediaConverterExtension(GObject.GObject, Nautilus.MenuProvider):
+    """Legacy shim: conversion now lives in Video/Audio/Image Tools.
+
+    "Converter mídia" top-level menus were replaced by "Ferramentas de
+    vídeo/áudio/imagem", all powered by media_core + media_dialogs. This
+    module stays importable (shared dialogs live in media_dialogs.py) but
+    registers no context menu, to avoid duplicates.
+    """
     __gtype_name__ = "MediaConverterExtension"
 
     def __init__(self):
@@ -104,134 +111,6 @@ class MediaConverterExtension(GObject.GObject, Nautilus.MenuProvider):
         return paths
 
     def get_file_items(self, files):
-        paths = self._get_paths_from_files(files)
-        if not paths:
-            return []
-
-        if len(paths) == 0:
-            return []
-
-        # Classify files
-        categories = set()
-        for p in paths:
-            cat = self._registry.get_media_type(p)
-            categories.add(cat)
-
-        if MediaCategory.UNKNOWN in categories and len(categories) > 1:
-            categories.discard(MediaCategory.UNKNOWN)
-
-        if len(categories) != 1:
-            # Mixed or all unknown - don't show if no valid media
-            if categories == {MediaCategory.UNKNOWN}:
-                return []
-            # Mixed types - could be handled more intelligently, but keep simple
-            # For now, if mixed and includes valid, show generic?
-            # But requirement says "If multiple files are selected, only show option if applicable to all"
-            return []
-
-        cat = categories.pop()
-
-        if cat == MediaCategory.VIDEO:
-            menu = Nautilus.Menu()
-            item_main = Nautilus.MenuItem(
-                name="MediaConverter::ConvertVideo",
-                label=T["menu_label"],
-                icon="video-x-generic-symbolic",
-            )
-            item_main.set_submenu(menu)
-
-            # Quick convert subitems
-            for fmt in VIDEO_FORMATS:
-                sub = Nautilus.MenuItem(
-                    name=f"MediaConverter::VideoTo{fmt.upper()}",
-                    label=f"{fmt.upper()}",
-                )
-                sub.connect("activate", self._quick_convert_video, paths, fmt)
-                menu.append_item(sub)
-
-            menu.append_item(Nautilus.MenuItem(name="sep1", label="────────────"))
-
-            # Extract audio submenu
-            audio_menu = Nautilus.Menu()
-            for fmt in AUDIO_EXTRACT_FORMATS:
-                sub = Nautilus.MenuItem(
-                    name=f"MediaConverter::Extract{fmt.upper()}",
-                    label=f"{fmt.upper()}",
-                )
-                sub.connect("activate", self._extract_audio, paths, fmt)
-                audio_menu.append_item(sub)
-
-            extract_item = Nautilus.MenuItem(
-                name="MediaConverter::ExtractAudio",
-                label=T["extract_audio"],
-            )
-            extract_item.set_submenu(audio_menu)
-            menu.append_item(extract_item)
-
-            menu.append_item(Nautilus.MenuItem(name="sep2", label="────────────"))
-            adv = Nautilus.MenuItem(
-                name="MediaConverter::Advanced",
-                label=T["advanced"],
-            )
-            adv.connect("activate", self._advanced, paths, cat)
-            menu.append_item(adv)
-
-            return [item_main]
-
-        elif cat == MediaCategory.AUDIO:
-            menu = Nautilus.Menu()
-            item_main = Nautilus.MenuItem(
-                name="MediaConverter::ConvertAudio",
-                label=T["convert_audio"],
-                icon="audio-x-generic-symbolic",
-            )
-            item_main.set_submenu(menu)
-
-            for fmt in AUDIO_FORMATS:
-                sub = Nautilus.MenuItem(
-                    name=f"MediaConverter::AudioTo{fmt.upper()}",
-                    label=f"{fmt.upper()}",
-                )
-                sub.connect("activate", self._quick_convert_audio, paths, fmt)
-                menu.append_item(sub)
-
-            menu.append_item(Nautilus.MenuItem(name="sep", label="────────────"))
-            adv = Nautilus.MenuItem(
-                name="MediaConverter::Advanced",
-                label=T["advanced"],
-            )
-            adv.connect("activate", self._advanced, paths, cat)
-            menu.append_item(adv)
-
-            return [item_main]
-
-        elif cat == MediaCategory.IMAGE:
-            menu = Nautilus.Menu()
-            item_main = Nautilus.MenuItem(
-                name="MediaConverter::ConvertImage",
-                label=T["convert_image"],
-                icon="image-x-generic-symbolic",
-            )
-            item_main.set_submenu(menu)
-
-            for fmt in IMAGE_FORMATS:
-                sub = Nautilus.MenuItem(
-                    name=f"MediaConverter::ImageTo{fmt.upper()}",
-                    label=f"{fmt.upper()}",
-                )
-                sub.connect("activate", self._quick_convert_image, paths, fmt)
-                menu.append_item(sub)
-
-            menu.append_item(Nautilus.MenuItem(name="sep", label="────────────"))
-            adv = Nautilus.MenuItem(
-                name="MediaConverter::Advanced",
-                label=T["advanced"],
-            )
-            adv.connect("activate", self._advanced, paths, cat)
-            menu.append_item(adv)
-
-            return [item_main]
-
         return []
 
     def get_background_items(self, folder):

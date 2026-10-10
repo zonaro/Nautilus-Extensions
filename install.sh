@@ -43,6 +43,7 @@ MEDIA_CORE_DIR="media_core"
 # ---------------------------------------------------------------------------
 SLUGS=(
   archive-browser
+  audio-tools
   clone-repository
   column-browser
   compress-pdf
@@ -66,12 +67,14 @@ SLUGS=(
   progress-mirror
   search-content
   video-to-audio
+  video-tools
   watermark-pdf
 )
 
 slug_desc() {
   case "$1" in
     archive-browser)      echo "Browse, extract and create archives";;
+    audio-tools)          echo "Convert audio files (ffmpeg)";;
     clone-repository)     echo "Clone git repos and Git submenu";;
     column-browser)       echo "Miller-columns folder browser (F9)";;
     compress-pdf)         echo "Compress PDF files via Ghostscript";;
@@ -94,7 +97,8 @@ slug_desc() {
     preview-panel)        echo "Dynamic file preview panel (F4)";;
     progress-mirror)      echo "Mirror copy/move progress in a window";;
     search-content)       echo "Text search & replace via grep/ripgrep (F8)";;
-    video-to-audio)       echo "Extract audio from videos (ffmpeg)";;
+    video-to-audio)       echo "Extract audio from videos (legacy shim, see video-tools)";;
+    video-tools)          echo "Convert videos + extract audio (ffmpeg)";;
     watermark-pdf)        echo "Text/image PDF watermarking";;
     *)                    echo "";;
   esac
@@ -105,6 +109,8 @@ slug_files() {
   case "$1" in
     edit-with)            echo "nautilus_edit_ext.py";;
     folder-color-revival) echo "folder-color-revival.py name_to_color.py color_database.json";;
+    audio-tools|video-tools|media-converter)
+                          echo "$1.py media_dialogs.py";;
     *)                    echo "$1.py";;
   esac
 }
@@ -119,6 +125,7 @@ slug_deps() {
     duration-column)              echo "ffmpeg";;
     file-tools|paste-into-file)   echo "pillow";;
     image-tools)                  echo "pillow ffmpeg";;
+    audio-tools|video-tools)      echo "ffmpeg";;
     media-converter)              echo "ffmpeg pillow";;
     merge-pdf)                    echo "pypdf";;
     preview-panel)                echo "pillow cairo ffmpeg ffmpegthumbnailer poppler";;
@@ -135,7 +142,7 @@ BASE_KEYS=(nautilus-python gobject gtk4 libadwaita nautilus-extensions)
 # Extensions that need the media_core/ package on disk.
 needs_media_core() {
   case "$1" in
-    media-converter|video-to-audio|image-tools|dual-panel) return 0;;
+    media-converter|video-to-audio|video-tools|audio-tools|image-tools|dual-panel) return 0;;
     *) return 1;;
   esac
 }

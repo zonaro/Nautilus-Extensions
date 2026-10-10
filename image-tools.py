@@ -3319,17 +3319,28 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         return item
 
     def _convert_item(self, images):
+        # Conversion lives here, inside "Ferramentas de imagem", powered by
+        # media_core (Pillow first, FFmpeg fallback) with dest + progress UI.
+        try:
+            from media_core.presets_manager import Presets
+            _quick = [f for f in Presets.IMAGE if f.lower() != "jpeg"]
+        except Exception:
+            _quick = ["png", "jpg", "webp", "avif", "tiff", "bmp", "ico"]
+        _adv_label = {"fr": "Avancé…", "de": "Erweitert…", "es": "Avanzado…",
+                      "pt": "Avançado…"}.get(
+            (_lang[:2] if isinstance(_lang, str) else "en"), "Advanced…")
         submenu = Nautilus.Menu()
-        for name, label, op in (
-            ("ToPNG", T["cv_png"], op_to_png),
-            ("ToJPEG", T["cv_jpeg"], op_to_jpeg),
-            ("ToWebP", T["cv_webp"], op_to_webp),
-            ("ToICO", T["cv_ico"], op_to_ico),
-            ("Square256", T["cv_square"], op_to_square),
-        ):
-            tip = T["cv_tip_ico"] if name == "ToICO" else T["convert_tip"]
-            self._add(submenu, name, label, self._cb_convert, images, op,
-                      tip=tip)
+        for fmt in _quick:
+            label = {"jpg": "JPEG", "tiff": "TIFF"}.get(fmt.lower(),
+                                                       fmt.upper())
+            self._add(submenu, "To" + fmt.upper(), label,
+                      self._cb_convert_media, images, fmt,
+                      tip=T.get("convert_tip"))
+        self._add(submenu, "Square256", T["cv_square"], self._cb_convert,
+                  images, op_to_square, tip=T.get("convert_tip"))
+        self._add(submenu, "Advanced", _adv_label,
+                  self._cb_convert_advanced, images,
+                  tip=T.get("convert_tip"))
         item = Nautilus.MenuItem(
             name="ImageTools::Convert",
             label=T["convert_menu"],
@@ -3416,6 +3427,19 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
             return
         self._start_batch([lambda p=p, op=op: op(p) for p in paths],
                           messages=_CONVERT_MSGS)
+
+    def _cb_convert_media(self, _item, paths, fmt):
+        from media_core.models import MediaCategory
+        from media_dialogs import QuickConvertDialog, nautilus_window
+        QuickConvertDialog(nautilus_window(), paths, fmt,
+                           MediaCategory.IMAGE).present()
+
+    def _cb_convert_advanced(self, _item, paths):
+        from media_core.models import MediaCategory
+        from media_core.presets_manager import Presets
+        from media_dialogs import AdvancedDialog, nautilus_window
+        AdvancedDialog(nautilus_window(), paths, MediaCategory.IMAGE,
+                       Presets.IMAGE).present()
 
     def _cb_simple(self, _item, paths, op):
         if not self._guard_pillow():

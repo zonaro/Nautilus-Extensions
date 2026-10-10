@@ -17,7 +17,11 @@ New native media conversion infrastructure for Nautilus-Extensions.
   - `presets/` - Presets
   - `presets_manager.py` - Preset management
 
-- `media-converter.py` - Nautilus extension (GTK4/Libadwaita)
+- `media_dialogs.py` - Shared GTK UI (Quick + Advanced dialogs, GTK only here)
+- `video-tools.py` - "Ferramentas de vídeo": convert video + extract audio
+- `audio-tools.py` - "Ferramentas de áudio": convert audio
+- `image-tools.py` - "Ferramentas de imagem": Convert submenu via media_core
+- `video-to-audio.py` / `media-converter.py` - Legacy shims (no menus; kept importable)
 
 ## Features
 
