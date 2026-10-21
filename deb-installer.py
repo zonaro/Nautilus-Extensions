@@ -41,7 +41,13 @@ from gi.repository import GObject, Gtk, Adw, GLib, Pango, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -63,6 +69,7 @@ if _lang.startswith("fr"):
         "deps_title":    "Dépendances qui seront installées :",
         "deps_checking": "Vérification des dépendances…",
         "deps_error":    "Impossible de vérifier les dépendances.",
+        "tip_install":   "Installer ce paquet .deb",
     }
 elif _lang.startswith("de"):
     T = {
@@ -84,6 +91,7 @@ elif _lang.startswith("de"):
         "deps_title":    "Folgende Abhängigkeiten werden installiert:",
         "deps_checking": "Abhängigkeiten werden geprüft…",
         "deps_error":    "Abhängigkeiten konnten nicht geprüft werden.",
+        "tip_install":   "Dieses .deb-Paket installieren",
     }
 elif _lang.startswith("es"):
     T = {
@@ -105,6 +113,7 @@ elif _lang.startswith("es"):
         "deps_title":    "Dependencias que se instalarán:",
         "deps_checking": "Comprobando dependencias…",
         "deps_error":    "No se pudieron comprobar las dependencias.",
+        "tip_install":   "Instalar este paquete .deb",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -126,6 +135,7 @@ elif _lang.startswith("pt"):
         "deps_title":    "Dependências que serão instaladas:",
         "deps_checking": "Verificando dependências…",
         "deps_error":    "Não foi possível verificar as dependências.",
+        "tip_install":   "Instalar este pacote .deb",
     }
 else:
     T = {
@@ -147,6 +157,7 @@ else:
         "deps_title":    "Dependencies that will be installed:",
         "deps_checking": "Checking dependencies…",
         "deps_error":    "Could not check dependencies.",
+        "tip_install":   "Install this .deb package",
     }
 
 # ---------------------------------------------------------------------------
@@ -512,7 +523,7 @@ class DebInstallerExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name  = "DebInstaller::Install",
             label = T["menu_label"],
-            tip   = "Install this .deb package",
+            tip   = T["tip_install"],
             icon  = "system-software-install-symbolic",
         )
         item.connect("activate", lambda *_: DebInstallerWindow(path).present())

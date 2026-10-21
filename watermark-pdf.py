@@ -45,157 +45,203 @@ from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
-        "menu_label":     "Ajouter un filigrane…",
-        "dialog_title":   "Filigrane PDF",
-        "text_label":     "Texte du filigrane",
-        "text_hint":      "Ex : CONFIDENTIEL, NE PAS DIFFUSER…",
-        "opacity_label":  "Opacité",
-        "angle_label":    "Angle",
-        "size_label":     "Taille de police",
-        "color_label":    "Couleur",
-        "position_label": "Position",
-        "pos_center":     "Centre",
-        "pos_diagonal":   "Diagonale répétée",
-        "save_as":        "Enregistrer sous…",
-        "processing":     "Application du filigrane…",
-        "done_title":     "Filigrane ajouté",
-        "done_msg":       "{name} a été traité avec succès.",
-        "err_gs":         "imagemagick est introuvable. Veuillez l'installer.",
-        "err_empty":      "Le texte du filigrane ne peut pas être vide.",
-        "err_failed":     "L'opération a échoué (code {code}).",
-        "cancel":         "Annuler",
-        "ok":             "Appliquer",
-        "postpend":       "-filigrané",
-        "colors": [
+        "menu_label":         "Ajouter un filigrane…",
+        "dialog_title":       "Filigrane PDF",
+        "text_label":         "Texte du filigrane",
+        "text_hint":          "Ex : CONFIDENTIEL, NE PAS DIFFUSER…",
+        "opacity_label":      "Opacité",
+        "angle_label":        "Angle",
+        "size_label":         "Taille de police",
+        "color_label":        "Couleur",
+        "position_label":     "Position",
+        "pos_center":         "Centre",
+        "pos_diagonal":       "Diagonale répétée",
+        "save_as":            "Enregistrer sous…",
+        "processing":         "Application du filigrane…",
+        "done_title":         "Filigrane ajouté",
+        "done_msg":           "{name} a été traité avec succès.",
+        "err_gs":             "imagemagick est introuvable. Veuillez l'installer.",
+        "err_empty":          "Le texte du filigrane ne peut pas être vide.",
+        "err_failed":         "L'opération a échoué (code {code}).",
+        "cancel":             "Annuler",
+        "ok":                 "Appliquer",
+        "postpend":           "-filigrané",
+        "colors":             [
             ("Rouge",   "1 0 0"),
             ("Gris",    "0.5 0.5 0.5"),
             ("Bleu",    "0 0 0.8"),
             ("Noir",    "0 0 0"),
         ],
+        "section_flatten":    "Aplatir",
+        "flatten_merge_hint": "Fusionner en image (recommandé pour documents sensibles)",
+        "resolution":         "Résolution :",
+        "status_generating":  "Génération du filigrane…",
+        "err_pypdf_missing":  "pypdf est requis. Installez-le avec :\nsudo apt install python3-pypdf",
+        "status_applying":    "Application… (filigrane sur pages)",
+        "status_flattening":  "Aplatissement (rastérisation)…",
+        "tip_watermark":      "Ajouter un filigrane texte aux fichiers PDF sélectionnés",
     }
 elif _lang.startswith("es"):
     T = {
-        "menu_label":     "Añadir marca de agua…",
-        "dialog_title":   "Marca de agua PDF",
-        "text_label":     "Texto de la marca de agua",
-        "text_hint":      "Ej.: CONFIDENCIAL, NO DIFUNDIR…",
-        "opacity_label":  "Opacidad",
-        "angle_label":    "Ángulo",
-        "size_label":     "Tamaño de fuente",
-        "color_label":    "Color",
-        "position_label": "Posición",
-        "pos_center":     "Centro",
-        "pos_diagonal":   "Diagonal repetida",
-        "save_as":        "Guardar como…",
-        "processing":     "Aplicando marca de agua…",
-        "done_title":     "Marca de agua añadida",
-        "done_msg":       "{name} se ha procesado correctamente.",
-        "err_gs":         "imagemagick no está instalado. Instálelo primero.",
-        "err_empty":      "El texto de la marca de agua no puede estar vacío.",
-        "err_failed":     "La operación falló (código {code}).",
-        "cancel":         "Cancelar",
-        "ok":             "Aplicar",
-        "postpend":       "-marca-agua",
-        "colors": [
+        "menu_label":         "Añadir marca de agua…",
+        "dialog_title":       "Marca de agua PDF",
+        "text_label":         "Texto de la marca de agua",
+        "text_hint":          "Ej.: CONFIDENCIAL, NO DIFUNDIR…",
+        "opacity_label":      "Opacidad",
+        "angle_label":        "Ángulo",
+        "size_label":         "Tamaño de fuente",
+        "color_label":        "Color",
+        "position_label":     "Posición",
+        "pos_center":         "Centro",
+        "pos_diagonal":       "Diagonal repetida",
+        "save_as":            "Guardar como…",
+        "processing":         "Aplicando marca de agua…",
+        "done_title":         "Marca de agua añadida",
+        "done_msg":           "{name} se ha procesado correctamente.",
+        "err_gs":             "imagemagick no está instalado. Instálelo primero.",
+        "err_empty":          "El texto de la marca de agua no puede estar vacío.",
+        "err_failed":         "La operación falló (código {code}).",
+        "cancel":             "Cancelar",
+        "ok":                 "Aplicar",
+        "postpend":           "-marca-agua",
+        "colors":             [
             ("Rojo",   "1 0 0"),
             ("Gris",   "0.5 0.5 0.5"),
             ("Azul",   "0 0 0.8"),
             ("Negro",  "0 0 0"),
         ],
+        "section_flatten":    "Aplanar",
+        "flatten_merge_hint": "Combinar en imagen (recomendado para documentos sensibles)",
+        "resolution":         "Resolución:",
+        "status_generating":  "Generando la marca de agua…",
+        "err_pypdf_missing":  "Se requiere pypdf. Instálalo con:\nsudo apt install python3-pypdf",
+        "status_applying":    "Aplicando… (marca de agua en páginas)",
+        "status_flattening":  "Aplanando (rasterización)…",
+        "tip_watermark":      "Añadir una marca de agua de texto a los archivos PDF seleccionados",
     }
 elif _lang.startswith("pt"):
     T = {
-        "menu_label":     "Adicionar marca d'água…",
-        "dialog_title":   "Marca d'água PDF",
-        "text_label":     "Texto da marca d'água",
-        "text_hint":      "Ex.: CONFIDENCIAL, NÃO DIVULGAR…",
-        "opacity_label":  "Opacidade",
-        "angle_label":    "Ângulo",
-        "size_label":     "Tamanho da fonte",
-        "color_label":    "Cor",
-        "position_label": "Posição",
-        "pos_center":     "Centro",
-        "pos_diagonal":   "Diagonal repetida",
-        "save_as":        "Salvar como…",
-        "processing":     "Aplicando marca d'água…",
-        "done_title":     "Marca d'água aplicada",
-        "done_msg":       "{name} foi processado com sucesso.",
-        "err_gs":         "imagemagick não está instalado. Instale-o primeiro.",
-        "err_empty":      "O texto da marca d'água não pode ficar vazio.",
-        "err_failed":     "A operação falhou (código {code}).",
-        "cancel":         "Cancelar",
-        "ok":             "Aplicar",
-        "postpend":       "-marca-dagua",
-        "colors": [
+        "menu_label":         "Adicionar marca d'água…",
+        "dialog_title":       "Marca d'água PDF",
+        "text_label":         "Texto da marca d'água",
+        "text_hint":          "Ex.: CONFIDENCIAL, NÃO DIVULGAR…",
+        "opacity_label":      "Opacidade",
+        "angle_label":        "Ângulo",
+        "size_label":         "Tamanho da fonte",
+        "color_label":        "Cor",
+        "position_label":     "Posição",
+        "pos_center":         "Centro",
+        "pos_diagonal":       "Diagonal repetida",
+        "save_as":            "Salvar como…",
+        "processing":         "Aplicando marca d'água…",
+        "done_title":         "Marca d'água aplicada",
+        "done_msg":           "{name} foi processado com sucesso.",
+        "err_gs":             "imagemagick não está instalado. Instale-o primeiro.",
+        "err_empty":          "O texto da marca d'água não pode ficar vazio.",
+        "err_failed":         "A operação falhou (código {code}).",
+        "cancel":             "Cancelar",
+        "ok":                 "Aplicar",
+        "postpend":           "-marca-dagua",
+        "colors":             [
             ("Vermelho", "1 0 0"),
             ("Cinza",    "0.5 0.5 0.5"),
             ("Azul",     "0 0 0.8"),
             ("Preto",    "0 0 0"),
         ],
+        "section_flatten":    "Achatar",
+        "flatten_merge_hint": "Mesclar em imagem (recomendado para documentos sensíveis)",
+        "resolution":         "Resolução:",
+        "status_generating":  "Gerando a marca d'água…",
+        "err_pypdf_missing":  "pypdf é necessário. Instale-o com:\nsudo apt install python3-pypdf",
+        "status_applying":    "Aplicando… (marca d'água nas páginas)",
+        "status_flattening":  "Achatando (rasterização)…",
+        "tip_watermark":      "Adicionar marca d'água de texto aos arquivos PDF selecionados",
     }
 elif _lang.startswith("de"):
     T = {
-        "menu_label":     "PDF-Wasserzeichen hinzufügen…",
-        "dialog_title":   "PDF-Wasserzeichen",
-        "text_label":     "Wasserzeichentext",
-        "text_hint":      "Z. B. VERTRAULICH, NICHT TEILEN…",
-        "opacity_label":  "Deckkraft",
-        "angle_label":    "Winkel",
-        "size_label":     "Schriftgröße",
-        "color_label":    "Farbe",
-        "position_label": "Position",
-        "pos_center":     "Mitte",
-        "pos_diagonal":   "Diagonale Wiederholung",
-        "save_as":        "Speichern unter…",
-        "processing":     "Wasserzeichen wird angewendet…",
-        "done_title":     "Wasserzeichen hinzugefügt",
-        "done_msg":       "{name} wurde erfolgreich bearbeitet.",
-        "err_gs":         "imagemagick ist nicht installiert. Bitte zuerst installieren.",
-        "err_empty":      "Der Wasserzeichentext darf nicht leer sein.",
-        "err_failed":     "Vorgang fehlgeschlagen (Code {code}).",
-        "cancel":         "Abbrechen",
-        "ok":             "Anwenden",
-        "postpend":       "-wasserzeichen",
-        "colors": [
+        "menu_label":         "PDF-Wasserzeichen hinzufügen…",
+        "dialog_title":       "PDF-Wasserzeichen",
+        "text_label":         "Wasserzeichentext",
+        "text_hint":          "Z. B. VERTRAULICH, NICHT TEILEN…",
+        "opacity_label":      "Deckkraft",
+        "angle_label":        "Winkel",
+        "size_label":         "Schriftgröße",
+        "color_label":        "Farbe",
+        "position_label":     "Position",
+        "pos_center":         "Mitte",
+        "pos_diagonal":       "Diagonale Wiederholung",
+        "save_as":            "Speichern unter…",
+        "processing":         "Wasserzeichen wird angewendet…",
+        "done_title":         "Wasserzeichen hinzugefügt",
+        "done_msg":           "{name} wurde erfolgreich bearbeitet.",
+        "err_gs":             "imagemagick ist nicht installiert. Bitte zuerst installieren.",
+        "err_empty":          "Der Wasserzeichentext darf nicht leer sein.",
+        "err_failed":         "Vorgang fehlgeschlagen (Code {code}).",
+        "cancel":             "Abbrechen",
+        "ok":                 "Anwenden",
+        "postpend":           "-wasserzeichen",
+        "colors":             [
             ("Rot",     "1 0 0"),
             ("Grau",    "0.5 0.5 0.5"),
             ("Blau",    "0 0 0.8"),
             ("Schwarz", "0 0 0"),
         ],
+        "section_flatten":    "Vereinfachen",
+        "flatten_merge_hint": "In ein Bild zusammenführen (empfohlen für sensible Dokumente)",
+        "resolution":         "Auflösung:",
+        "status_generating":  "Wasserzeichen wird erzeugt…",
+        "err_pypdf_missing":  "pypdf wird benötigt. Installieren Sie es mit:\nsudo apt install python3-pypdf",
+        "status_applying":    "Anwenden… (Wasserzeichen auf Seiten)",
+        "status_flattening":  "Vereinfachen (Rasterung)…",
+        "tip_watermark":      "Text-Wasserzeichen zu den ausgewählten PDF-Dateien hinzufügen",
     }
 else:
     T = {
-        "menu_label":     "Add Watermark…",
-        "dialog_title":   "PDF Watermark",
-        "text_label":     "Watermark text",
-        "text_hint":      "E.g. CONFIDENTIAL, DO NOT SHARE…",
-        "opacity_label":  "Opacity",
-        "angle_label":    "Angle",
-        "size_label":     "Font size",
-        "color_label":    "Color",
-        "position_label": "Position",
-        "pos_center":     "Center",
-        "pos_diagonal":   "Diagonal repeat",
-        "save_as":        "Save as…",
-        "processing":     "Applying watermark…",
-        "done_title":     "Watermark applied",
-        "done_msg":       "{name} has been successfully watermarked.",
-        "err_gs":         "imagemagick is not installed. Please install it first.",
-        "err_empty":      "Watermark text cannot be empty.",
-        "err_failed":     "Operation failed (exit code {code}).",
-        "cancel":         "Cancel",
-        "ok":             "Apply",
-        "postpend":       "-watermarked",
-        "colors": [
+        "menu_label":         "Add Watermark…",
+        "dialog_title":       "PDF Watermark",
+        "text_label":         "Watermark text",
+        "text_hint":          "E.g. CONFIDENTIAL, DO NOT SHARE…",
+        "opacity_label":      "Opacity",
+        "angle_label":        "Angle",
+        "size_label":         "Font size",
+        "color_label":        "Color",
+        "position_label":     "Position",
+        "pos_center":         "Center",
+        "pos_diagonal":       "Diagonal repeat",
+        "save_as":            "Save as…",
+        "processing":         "Applying watermark…",
+        "done_title":         "Watermark applied",
+        "done_msg":           "{name} has been successfully watermarked.",
+        "err_gs":             "imagemagick is not installed. Please install it first.",
+        "err_empty":          "Watermark text cannot be empty.",
+        "err_failed":         "Operation failed (exit code {code}).",
+        "cancel":             "Cancel",
+        "ok":                 "Apply",
+        "postpend":           "-watermarked",
+        "colors":             [
             ("Red",   "1 0 0"),
             ("Gray",  "0.5 0.5 0.5"),
             ("Blue",  "0 0 0.8"),
             ("Black", "0 0 0"),
         ],
+        "section_flatten":    "Flatten",
+        "flatten_merge_hint": "Merge into image (recommended for sensitive documents)",
+        "resolution":         "Resolution:",
+        "status_generating":  "Generating the watermark…",
+        "err_pypdf_missing":  "pypdf is required. Install it with:\nsudo apt install python3-pypdf",
+        "status_applying":    "Applying… (watermark on pages)",
+        "status_flattening":  "Flattening (rasterization)…",
+        "tip_watermark":      "Add a text watermark to the selected PDF file(s)",
     }
 
 CONVERT_BIN = shutil.which("convert") or "/usr/bin/convert"
@@ -447,18 +493,18 @@ class WatermarkDialog(Adw.Window):
         outer.append(pos_box)
 
         # -- Flatten --
-        outer.append(self._section_label("Aplatir (Flatten)"))
+        outer.append(self._section_label(T["section_flatten"]))
         flatten_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
 
         self._flatten_check = Gtk.CheckButton(
-            label="Fusionner en image (recommandé pour documents sensibles)")
+            label=T["flatten_merge_hint"])
         self._flatten_check.set_active(True)
         flatten_box.append(self._flatten_check)
         outer.append(flatten_box)
 
         # -- DPI (visible uniquement si flatten activé) --
         dpi_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        dpi_lbl = Gtk.Label(label="Résolution :")
+        dpi_lbl = Gtk.Label(label=T["resolution"])
         dpi_lbl.set_halign(Gtk.Align.START)
         self._dpi_spin = Gtk.SpinButton.new_with_range(72, 300, 25)
         self._dpi_spin.set_value(200)
@@ -639,7 +685,7 @@ class WatermarkProgressDialog(Adw.Window):
 
         # Génération du PDF de filigrane en Python pur (plus de GS ici)
         try:
-            GObject.idle_add(self._set_status, "Génération du filigrane…")
+            GObject.idle_add(self._set_status, T["status_generating"])
             # Générer le watermark avec les dimensions réelles d'au moins une
             # page pour que la répétition (mode diagonale) soit correcte en
             # paysage vs portrait.
@@ -671,9 +717,7 @@ class WatermarkProgressDialog(Adw.Window):
             from pypdf import PdfReader, PdfWriter, Transformation
         except ImportError:
             self._cleanup()
-            GObject.idle_add(self._finish_error,
-                "pypdf est requis. Installez-le avec :\n"
-                "sudo apt install python3-pypdf")
+            GObject.idle_add(self._finish_error, T["err_pypdf_missing"])
             return
 
         try:
@@ -685,7 +729,7 @@ class WatermarkProgressDialog(Adw.Window):
             # Certaines PDFs peuvent provoquer un traitement très long/bloquant
             # côté pypdf pendant writer.write(). Pour éviter que ça reste figé
             # sans retour, on lance le stamping dans un sous-process avec timeout.
-            GObject.idle_add(self._set_status, "Application… (filigrane sur pages)")
+            GObject.idle_add(self._set_status, T["status_applying"])
             GObject.idle_add(self._bar.set_fraction, 0.05)
 
             diagonal_flag = bool(s.get("diagonal", False))
@@ -765,7 +809,7 @@ with open(out, "wb") as f:
                 self._flat_tmp,
             ]
             try:
-                GObject.idle_add(self._set_status, "Flatten (rasterisation)…")
+                GObject.idle_add(self._set_status, T["status_flattening"])
                 rc_flat = subprocess.run(cmd_flat, capture_output=True, timeout=120).returncode
             except Exception as exc:
                 GObject.idle_add(self._finish_error, str(exc))
@@ -821,7 +865,7 @@ class WatermarkPDFExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="WatermarkPDF::Watermark",
             label=T["menu_label"],
-            tip="Add a text watermark to the selected PDF file(s)",
+            tip=T["tip_watermark"],
         )
         item.connect("activate", self._on_activate, pdfs)
         return [item]

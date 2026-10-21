@@ -44,7 +44,13 @@ from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -63,6 +69,7 @@ if _lang.startswith("fr"):
         "move_up":       "↑",
         "move_down":     "↓",
         "output_name":   "fusion.pdf",
+        "tip_merge":     "Fusionner les fichiers PDF sélectionnés en un seul",
     }
 elif _lang.startswith("es"):
     T = {
@@ -81,6 +88,7 @@ elif _lang.startswith("es"):
         "move_up":       "↑",
         "move_down":     "↓",
         "output_name":   "combinado.pdf",
+        "tip_merge":     "Combinar los archivos PDF seleccionados en uno",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -99,6 +107,7 @@ elif _lang.startswith("pt"):
         "move_up":       "↑",
         "move_down":     "↓",
         "output_name":   "mesclado.pdf",
+        "tip_merge":     "Mesclar os arquivos PDF selecionados em um só",
     }
 elif _lang.startswith("de"):
     T = {
@@ -117,6 +126,7 @@ elif _lang.startswith("de"):
         "move_up":       "↑",
         "move_down":     "↓",
         "output_name":   "zusammengefuehrt.pdf",
+        "tip_merge":     "Ausgewählte PDF-Dateien zu einer zusammenführen",
     }
 else:
     T = {
@@ -135,6 +145,7 @@ else:
         "move_up":       "↑",
         "move_down":     "↓",
         "output_name":   "merged.pdf",
+        "tip_merge":     "Merge selected PDF files into one",
     }
 
 GS_BIN = shutil.which("ghostscript") or shutil.which("gs") or "/usr/bin/ghostscript"
@@ -422,7 +433,7 @@ class MergePDFExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="MergePDF::Merge",
             label=T["menu_label"],
-            tip="Merge selected PDF files into one",
+            tip=T["tip_merge"],
         )
         item.connect("activate", self._on_activate, pdfs)
         return [item]

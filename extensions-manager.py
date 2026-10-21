@@ -43,7 +43,28 @@ from gi.repository import GObject, Gtk, Adw, Gdk, GLib, Nautilus, Pango
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import (LANGUAGES, clear_language, get_language,
+                               resolve_locale, set_language)
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+    LANGUAGES = ()            # no shared module -> no manual override
+
+    def get_language():
+        return None
+
+    def set_language(code):
+        return False
+
+    def clear_language():
+        return False
+
+# Id of the "automatic" entry of the language picker.
+_AUTO_LANG = "auto"
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -61,6 +82,11 @@ if _lang.startswith("fr"):
         "no_active":    "Aucune extension active",
         "no_disabled":  "Aucune extension désactivée",
         "restart_warn": "⚠ Redémarrer Nautilus fermera toutes les fenêtres.",
+        "tip_manage":   "Gérer les extensions Python de Nautilus",
+        "language":     "Langue",
+        "lang_auto":    "Système (automatique)",
+        "lang_saved":   "Langue enregistrée — redémarrez Nautilus pour l'appliquer.",
+        "err_generic":  "Erreur",
     }
 elif _lang.startswith("es"):
     T = {
@@ -78,6 +104,11 @@ elif _lang.startswith("es"):
         "no_active":    "Ninguna extensión activa",
         "no_disabled":  "Ninguna extensión desactivada",
         "restart_warn": "⚠ Reiniciar Nautilus cerrará todas las ventanas.",
+        "tip_manage":   "Gestionar las extensiones de Python de Nautilus",
+        "language":     "Idioma",
+        "lang_auto":    "Sistema (automático)",
+        "lang_saved":   "Idioma guardado — reinicia Nautilus para aplicarlo.",
+        "err_generic":  "Error",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -95,6 +126,11 @@ elif _lang.startswith("pt"):
         "no_active":    "Nenhuma extensão ativa",
         "no_disabled":  "Nenhuma extensão desativada",
         "restart_warn": "⚠ Reiniciar o Nautilus fechará todas as janelas.",
+        "tip_manage":   "Gerenciar as extensões Python do Nautilus",
+        "language":     "Idioma",
+        "lang_auto":    "Sistema (automático)",
+        "lang_saved":   "Idioma salvo — reinicie o Nautilus para aplicá-lo.",
+        "err_generic":  "Erro",
     }
 elif _lang.startswith("de"):
     T = {
@@ -112,6 +148,11 @@ elif _lang.startswith("de"):
         "no_active":    "Keine aktiven Erweiterungen",
         "no_disabled":  "Keine deaktivierten Erweiterungen",
         "restart_warn": "⚠ Ein Neustart von Nautilus schließt alle Fenster.",
+        "tip_manage":   "Nautilus-Python-Erweiterungen verwalten",
+        "language":     "Sprache",
+        "lang_auto":    "System (automatisch)",
+        "lang_saved":   "Sprache gespeichert — starten Sie Nautilus neu, um sie anzuwenden.",
+        "err_generic":  "Fehler",
     }
 else:
     T = {
@@ -129,6 +170,11 @@ else:
         "no_active":    "No active extensions",
         "no_disabled":  "No disabled extensions",
         "restart_warn": "⚠ Restarting Nautilus will close all windows.",
+        "tip_manage":   "Manage Nautilus Python extensions",
+        "language":     "Language",
+        "lang_auto":    "System (automatic)",
+        "lang_saved":   "Language saved — restart Nautilus to apply it.",
+        "err_generic":  "Error",
     }
 
 EXTENSIONS_DIR = os.path.expanduser("~/.local/share/nautilus-python/extensions")
@@ -250,6 +296,39 @@ class ExtManagerWindow(Adw.Window):
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main.append(self._content)
 
+        # Sélecteur de langue
+        if LANGUAGES:
+            main.append(Gtk.Separator())
+            lang_box = Gtk.Box(spacing=8)
+            lang_box.set_margin_start(12)
+            lang_box.set_margin_end(12)
+            lang_box.set_margin_top(8)
+            lang_box.set_margin_bottom(8)
+
+            lang_label = Gtk.Label(label=T["language"])
+            lang_label.set_hexpand(True)
+            lang_label.set_halign(Gtk.Align.START)
+            lang_box.append(lang_label)
+
+            self._lang_combo = Gtk.ComboBoxText()
+            self._lang_combo.append(_AUTO_LANG, T["lang_auto"])
+            for code, name in LANGUAGES:
+                self._lang_combo.append(code, name)
+            self._lang_combo.set_active(self._lang_index())
+            self._lang_combo.connect("changed", self._on_language_changed)
+            lang_box.append(self._lang_combo)
+            main.append(lang_box)
+
+            self._lang_status = Gtk.Label(label="")
+            self._lang_status.add_css_class("dim-label")
+            self._lang_status.add_css_class("caption")
+            self._lang_status.set_halign(Gtk.Align.START)
+            self._lang_status.set_margin_start(12)
+            self._lang_status.set_margin_end(12)
+            self._lang_status.set_margin_bottom(8)
+            self._lang_status.set_visible(False)
+            main.append(self._lang_status)
+
         # Bouton redémarrer
         main.append(Gtk.Separator())
         bottom = Gtk.Box(spacing=8)
@@ -348,6 +427,23 @@ class ExtManagerWindow(Adw.Window):
         box.append(badge)
         return box
 
+    def _lang_index(self):
+        """Index of the stored language in the picker, 0 for automatic."""
+        current = (get_language() or "").replace("-", "_").lower()
+        if not current:
+            return 0
+        for index, (code, _name) in enumerate(LANGUAGES):
+            if code.replace("-", "_").lower() == current:
+                return index + 1
+        return 0
+
+    def _on_language_changed(self, combo):
+        code = combo.get_active_id() or _AUTO_LANG
+        saved = clear_language() if code == _AUTO_LANG else set_language(code)
+        if saved:
+            self._lang_status.set_label(T["lang_saved"])
+            self._lang_status.set_visible(True)
+
     def _on_toggle(self, filename, is_active):
         _ensure_disabled_dir()
         if is_active:
@@ -366,7 +462,7 @@ class ExtManagerWindow(Adw.Window):
                 if os.path.isdir(cache):
                     shutil.rmtree(cache)
         except Exception as e:
-            dlg = Adw.MessageDialog(transient_for=self, heading="Erreur", body=str(e))
+            dlg = Adw.MessageDialog(transient_for=self, heading=T["err_generic"], body=str(e))
             dlg.add_response("ok", "OK")
             dlg.present()
             return
@@ -413,7 +509,7 @@ class ExtManagerExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="ExtManager::Open",
             label=T["menu_label"],
-            tip="Manage Nautilus Python extensions",
+            tip=T["tip_manage"],
             icon="puzzle-piece-symbolic",
         )
         item.connect("activate", lambda *_: ExtManagerWindow().present())

@@ -45,7 +45,13 @@ from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -69,6 +75,7 @@ if _lang.startswith("fr"):
             ("Haute qualité",            "/printer"),
             ("Haute qualité (couleurs)", "/prepress"),
         ],
+        "tip_compress": "Compresser et optimiser les fichiers PDF sélectionnés",
     }
 elif _lang.startswith("es"):
     T = {
@@ -92,6 +99,7 @@ elif _lang.startswith("es"):
             ("Alta calidad",             "/printer"),
             ("Alta calidad (color)",     "/prepress"),
         ],
+        "tip_compress": "Comprimir y optimizar los archivos PDF seleccionados",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -115,6 +123,7 @@ elif _lang.startswith("pt"):
             ("Alta qualidade",           "/printer"),
             ("Alta qualidade (cores)",   "/prepress"),
         ],
+        "tip_compress": "Compactar e otimizar os arquivos PDF selecionados",
     }
 elif _lang.startswith("de"):
     T = {
@@ -138,6 +147,7 @@ elif _lang.startswith("de"):
             ("Hohe Qualität",           "/printer"),
             ("Hohe Qualität (Farbe)",   "/prepress"),
         ],
+        "tip_compress": "Ausgewählte PDF-Dateien komprimieren und optimieren",
     }
 else:
     T = {
@@ -161,6 +171,7 @@ else:
             ("High Quality",               "/printer"),
             ("High Quality (Color Pres.)", "/prepress"),
         ],
+        "tip_compress": "Compress and optimize the selected PDF file(s)",
     }
 
 GS_BIN = shutil.which("ghostscript") or shutil.which("gs") or "/usr/bin/ghostscript"
@@ -407,7 +418,7 @@ class CompressPDFExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="CompressPDF::Compress",
             label=T["menu_label"],
-            tip="Compress and optimize the selected PDF file(s)",
+            tip=T["tip_compress"],
         )
         item.connect("activate", self._on_activate, pdfs)
         return [item]

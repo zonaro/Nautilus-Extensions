@@ -55,7 +55,13 @@ RAR_BIN   = shutil.which("rar")   or "/usr/bin/rar"
 ARCHIVE_EXTS = {".zip", ".7z", ".tar", ".gz", ".bz2", ".xz",
                 ".rar", ".tgz", ".tbz2", ".cab", ".iso", ".001"}
 
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 if _lang.startswith("fr"):
     T = {
         # Navigation
@@ -98,6 +104,17 @@ if _lang.startswith("fr"):
         "user_dir_MUSIC":      "Musique",
         "user_dir_PICTURES":   "Images",
         "user_dir_VIDEOS":     "Vidéos",
+        "tip_browse":          "Parcourir le contenu de l'archive",
+        "tip_create":          "Créer une archive à partir des fichiers sélectionnés",
+        "err_unknown_format":  "Format inconnu : {fmt}",
+        "levels":              [
+            "0 - Stockage",
+            "1 - Le plus rapide",
+            "3 - Rapide",
+            "5 - Normal",
+            "7 - Maximum",
+            "9 - Ultra",
+        ],
     }
 elif _lang.startswith("de"):
     T = {
@@ -141,6 +158,17 @@ elif _lang.startswith("de"):
         "user_dir_MUSIC":      "Musik",
         "user_dir_PICTURES":   "Bilder",
         "user_dir_VIDEOS":     "Videos",
+        "tip_browse":          "Archivinhalt durchsuchen",
+        "tip_create":          "Archiv aus den ausgewählten Dateien erstellen",
+        "err_unknown_format":  "Unbekanntes Format: {fmt}",
+        "levels":              [
+            "0 - Speichern",
+            "1 - Am schnellsten",
+            "3 - Schnell",
+            "5 - Normal",
+            "7 - Maximum",
+            "9 - Ultra",
+        ],
     }
 elif _lang.startswith("es"):
     T = {
@@ -184,6 +212,17 @@ elif _lang.startswith("es"):
         "user_dir_MUSIC":      "Música",
         "user_dir_PICTURES":   "Imágenes",
         "user_dir_VIDEOS":     "Vídeos",
+        "tip_browse":          "Explorar el contenido del archivo",
+        "tip_create":          "Crear un archivo a partir de los archivos seleccionados",
+        "err_unknown_format":  "Formato desconocido: {fmt}",
+        "levels":              [
+            "0 - Almacenar",
+            "1 - Más rápido",
+            "3 - Rápido",
+            "5 - Normal",
+            "7 - Máximo",
+            "9 - Ultra",
+        ],
     }
 elif _lang.startswith("pt"):
     T = {
@@ -227,6 +266,17 @@ elif _lang.startswith("pt"):
         "user_dir_MUSIC":      "Músicas",
         "user_dir_PICTURES":   "Imagens",
         "user_dir_VIDEOS":     "Vídeos",
+        "tip_browse":          "Explorar o conteúdo do arquivo",
+        "tip_create":          "Criar um arquivo a partir dos arquivos selecionados",
+        "err_unknown_format":  "Formato desconhecido: {fmt}",
+        "levels":              [
+            "0 - Armazenar",
+            "1 - Mais rápido",
+            "3 - Rápido",
+            "5 - Normal",
+            "7 - Máximo",
+            "9 - Ultra",
+        ],
     }
 else:
     T = {
@@ -270,6 +320,17 @@ else:
         "user_dir_MUSIC":      "Music",
         "user_dir_PICTURES":   "Pictures",
         "user_dir_VIDEOS":     "Videos",
+        "tip_browse":          "Browse archive contents",
+        "tip_create":          "Create an archive from selected files",
+        "err_unknown_format":  "Unknown format: {fmt}",
+        "levels":              [
+            "0 - Store",
+            "1 - Fastest",
+            "3 - Fast",
+            "5 - Normal",
+            "7 - Maximum",
+            "9 - Ultra",
+        ],
     }
 
 # ---------------------------------------------------------------------------
@@ -1444,8 +1505,7 @@ class ArchiveCreatorWindow(Adw.Window):
     __gtype_name__ = "ArchiveCreatorWindow"
 
     FORMATS = ["rar", "zip", "7z", "tar.gz", "tar.bz2", "tar.xz"]
-    LEVELS  = ["0 - Store", "1 - Fastest", "3 - Fast", "5 - Normal",
-                "7 - Maximum", "9 - Ultra"]
+    LEVELS  = T["levels"]
 
     def __init__(self, source_paths):
         super().__init__()
@@ -1627,7 +1687,7 @@ class ArchiveCreatorWindow(Adw.Window):
             cwd = None  # tar gère lui-même le -C, pas besoin de cwd subprocess
 
         else:
-            raise ValueError(f"Format inconnu: {fmt}")
+            raise ValueError(T["err_unknown_format"].format(fmt=fmt))
 
         result = subprocess.run(cmd, capture_output=True, cwd=cwd)
         if result.returncode != 0:
@@ -1702,7 +1762,7 @@ class ArchiveBrowserExtension(GObject.GObject, Nautilus.MenuProvider):
             item = Nautilus.MenuItem(
                 name="ArchiveBrowser::Open",
                 label=T["menu_label"],
-                tip="Browse archive contents",
+                tip=T["tip_browse"],
                 icon="package-x-generic",
             )
             item.connect("activate", lambda *_:
@@ -1723,7 +1783,7 @@ class ArchiveBrowserExtension(GObject.GObject, Nautilus.MenuProvider):
             item = Nautilus.MenuItem(
                 name="ArchiveBrowser::Create",
                 label=T["create_label"],
-                tip="Create an archive from selected files",
+                tip=T["tip_create"],
                 icon="package-x-generic",
             )
             item.connect("activate", lambda *_:

@@ -544,6 +544,10 @@ for slug in "${SELECTED[@]}"; do
   fi
 done
 
+if [ -f "$SCRIPT_DIR/nautilus_i18n.py" ]; then
+  cp "$SCRIPT_DIR/nautilus_i18n.py" "$EXT_DIR"/
+fi
+
 if [ "$NEED_MEDIA_CORE" -eq 1 ] && [ -d "$SCRIPT_DIR/$MEDIA_CORE_DIR" ]; then
   rm -rf "$EXT_DIR/$MEDIA_CORE_DIR"
   cp -r "$SCRIPT_DIR/$MEDIA_CORE_DIR" "$EXT_DIR"/

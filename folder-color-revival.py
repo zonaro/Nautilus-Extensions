@@ -870,7 +870,13 @@ class DolphinColorProvider(GObject.GObject, Nautilus.InfoProvider):
 # i18n — same pattern as the other extensions: hardcoded tables per locale
 # detected via locale.getlocale(). English is the fallback (identity).
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     _T = {
