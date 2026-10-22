@@ -47,7 +47,13 @@ from gi.repository import GObject, Gtk, Adw, Gio, GLib, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -63,6 +69,7 @@ if _lang.startswith("fr"):
         "volumes_found":  "{n} partie(s) détectée(s) — extraction automatique.",
         "cancel":         "Annuler",
         "ok":             "Extraire",
+        "tip_extract":    "Extraire les archives avec 7zip",
     }
 elif _lang.startswith("es"):
     T = {
@@ -78,6 +85,7 @@ elif _lang.startswith("es"):
         "volumes_found":  "{n} parte(s) detectada(s) — extrayendo automáticamente.",
         "cancel":         "Cancelar",
         "ok":             "Extraer",
+        "tip_extract":    "Extraer los archivos con 7zip",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -93,6 +101,7 @@ elif _lang.startswith("pt"):
         "volumes_found":  "{n} parte(s) detectada(s) — extraindo automaticamente.",
         "cancel":         "Cancelar",
         "ok":             "Extrair",
+        "tip_extract":    "Extrair os arquivos com 7zip",
     }
 elif _lang.startswith("de"):
     T = {
@@ -108,6 +117,7 @@ elif _lang.startswith("de"):
         "volumes_found":  "{n} Teil(e) gefunden — automatisches Entpacken.",
         "cancel":         "Abbrechen",
         "ok":             "Entpacken",
+        "tip_extract":    "Archive mit 7zip entpacken",
     }
 else:
     T = {
@@ -123,6 +133,7 @@ else:
         "volumes_found":  "{n} part(s) found — extracting automatically.",
         "cancel":         "Cancel",
         "ok":             "Extract",
+        "tip_extract":    "Extract archive(s) using 7zip",
     }
 
 SZ_BIN   = shutil.which("7z") or shutil.which("7za") or "/usr/bin/7z"
@@ -594,7 +605,7 @@ class ExtractHereExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="ExtractHere::Extract",
             label=label,
-            tip="Extract archive(s) using 7zip",
+            tip=T["tip_extract"],
             icon="archive-extract",
         )
         item.connect("activate", self._on_activate, archives)

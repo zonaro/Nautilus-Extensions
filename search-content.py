@@ -44,7 +44,13 @@ from gi.repository import GObject, Gtk, Adw, GLib, Pango, Gdk, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -87,6 +93,7 @@ if _lang.startswith("fr"):
         "backup_note":  "Sauvegarde .bak créée pour chaque fichier modifié.",
         "toggle_all":   "Tout cocher / décocher",
         "none_selected":"Aucune ligne sélectionnée.",
+        "tip_search":   "Rechercher du contenu textuel dans les fichiers",
     }
 elif _lang.startswith("de"):
     T = {
@@ -129,6 +136,7 @@ elif _lang.startswith("de"):
         "backup_note":  ".bak-Sicherung für jede geänderte Datei erstellt.",
         "toggle_all":   "Alle an-/abwählen",
         "none_selected":"Keine Zeile ausgewählt.",
+        "tip_search":   "Textinhalte in Dateien suchen",
     }
 elif _lang.startswith("es"):
     T = {
@@ -171,6 +179,7 @@ elif _lang.startswith("es"):
         "backup_note":  "Copia .bak creada para cada archivo modificado.",
         "toggle_all":   "Marcar / desmarcar todo",
         "none_selected":"Ninguna línea seleccionada.",
+        "tip_search":   "Buscar contenido de texto en los archivos",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -213,6 +222,7 @@ elif _lang.startswith("pt"):
         "backup_note":  "Cópia .bak criada para cada arquivo modificado.",
         "toggle_all":   "Marcar / desmarcar tudo",
         "none_selected":"Nenhuma linha selecionada.",
+        "tip_search":   "Pesquisar conteúdo de texto nos arquivos",
     }
 else:
     T = {
@@ -255,6 +265,7 @@ else:
         "backup_note":  ".bak backup created for each modified file.",
         "toggle_all":   "Check / uncheck all",
         "none_selected":"No line selected.",
+        "tip_search":   "Search text content in files",
     }
 
 HAS_RG = shutil.which("rg") is not None
@@ -998,7 +1009,7 @@ class SearchContentExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name  = "SearchContent::OpenFolder",
             label = T["menu_label"],
-            tip   = "Search text content in files",
+            tip   = T["tip_search"],
             icon  = "edit-find-symbolic",
         )
         item.connect("activate", lambda *_: SearchWindow(path).present())
@@ -1011,7 +1022,7 @@ class SearchContentExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name  = "SearchContent::Open",
             label = T["menu_label"],
-            tip   = "Search text content in files",
+            tip   = T["tip_search"],
             icon  = "edit-find-symbolic",
         )
         item.connect("activate", lambda *_: SearchWindow(path).present())

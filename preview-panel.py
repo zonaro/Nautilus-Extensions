@@ -52,7 +52,13 @@ from gi.repository import GObject, Gtk, Adw, Gdk, Gio, GLib, Nautilus, Pango
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
@@ -78,6 +84,7 @@ if _lang.startswith("fr"):
         "exif_shutter":"Vitesse",
         "exif_aperture":"Ouverture",
         "loading":     "Chargement…",
+        "tip_preview": "Ouvrir le panneau d'aperçu",
     }
 elif _lang.startswith("es"):
     T = {
@@ -103,6 +110,7 @@ elif _lang.startswith("es"):
         "exif_shutter":"Velocidad de obturación",
         "exif_aperture":"Apertura",
         "loading":     "Cargando…",
+        "tip_preview": "Abrir el panel de vista previa",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -128,6 +136,7 @@ elif _lang.startswith("pt"):
         "exif_shutter":"Velocidade do obturador",
         "exif_aperture":"Abertura",
         "loading":     "Carregando…",
+        "tip_preview": "Abrir o painel de pré-visualização",
     }
 elif _lang.startswith("de"):
     T = {
@@ -153,6 +162,7 @@ elif _lang.startswith("de"):
         "exif_shutter":"Verschlusszeit",
         "exif_aperture":"Blende",
         "loading":     "Wird geladen…",
+        "tip_preview": "Vorschaufenster öffnen",
     }
 else:
     T = {
@@ -178,6 +188,7 @@ else:
         "exif_shutter":"Shutter speed",
         "exif_aperture":"Aperture",
         "loading":     "Loading…",
+        "tip_preview": "Open preview panel",
     }
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".svg"}
@@ -1081,7 +1092,7 @@ class PreviewPanelExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="PreviewPanel::Preview",
             label=T["menu_label"],
-            tip="Open preview panel",
+            tip=T["tip_preview"],
             icon="view-preview-symbolic",
         )
         item.connect("activate", self._on_activate, single[0])

@@ -27,52 +27,103 @@ from media_core.models import MediaCategory
 from media_core.presets_manager import Presets
 
 # i18n
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("fr"):
     T = {
-        "menu_label": "Convertir média",
-        "convert_video": "Convertir vidéo",
-        "convert_audio": "Convertir audio",
-        "convert_image": "Convertir image",
-        "extract_audio": "Extraire l'audio",
-        "advanced": "Avancé…",
+        "menu_label":       "Convertir média",
+        "convert_video":    "Convertir vidéo",
+        "convert_audio":    "Convertir audio",
+        "convert_image":    "Convertir image",
+        "extract_audio":    "Extraire l'audio",
+        "advanced":         "Avancé…",
+        "choose":           "Choisir…",
+        "cancel":           "Annuler",
+        "convert":          "Convertir",
+        "dlg_converting":   "Conversion…",
+        "status_preparing": "Préparation…",
+        "dlg_convert":      "Convertir",
+        "status_ready":     "Prêt",
+        "label_format":     "Format",
+        "dlg_select_dest":  "Sélectionner le dossier de destination",
     }
 elif _lang.startswith("de"):
     T = {
-        "menu_label": "Medien konvertieren",
-        "convert_video": "Video konvertieren",
-        "convert_audio": "Audio konvertieren",
-        "convert_image": "Bild konvertieren",
-        "extract_audio": "Audio extrahieren",
-        "advanced": "Erweitert…",
+        "menu_label":       "Medien konvertieren",
+        "convert_video":    "Video konvertieren",
+        "convert_audio":    "Audio konvertieren",
+        "convert_image":    "Bild konvertieren",
+        "extract_audio":    "Audio extrahieren",
+        "advanced":         "Erweitert…",
+        "choose":           "Auswählen…",
+        "cancel":           "Abbrechen",
+        "convert":          "Konvertieren",
+        "dlg_converting":   "Konvertierung…",
+        "status_preparing": "Vorbereitung…",
+        "dlg_convert":      "Konvertieren",
+        "status_ready":     "Bereit",
+        "label_format":     "Format",
+        "dlg_select_dest":  "Zielordner auswählen",
     }
 elif _lang.startswith("es"):
     T = {
-        "menu_label": "Convertir medios",
-        "convert_video": "Convertir vídeo",
-        "convert_audio": "Convertir audio",
-        "convert_image": "Convertir imagen",
-        "extract_audio": "Extraer audio",
-        "advanced": "Avanzado…",
+        "menu_label":       "Convertir medios",
+        "convert_video":    "Convertir vídeo",
+        "convert_audio":    "Convertir audio",
+        "convert_image":    "Convertir imagen",
+        "extract_audio":    "Extraer audio",
+        "advanced":         "Avanzado…",
+        "choose":           "Elegir…",
+        "cancel":           "Cancelar",
+        "convert":          "Convertir",
+        "dlg_converting":   "Convirtiendo…",
+        "status_preparing": "Preparando…",
+        "dlg_convert":      "Convertir",
+        "status_ready":     "Listo",
+        "label_format":     "Formato",
+        "dlg_select_dest":  "Seleccionar la carpeta de destino",
     }
 elif _lang.startswith("pt"):
     T = {
-        "menu_label": "Converter mídia",
-        "convert_video": "Converter vídeo",
-        "convert_audio": "Converter áudio",
-        "convert_image": "Converter imagem",
-        "extract_audio": "Extrair áudio",
-        "advanced": "Avançado…",
+        "menu_label":       "Converter mídia",
+        "convert_video":    "Converter vídeo",
+        "convert_audio":    "Converter áudio",
+        "convert_image":    "Converter imagem",
+        "extract_audio":    "Extrair áudio",
+        "advanced":         "Avançado…",
+        "choose":           "Escolher…",
+        "cancel":           "Cancelar",
+        "convert":          "Converter",
+        "dlg_converting":   "Convertendo…",
+        "status_preparing": "Preparando…",
+        "dlg_convert":      "Converter",
+        "status_ready":     "Pronto",
+        "label_format":     "Formato",
+        "dlg_select_dest":  "Selecionar a pasta de destino",
     }
 else:
     T = {
-        "menu_label": "Convert Media",
-        "convert_video": "Convert Video",
-        "convert_audio": "Convert Audio",
-        "convert_image": "Convert Image",
-        "extract_audio": "Extract Audio",
-        "advanced": "Advanced…",
+        "menu_label":       "Convert Media",
+        "convert_video":    "Convert Video",
+        "convert_audio":    "Convert Audio",
+        "convert_image":    "Convert Image",
+        "extract_audio":    "Extract Audio",
+        "advanced":         "Advanced…",
+        "choose":           "Choose...",
+        "cancel":           "Cancel",
+        "convert":          "Convert",
+        "dlg_converting":   "Converting...",
+        "status_preparing": "Preparing...",
+        "dlg_convert":      "Convert",
+        "status_ready":     "Ready",
+        "label_format":     "Format",
+        "dlg_select_dest":  "Select destination folder",
     }
 
 VIDEO_FORMATS = Presets.VIDEO
@@ -134,8 +185,9 @@ class MediaConverterExtension(GObject.GObject, Nautilus.MenuProvider):
 
 
 class ProgressDialog(Gtk.Dialog):
-    def __init__(self, parent, title="Converting..."):
-        super().__init__(title=title, transient_for=parent, modal=True)
+    def __init__(self, parent, title=None):
+        super().__init__(title=title or T["dlg_converting"],
+                         transient_for=parent, modal=True)
         self.set_default_size(400, 200)
         self.set_resizable(False)
 
@@ -150,7 +202,7 @@ class ProgressDialog(Gtk.Dialog):
         self._progress.set_show_text(True)
         box.append(self._progress)
 
-        self._status = Gtk.Label(label="Preparing...")
+        self._status = Gtk.Label(label=T["status_preparing"])
         self._status.set_halign(Gtk.Align.START)
         box.append(self._status)
 
@@ -161,7 +213,7 @@ if __name__ == "__main__":
 
 class QuickConvertDialog(Gtk.Dialog):
     def __init__(self, parent, paths, target_fmt, cat):
-        super().__init__(title="Convert", transient_for=parent, modal=True)
+        super().__init__(title=T["dlg_convert"], transient_for=parent, modal=True)
         self.paths = paths
         self.target_fmt = target_fmt
         self.cat = cat
@@ -183,7 +235,7 @@ class QuickConvertDialog(Gtk.Dialog):
         self._dest_label.set_hexpand(True)
         self._dest_label.set_ellipsize(Pango.EllipsizeMode.END)
         self._dest_label.set_xalign(0)
-        dest_btn = Gtk.Button(label=T.get("choose", "Choose..."))
+        dest_btn = Gtk.Button(label=T["choose"])
         dest_btn.connect("clicked", self._choose_dest)
         dest_box.append(self._dest_label)
         dest_box.append(dest_btn)
@@ -193,19 +245,19 @@ class QuickConvertDialog(Gtk.Dialog):
         self._progress.set_show_text(True)
         box.append(self._progress)
 
-        self._status = Gtk.Label(label="Ready")
+        self._status = Gtk.Label(label=T["status_ready"])
         self._status.set_halign(Gtk.Align.START)
         self._status.set_ellipsize(Pango.EllipsizeMode.END)
         box.append(self._status)
 
-        self.add_button(T.get("cancel", "Cancel"), Gtk.ResponseType.CANCEL)
-        self._convert_btn = self.add_button(T.get("convert", "Convert"), Gtk.ResponseType.OK)
+        self.add_button(T["cancel"], Gtk.ResponseType.CANCEL)
+        self._convert_btn = self.add_button(T["convert"], Gtk.ResponseType.OK)
         self._convert_btn.set_sensitive(True)
 
         self.connect("response", self._on_response)
     def _choose_dest(self, btn):
         dlg = Gtk.FileDialog.new()
-        dlg.set_title("Select destination folder")
+        dlg.set_title(T["dlg_select_dest"])
         try:
             dlg.select_folder(self, None, self._on_dest_selected)
         except Exception:
@@ -328,7 +380,7 @@ class AdvancedDialog(Gtk.Dialog):
 
         # Format selector
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        row.append(Gtk.Label(label="Format"))
+        row.append(Gtk.Label(label=T["label_format"]))
         self._format = Gtk.ComboBoxText()
         if cat == MediaCategory.VIDEO:
             for f in VIDEO_FORMATS + AUDIO_EXTRACT_FORMATS:
@@ -350,20 +402,20 @@ class AdvancedDialog(Gtk.Dialog):
         self._dest_label.set_hexpand(True)
         self._dest_label.set_ellipsize(Pango.EllipsizeMode.END)
         self._dest_label.set_xalign(0)
-        dest_btn = Gtk.Button(label=T.get("choose", "Choose..."))
+        dest_btn = Gtk.Button(label=T["choose"])
         dest_btn.connect("clicked", self._choose_dest)
         dest_box.append(self._dest_label)
         dest_box.append(dest_btn)
         box.append(dest_box)
 
-        self.add_button(T.get("cancel", "Cancel"), Gtk.ResponseType.CANCEL)
-        self._convert_btn = self.add_button(T.get("convert", "Convert"), Gtk.ResponseType.OK)
+        self.add_button(T["cancel"], Gtk.ResponseType.CANCEL)
+        self._convert_btn = self.add_button(T["convert"], Gtk.ResponseType.OK)
 
         self.connect("response", self._on_response)
 
     def _choose_dest(self, btn):
         dlg = Gtk.FileDialog.new()
-        dlg.set_title("Select destination folder")
+        dlg.set_title(T["dlg_select_dest"])
         try:
             dlg.select_folder(self, None, self._on_dest_selected)
         except Exception:

@@ -44,47 +44,63 @@ from gi.repository import GObject, Gtk, Adw, Gdk, Gio, GLib, Pango, Nautilus
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
-_lang = locale.getlocale()[0] or ""
+try:
+    from nautilus_i18n import resolve_locale
+except ImportError:  # nautilus_i18n.py not installed next to this file
+    def resolve_locale():
+        return locale.getlocale()[0] or ""
+
+_lang = resolve_locale()
 
 if _lang.startswith("de"):
     T = {
-        "menu_label": "Spaltenansicht öffnen",
-        "title":      "Spaltenansicht",
-        "go_up":      "Übergeordneter Ordner",
-        "refresh":    "Neu laden",
-        "err_title":  "Fehler",
+        "menu_label":    "Spaltenansicht öffnen",
+        "title":         "Spaltenansicht",
+        "go_up":         "Übergeordneter Ordner",
+        "refresh":       "Neu laden",
+        "err_title":     "Fehler",
+        "tip_open_here": "Miller-Spalten-Browser ab hier öffnen",
+        "tip_open":      "Miller-Spalten-Browser hier öffnen",
     }
 elif _lang.startswith("fr"):
     T = {
-        "menu_label": "Ouvrir en vue colonnes",
-        "title":      "Vue Colonnes",
-        "go_up":      "Dossier parent",
-        "refresh":    "Actualiser",
-        "err_title":  "Erreur",
+        "menu_label":    "Ouvrir en vue colonnes",
+        "title":         "Vue Colonnes",
+        "go_up":         "Dossier parent",
+        "refresh":       "Actualiser",
+        "err_title":     "Erreur",
+        "tip_open_here": "Ouvrir un navigateur en colonnes Miller à partir d'ici",
+        "tip_open":      "Ouvrir ici un navigateur en colonnes Miller",
     }
 elif _lang.startswith("es"):
     T = {
-        "menu_label": "Abrir en vista de columnas",
-        "title":      "Vista de columnas",
-        "go_up":      "Carpeta superior",
-        "refresh":    "Actualizar",
-        "err_title":  "Error",
+        "menu_label":    "Abrir en vista de columnas",
+        "title":         "Vista de columnas",
+        "go_up":         "Carpeta superior",
+        "refresh":       "Actualizar",
+        "err_title":     "Error",
+        "tip_open_here": "Abrir un navegador de columnas Miller desde aquí",
+        "tip_open":      "Abrir aquí un navegador de columnas Miller",
     }
 elif _lang.startswith("pt"):
     T = {
-        "menu_label": "Abrir em visão de colunas",
-        "title":      "Navegador em Colunas",
-        "go_up":      "Pasta superior",
-        "refresh":    "Atualizar",
-        "err_title":  "Erro",
+        "menu_label":    "Abrir em visão de colunas",
+        "title":         "Navegador em Colunas",
+        "go_up":         "Pasta superior",
+        "refresh":       "Atualizar",
+        "err_title":     "Erro",
+        "tip_open_here": "Abrir um navegador de colunas Miller a partir daqui",
+        "tip_open":      "Abrir aqui um navegador de colunas Miller",
     }
 else:
     T = {
-        "menu_label": "Open in column view",
-        "title":      "Column Browser",
-        "go_up":      "Parent folder",
-        "refresh":    "Refresh",
-        "err_title":  "Error",
+        "menu_label":    "Open in column view",
+        "title":         "Column Browser",
+        "go_up":         "Parent folder",
+        "refresh":       "Refresh",
+        "err_title":     "Error",
+        "tip_open_here": "Open a Miller-columns browser starting here",
+        "tip_open":      "Open a Miller-columns browser here",
     }
 
 # ---------------------------------------------------------------------------
@@ -685,7 +701,7 @@ class ColumnBrowserExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="ColumnBrowser::Open",
             label=T["menu_label"],
-            tip="Open a Miller-columns browser starting here",
+            tip=T["tip_open_here"],
             icon=_resolve_column_icon(),
         )
         item.connect("activate", self._on_activate, dirs[0])
@@ -700,7 +716,7 @@ class ColumnBrowserExtension(GObject.GObject, Nautilus.MenuProvider):
         item = Nautilus.MenuItem(
             name="ColumnBrowser::OpenBg",
             label=T["menu_label"],
-            tip="Open a Miller-columns browser here",
+            tip=T["tip_open"],
             icon=_resolve_column_icon(),
         )
         item.connect("activate", self._on_activate_bg, folder)
