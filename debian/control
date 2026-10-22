@@ -216,6 +216,14 @@ Description: search and replace text content from Nautilus
  replace preview (grep, or ripgrep when available), skipping binary files and
  heavy folders. Launchable with F8.
 
+Package: zonaro-nautilus-terminal-tools
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common
+Description: run scripts in the terminal and open a terminal in a folder
+ Adds context menu entries to run shell and script files in the default
+ terminal emulator — with a plain and a sudo variant — and to open a
+ terminal inside any folder, including the folder background.
+
 Package: zonaro-nautilus-video-to-audio
 Architecture: all
 Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, ffmpeg, ffmpegthumbnailer, python3-pil, zonaro-nautilus-media-converter, zonaro-nautilus-video-tools
@@ -234,7 +242,7 @@ Description: watermark PDF files from Nautilus
 
 Package: zonaro-nautilus-all
 Architecture: all
- Depends: ${misc:Depends}, zonaro-nautilus-common, zonaro-nautilus-archive-browser, zonaro-nautilus-audio-tools, zonaro-nautilus-clone-repository, zonaro-nautilus-column-browser, zonaro-nautilus-compress-pdf, zonaro-nautilus-cut-dim, zonaro-nautilus-deb-installer, zonaro-nautilus-dev-tools-minify, zonaro-nautilus-dual-panel, zonaro-nautilus-duration-column, zonaro-nautilus-extensions-manager, zonaro-nautilus-extract-here, zonaro-nautilus-file-tools, zonaro-nautilus-folder-color-revival, zonaro-nautilus-hidden-dim-all, zonaro-nautilus-image-tools, zonaro-nautilus-media-converter, zonaro-nautilus-merge-pdf, zonaro-nautilus-edit-with, zonaro-nautilus-paste-into-file, zonaro-nautilus-preview-panel, zonaro-nautilus-progress-mirror, zonaro-nautilus-search-content, zonaro-nautilus-video-to-audio, zonaro-nautilus-video-tools, zonaro-nautilus-watermark-pdf
+ Depends: ${misc:Depends}, zonaro-nautilus-common, zonaro-nautilus-archive-browser, zonaro-nautilus-audio-tools, zonaro-nautilus-clone-repository, zonaro-nautilus-column-browser, zonaro-nautilus-compress-pdf, zonaro-nautilus-cut-dim, zonaro-nautilus-deb-installer, zonaro-nautilus-dev-tools-minify, zonaro-nautilus-dual-panel, zonaro-nautilus-duration-column, zonaro-nautilus-extensions-manager, zonaro-nautilus-extract-here, zonaro-nautilus-file-tools, zonaro-nautilus-folder-color-revival, zonaro-nautilus-hidden-dim-all, zonaro-nautilus-image-tools, zonaro-nautilus-media-converter, zonaro-nautilus-merge-pdf, zonaro-nautilus-edit-with, zonaro-nautilus-paste-into-file, zonaro-nautilus-preview-panel, zonaro-nautilus-progress-mirror, zonaro-nautilus-search-content, zonaro-nautilus-terminal-tools, zonaro-nautilus-video-to-audio, zonaro-nautilus-video-tools, zonaro-nautilus-watermark-pdf
 Description: metapackage installing all zonaro Nautilus extensions
  Depends on every zonaro Nautilus extension. Note that it pulls in
  zonaro-nautilus-hidden-dim-all, which conflicts with and replaces

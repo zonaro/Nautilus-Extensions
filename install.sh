@@ -66,6 +66,7 @@ SLUGS=(
   preview-panel
   progress-mirror
   search-content
+  terminal-tools
   video-to-audio
   video-tools
   watermark-pdf
@@ -97,6 +98,7 @@ slug_desc() {
     preview-panel)        echo "Dynamic file preview panel (F4)";;
     progress-mirror)      echo "Mirror copy/move progress in a window";;
     search-content)       echo "Text search & replace via grep/ripgrep (F8)";;
+    terminal-tools)       echo "Run scripts in the terminal + open a terminal in a folder";;
     video-to-audio)       echo "Extract audio from videos (legacy shim, see video-tools)";;
     video-tools)          echo "Convert videos + extract audio (ffmpeg)";;
     watermark-pdf)        echo "Text/image PDF watermarking";;

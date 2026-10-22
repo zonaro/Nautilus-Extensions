@@ -100,7 +100,7 @@ coexiste com o PPA (avisa se `/usr/share/zonaro-nautilus-extensions` existir).
 curl -fsSL https://raw.githubusercontent.com/zonaro/Nautilus-Extensions/main/install.sh | bash
 
 # Local:
-./install.sh --list                              # lista os 25 slugs
+./install.sh --list                              # lista os 28 slugs
 ./install.sh --only dual-panel,edit-with         # só essas
 ./install.sh --exclude hidden-dim-all            # tudo menos essas
 ./install.sh --all --yes --no-optional           # não-interativo
@@ -130,6 +130,9 @@ ao mesmo tempo na mesma máquina.
 | 📦 **Deb Installer** | `nautilus-deb-installer` | Visual `.deb` installer with real-time output |
 | 🔎 **Search & Replace** | `nautilus-search-content` | Real text search & replace using grep/ripgrep |
 | 🎵 **Video to Audio** | `nautilus-video-to-audio` | Extract audio from videos (MP3, M4A, OGG, OPUS, FLAC, WAV) |
+| 🎬 **Video Tools** | `zonaro-nautilus-video-tools` | Convert videos + extract audio (MP3, M4A, Opus, FLAC, WAV) with batch progress |
+| 🎵 **Audio Tools** | `zonaro-nautilus-audio-tools` | Convert audio files (MP3, M4A, Opus, OGG, FLAC, WAV) with batch progress |
+| 🎬 **Media Converter** | `zonaro-nautilus-media-converter` | Shared FFmpeg/Pillow conversion core + dialogs used by the Video/Audio/Image tools |
 | ⏱️ **Duration Column** | `nautilus-duration-column` | Duration column for audio/video files |
 | ✂️ **Cut Item Dimmer** | `nautilus-cut-dim` | Visual dimming of cut (Ctrl+X) files |
 | 📊 **Progress Mirror** | `nautilus-progress-mirror` | Pop-up window mirroring long copy/move progress |
@@ -142,6 +145,7 @@ ao mesmo tempo na mesma máquina.
 | 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Annotate** editor (rectangle/ellipse/arrow/text, undo-redo, zoom) and nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash |
+| 🖥️ **Terminal Tools** | `zonaro-nautilus-terminal-tools` | Run scripts in the default terminal (with or without sudo) + open a terminal in any folder |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
 > 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**.
@@ -408,6 +412,22 @@ Both share the same engine:
 - Lightweight — minimal CPU usage
 - Smart guard against redundant opacity changes
 - Auto-detected by Dual Panel for consistent display
+
+---
+
+## 🖥️ Featured: Terminal Tools
+
+Run scripts straight from the Nautilus context menu and drop into a terminal in any folder.
+
+- **Run in terminal** — right-click a script (`.sh`, `.py`, `.pl`, `.rb`, `.php`, `.lua`) → opens the default terminal emulator and runs it
+- **Run with sudo** — same script, executed as root: the `sudo` password prompt shows up right in the terminal
+- **Open Terminal Here** — available in the folder context menu *and* in the folder background menu (right-click on empty space)
+- Uses the desktop's default terminal emulator (`xdg-terminal-exec`, GNOME's default terminal setting, or a known emulator)
+- Ships translations for **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**
+
+```bash
+./install.sh --only terminal-tools
+```
 
 ---
 

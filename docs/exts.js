@@ -78,7 +78,10 @@ en: [
   feats:["Annotate editor — rectangle, ellipse, arrow and text with undo/redo, zoom and save-as","Colorize submenu — duotone tint preserving luminance and alpha","Convert submenu — PNG, JPEG, WebP, AVIF, TIFF, BMP, ICO, 256×256 square plus Advanced… (media_core)","Remove AI Watermarks submenu — visible/invisible watermarks, C2PA metadata, video via ffmpeg, batch folders","Grayscale, invert, center crop, circle crop, resize","Vertical or horizontal combine","Text/image watermark (50% alpha, centered)","Optimize for web — always saves a new copy, never overwrites"]},
   {id:"clone-repository", name:"📥 Clone Repository",
    desc:"Clone any git repository into the current folder — paste a URL, pick from your gh repos.",
-   feats:["Background menu: Clone Repository… clones into the current folder","Auto-pastes a valid git URL from the clipboard","Autocomplete of your GitHub repos via the gh CLI (silently off when gh is missing)","ENTER or Clone runs git clone with progress plus success/error feedback","Inside a repository the clone entry hides and a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash"]}
+   feats:["Background menu: Clone Repository… clones into the current folder","Auto-pastes a valid git URL from the clipboard","Autocomplete of your GitHub repos via the gh CLI (silently off when gh is missing)","ENTER or Clone runs git clone with progress plus success/error feedback","Inside a repository the clone entry hides and a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash"]},
+   {id:"terminal-tools", name:"🖥️ Terminal Tools",
+    desc:"Run scripts in a terminal — with or without sudo — and open a terminal in any folder.",
+    feats:["Right-click a script → Run in Terminal","A sudo variant for privileged scripts","Right-click a folder (or its empty space) → Open Terminal Here","Uses your default terminal emulator"]}
 ],
 fr: [
  {id:"dual-panel", name:"🗂️ Double panneau",
@@ -114,6 +117,12 @@ fr: [
  {id:"search-content", name:"🔎 Rechercher &amp; remplacer",
   desc:"Recherche et remplacement fiables, sans indexation Tracker3. (F8)",
   feats:["grep ou ripgrep, recherche parallélisée","Filtres d'extensions, récursif, casse, regex","Aperçu rouge→vert avec cases par ligne","Confirmation + sauvegardes .bak auto"]},
+  {id:"video-tools", name:"🎬 Outils vidéo",
+   desc:"Convertissez des vidéos et extrayez l'audio depuis le menu contextuel — FFmpeg avec progression par lot.",
+   feats:["Sous-menu Outils vidéo : MP4, MKV, WebM, MOV, AVI plus Avancé…","Sous-menu Extraire l'audio : MP3, M4A, Opus, FLAC, WAV plus la boîte de dialogue complète","Conversion par lot avec progression par fichier et annulation propre","Noms de sortie non destructifs — jamais d'écrasement silencieux"]},
+  {id:"audio-tools", name:"🎵 Outils audio",
+   desc:"Convertissez des fichiers audio depuis le menu contextuel — FFmpeg avec progression par lot.",
+   feats:["Sous-menu Outils audio : MP3, M4A, Opus, OGG, FLAC, WAV plus Avancé…","Choix du format, de la qualité et de la destination dans le dialogue avancé","Conversion par lot avec progression par fichier et annulation propre","Noms de sortie non destructifs — jamais d'écrasement silencieux"]},
  {id:"video-to-audio", name:"🎵 Vidéo vers audio",
    desc:"Extraction audio par lots avec ffmpeg.",
    feats:["Sorties MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou copie de flux","Progression temps réel, statut ✓/✗ par fichier","Annulation propre du processus ffmpeg"]},
@@ -152,7 +161,10 @@ fr: [
   feats:["Éditeur Annoter — rectangle, ellipse, flèche et texte avec annuler/rétablir, zoom et enregistrement sous","Sous-menu Coloriser — teinte duotone préservant la luminance et l'alpha","Sous-menu Convertir l'image — vers PNG, JPEG (q92), WebP, ICO multi-tailles (favicon) ou PNG carré 256×256","Sous-menu Supprimer les filigranes IA — filigranes visibles/invisibles, métadonnées C2PA, vidéo via ffmpeg, dossiers par lot","Niveaux de gris, inversion, recadrage centré, cercle, redimensionnement","Combinaison verticale ou horizontale","Filigrane texte/image (alpha 50 %, centré)","Optimisation web — enregistre toujours une copie, jamais d'écrasement"]},
   {id:"clone-repository", name:"📥 Cloner le dépôt",
    desc:"Clonez n'importe quel dépôt git dans le dossier courant — collez une URL ou choisissez parmi vos dépôts gh.",
-   feats:["Menu du fond de dossier : Cloner le dépôt… clone dans le dossier courant","Colle auto une URL git valide depuis le presse-papiers","Autocomplétion de vos dépôts GitHub via la CLI gh (désactivée silencieusement sans gh)","ENTRÉE ou Cloner lance git clone avec progression et retour succès/erreur","Dans un dépôt, le clonage se cache et un sous-menu Git offre Pull/Push/Fetch/État/Journal/Commit/Branche/Stash"]}
+   feats:["Menu du fond de dossier : Cloner le dépôt… clone dans le dossier courant","Colle auto une URL git valide depuis le presse-papiers","Autocomplétion de vos dépôts GitHub via la CLI gh (désactivée silencieusement sans gh)","ENTRÉE ou Cloner lance git clone avec progression et retour succès/erreur","Dans un dépôt, le clonage se cache et un sous-menu Git offre Pull/Push/Fetch/État/Journal/Commit/Branche/Stash"]},
+  {id:"terminal-tools", name:"🖥️ Outils de terminal",
+   desc:"Exécutez des scripts dans un terminal — avec ou sans sudo — et ouvrez un terminal dans n'importe quel dossier.",
+   feats:["Clic droit sur un script → Exécuter dans le terminal","Une variante sudo pour les scripts privilégiés","Clic droit sur un dossier (ou son espace vide) → Ouvrir un terminal ici","Utilise votre émulateur de terminal par défaut"]}
 ],
 de: [
  {id:"dual-panel", name:"🗂️ Doppelpanel",
@@ -188,6 +200,12 @@ de: [
  {id:"search-content", name:"🔎 Suchen &amp; Ersetzen",
   desc:"Verlässliche Inhaltssuche ohne Tracker3-Index. (F8)",
   feats:["grep oder ripgrep, parallele Suche","Extensionsfilter, rekursiv, Case, Regex","Live-rot→grün-Vorschau mit Checkboxen pro Zeile","Bestätigungsdialog + automatische .bak-Backups"]},
+  {id:"video-tools", name:"🎬 Video-Tools",
+   desc:"Videos konvertieren und Audio direkt aus dem Kontextmenü extrahieren — FFmpeg mit Stapel-Fortschritt.",
+   feats:["Video-Tools-Untermenü: MP4, MKV, WebM, MOV, AVI plus Erweitert…","Audio-Extrahieren-Untermenü: MP3, M4A, Opus, FLAC, WAV plus vollständiger Dialog","Stapelkonvertierung mit Fortschritt pro Datei und sauberem Abbruch","Nicht-destruktive Ausgabedateien — überschreiben nie stillschweigend"]},
+  {id:"audio-tools", name:"🎵 Audio-Tools",
+   desc:"Audiodateien direkt aus dem Kontextmenü konvertieren — FFmpeg mit Stapel-Fortschritt.",
+   feats:["Audio-Tools-Untermenü: MP3, M4A, Opus, OGG, FLAC, WAV plus Erweitert…","Format-, Qualitäts- und Zielauswahl im erweiterten Dialog","Stapelkonvertierung mit Fortschritt pro Datei und sauberem Abbruch","Nicht-destruktive Ausgabedateien — überschreiben nie stillschweigend"]},
  {id:"video-to-audio", name:"🎵 Video zu Audio",
    desc:"Audio-Stapelextraktion mit ffmpeg.",
    feats:["MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps oder Stream-Copy","Echtzeit-Fortschritt mit ✓/✗ pro Datei","Sauberes Killen von ffmpeg bei Abbruch"]},
@@ -226,7 +244,10 @@ de: [
   feats:["Annotieren — Rechteck, Ellipse, Pfeil und Text mit Undo/Redo, Zoom und Speichern unter","Untermenü Einfärben — Duoton-Tönung, die Luminanz und Alpha erhält","Untermenü „Bild konvertieren“ — nach PNG, JPEG (q92), WebP, Multi-Size-ICO (Favicon) oder quadratischem 256×256-PNG","Untermenü „KI-Wasserzeichen entfernen“ — sichtbare/unsichtbare Wasserzeichen, C2PA-Metadaten, Video via ffmpeg, Stapelordner","Graustufen, Invertieren, Zentrum-Crop, Kreis, Skalieren","Vertikal oder horizontal kombinieren","Text-/Bild-Wasserzeichen (50 % Alpha, zentriert)","Web-Optimierung — speichert immer eine Kopie, überschreibt nie"]},
   {id:"clone-repository", name:"📥 Repository klonen",
    desc:"Ein beliebiges Git-Repository in den aktuellen Ordner klonen — URL einfügen oder aus gh-Repos wählen.",
-   feats:["Hintergrundmenü: Repository klonen… klont in den aktuellen Ordner","Fügt eine gültige Git-URL automatisch aus der Zwischenablage ein","Autovervollständigung der eigenen GitHub-Repos via gh-CLI (ohne gh still deaktiviert)","ENTER oder Klonen startet git clone mit Fortschritt plus Erfolgs-/Fehlermeldung","In einem Repository blendet sich Klonen aus und ein Git-Untermenü bietet Pull/Push/Fetch/Status/Verlauf/Commit/Branch/Stash"]}
+   feats:["Hintergrundmenü: Repository klonen… klont in den aktuellen Ordner","Fügt eine gültige Git-URL automatisch aus der Zwischenablage ein","Autovervollständigung der eigenen GitHub-Repos via gh-CLI (ohne gh still deaktiviert)","ENTER oder Klonen startet git clone mit Fortschritt plus Erfolgs-/Fehlermeldung","In einem Repository blendet sich Klonen aus und ein Git-Untermenü bietet Pull/Push/Fetch/Status/Verlauf/Commit/Branch/Stash"]},
+  {id:"terminal-tools", name:"🖥️ Terminal-Werkzeuge",
+   desc:"Skripte im Terminal ausführen — mit oder ohne sudo — und in jedem Ordner ein Terminal öffnen.",
+   feats:["Rechtsklick auf ein Skript → Im Terminal ausführen","Eine sudo-Variante für privilegierte Skripte","Rechtsklick auf einen Ordner (oder dessen freie Fläche) → Terminal hier öffnen","Nutzt Ihr Standard-Terminalemulator"]}
 ],
 "pt-BR": [
  {id:"dual-panel", name:"🗂️ Painel duplo",
@@ -262,6 +283,12 @@ de: [
  {id:"search-content", name:"🔎 Buscar &amp; substituir",
   desc:"Busca e substituição confiáveis, sem indexação Tracker3. (F8)",
   feats:["grep ou ripgrep, busca paralelizada","Filtros de extensão, recursivo, caixa, regex","Prévia vermelho→verde com caixas por linha","Confirmação + backups .bak automáticos"]},
+  {id:"video-tools", name:"🎬 Ferramentas de vídeo",
+   desc:"Converta vídeos e extraia o áudio pelo menu de contexto — FFmpeg com progresso em lote.",
+   feats:["Submenu Ferramentas de vídeo: MP4, MKV, WebM, MOV, AVI e Avançado…","Submenu Extrair áudio: MP3, M4A, Opus, FLAC, WAV e o diálogo completo","Conversão em lote com progresso por arquivo e cancelamento limpo","Nomes de saída não destrutivos — nunca sobrescrevem em silêncio"]},
+  {id:"audio-tools", name:"🎵 Ferramentas de áudio",
+   desc:"Converta arquivos de áudio pelo menu de contexto — FFmpeg com progresso em lote.",
+   feats:["Submenu Ferramentas de áudio: MP3, M4A, Opus, OGG, FLAC, WAV e Avançado…","Escolha de formato, qualidade e destino no diálogo avançado","Conversão em lote com progresso por arquivo e cancelamento limpo","Nomes de saída não destrutivos — nunca sobrescrevem em silêncio"]},
  {id:"video-to-audio", name:"🎵 Vídeo para áudio",
    desc:"Extração de áudio em lote com ffmpeg.",
    feats:["Saídas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps ou cópia de stream","Progresso ao vivo, status ✓/✗ por arquivo","Cancela matando o ffmpeg de forma limpa"]},
@@ -300,7 +327,10 @@ de: [
   feats:["Editor Anotar — retângulo, elipse, seta e texto com desfazer/refazer, zoom e salvar como","Submenu Colorir — tingimento duotone preservando luminância e alfa","Submenu Converter imagem — para PNG, JPEG (q92), WebP, ICO multirresolução (favicon) ou PNG quadrado 256×256","Submenu Remover marcas d'água de IA — marcas visíveis/invisíveis, metadados C2PA, vídeo via ffmpeg, pastas em lote","Escala de cinza, inverter, recorte central, círculo, redimensionar","Combinar na vertical ou na horizontal","Marca d'água de texto/imagem (alfa 50 %, centralizada)","Otimizar para web — sempre salva cópia, nunca sobrescreve"]},
   {id:"clone-repository", name:"📥 Clonar repositório",
    desc:"Clone qualquer repositório git na pasta atual — cole a URL ou escolha entre seus repos do gh.",
-   feats:["Menu do fundo da pasta: Clonar repositório… clona na pasta atual","Cola auto uma URL git válida da área de transferência","Autocompletar dos seus repos do GitHub via CLI gh (desligado em silêncio sem gh)","ENTER ou Clonar roda git clone com progresso e retorno de sucesso/erro","Dentro de um repositório o clonar se esconde e um submenu Git oferece Pull/Push/Fetch/Status/Histórico/Commit/Branch/Stash"]}
+   feats:["Menu do fundo da pasta: Clonar repositório… clona na pasta atual","Cola auto uma URL git válida da área de transferência","Autocompletar dos seus repos do GitHub via CLI gh (desligado em silêncio sem gh)","ENTER ou Clonar roda git clone com progresso e retorno de sucesso/erro","Dentro de um repositório o clonar se esconde e um submenu Git oferece Pull/Push/Fetch/Status/Histórico/Commit/Branch/Stash"]},
+  {id:"terminal-tools", name:"🖥️ Ferramentas de terminal",
+   desc:"Execute scripts num terminal — com ou sem sudo — e abra um terminal em qualquer pasta.",
+   feats:["Clique direito em um script → Executar no terminal","Uma variante com sudo para scripts privilegiados","Clique direito em uma pasta (ou no espaço vazio) → Abrir terminal aqui","Usa o seu emulador de terminal padrão"]}
 ],
 es: [
  {id:"dual-panel", name:"🗂️ Panel doble",
@@ -336,6 +366,12 @@ es: [
  {id:"search-content", name:"🔎 Buscar &amp; reemplazar",
   desc:"Búsqueda y reemplazo fiables, sin índice Tracker3. (F8)",
   feats:["grep o ripgrep, búsqueda paralelizada","Filtros de extensión, recursivo, caja, regex","Vista rojo→verde con casillas por línea","Confirmación + copias .bak automáticas"]},
+  {id:"video-tools", name:"🎬 Herramientas de vídeo",
+   desc:"Convierte vídeos y extrae el audio desde el menú contextual — FFmpeg con progreso por lotes.",
+   feats:["Submenú Herramientas de vídeo: MP4, MKV, WebM, MOV, AVI y Avanzado…","Submenú Extraer audio: MP3, M4A, Opus, FLAC, WAV y el diálogo completo","Conversión por lotes con progreso por archivo y cancelación limpia","Nombres de salida no destructivos — nunca sobrescribe en silencio"]},
+  {id:"audio-tools", name:"🎵 Herramientas de audio",
+   desc:"Convierte archivos de audio desde el menú contextual — FFmpeg con progreso por lotes.",
+   feats:["Submenú Herramientas de audio: MP3, M4A, Opus, OGG, FLAC, WAV y Avanzado…","Elección de formato, calidad y destino en el diálogo avanzado","Conversión por lotes con progreso por archivo y cancelación limpia","Nombres de salida no destructivos — nunca sobrescribe en silencio"]},
  {id:"video-to-audio", name:"🎵 Vídeo a audio",
    desc:"Extracción de audio por lotes con ffmpeg.",
    feats:["Salidas MP3, M4A, OGG, OPUS, FLAC, WAV","320/192/128 kbps o copia de stream","Progreso en vivo, estado ✓/✗ por archivo","Cancela matando ffmpeg limpiamente"]},
@@ -374,7 +410,10 @@ es: [
   feats:["Editor Anotar — rectángulo, elipse, flecha y texto con deshacer/rehacer, zoom y guardar como","Submenú Colorear — tinte duotono que preserva luminancia y alfa","Submenú Convertir imagen — a PNG, JPEG (q92), WebP, ICO multirresolución (favicon) o PNG cuadrado 256×256","Submenú Eliminar marcas de agua de IA — marcas visibles/invisibles, metadatos C2PA, vídeo vía ffmpeg, carpetas por lotes","Escala de grises, invertir, recorte central, círculo, redimensionar","Combinar vertical u horizontalmente","Marca de agua texto/imagen (alfa 50 %, centrada)","Optimizar para web — siempre guarda copia, nunca sobrescribe"]},
   {id:"clone-repository", name:"📥 Clonar repositorio",
    desc:"Clona cualquier repositorio git en la carpeta actual — pega la URL o elige entre tus repos de gh.",
-   feats:["Menú del fondo de la carpeta: Clonar repositorio… clona en la carpeta actual","Pega auto una URL git válida del portapapeles","Autocompletado de tus repos de GitHub vía la CLI gh (desactivado en silencio sin gh)","ENTER o Clonar ejecuta git clone con progreso y aviso de éxito/error","Dentro de un repositorio el clonado se oculta y un submenú Git ofrece Pull/Push/Fetch/Estado/Historial/Commit/Rama/Stash"]}
+   feats:["Menú del fondo de la carpeta: Clonar repositorio… clona en la carpeta actual","Pega auto una URL git válida del portapapeles","Autocompletado de tus repos de GitHub vía la CLI gh (desactivado en silencio sin gh)","ENTER o Clonar ejecuta git clone con progreso y aviso de éxito/error","Dentro de un repositorio el clonado se oculta y un submenú Git ofrece Pull/Push/Fetch/Estado/Historial/Commit/Rama/Stash"]},
+  {id:"terminal-tools", name:"🖥️ Herramientas de terminal",
+   desc:"Ejecuta scripts en una terminal — con o sin sudo — y abre una terminal en cualquier carpeta.",
+   feats:["Clic derecho en un script → Ejecutar en la terminal","Una variante con sudo para scripts privilegiados","Clic derecho en una carpeta (o en su espacio vacío) → Abrir terminal aquí","Usa tu emulador de terminal predeterminado"]}
 ]
 };
 
@@ -393,7 +432,7 @@ const EXT_PKG = {
   "hidden-dim": "zonaro-nautilus-hidden-dim-icon | -all",
   "paste-into-file": "zonaro-nautilus-paste-into-file", "file-tools": "zonaro-nautilus-file-tools",
   "dev-tools-minify": "zonaro-nautilus-dev-tools-minify", "image-tools": "zonaro-nautilus-image-tools",
-  "clone-repository": "zonaro-nautilus-clone-repository"
+  "clone-repository": "zonaro-nautilus-clone-repository", "terminal-tools": "zonaro-nautilus-terminal-tools"
 };
 /* IDs with a hand-built static showcase in index.html — skipped by the dynamic renderer. */
 const STATIC_IDS = new Set(["dual-panel", "search-content", "video-to-audio", "deb-installer", "archive-browser"]);
@@ -412,7 +451,7 @@ const EXT_FILE = {
   "hidden-dim": "hidden-dim-icon.py + hidden-dim-all.py",
   "paste-into-file": "paste-into-file.py", "file-tools": "file-tools.py",
   "dev-tools-minify": "dev-tools-minify.py", "image-tools": "image-tools.py",
-  "clone-repository": "clone-repository.py"
+  "clone-repository": "clone-repository.py", "terminal-tools": "terminal-tools.py"
 };
 
 function escName(name) {
