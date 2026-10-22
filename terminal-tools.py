@@ -215,55 +215,38 @@ def _is_script(path):
 # Terminal detection
 # ---------------------------------------------------------------------------
 
-# Flags that separate a terminal binary from the command line. The table is
-# keyed by the terminal name and used for both the PATH probe and the desktop
-# entry scan, so a terminal only needs to be described once.
-EXEC_FLAGS = {
-    "kgx":             ("--",),
-    "gnome-terminal":  ("--",),
-    "ptyxis":          ("--",),
-    "konsole":         ("-e",),
-    "xfce4-terminal":  ("-x",),
-    "alacritty":       ("-e",),
-    "kitty":           (),
-    "wezterm":         ("start", "--"),
-    "foot":            (),
-    "tilix":           ("-e",),
-    "terminator":      ("-x",),
-    "mate-terminal":   ("-x",),
-    "urxvt":           ("-e",),
-    "qterminal":       ("-e",),
-    "lxterminal":      ("-e",),
-    "sakura":          ("-e",),
-    "deepin-terminal": ("-e",),
-    "st":              ("-e",),
-    "xterm":           ("-e",),
-    "x-terminal-emulator": ("-e",),
-    "onyxsh":          ("--execute",),
+# How to drive the terminals we know. Every entry is a tuple of
+#
+#   (working directory option, command option, command style)
+#
+# * the working directory option tells the terminal where to start; it is
+#   None for terminals that cannot be told, and then the command itself
+#   enters the folder;
+# * the command option introduces the command ("--", "-e", "--execute") and
+#   is None for terminals that take the command without any flag;
+# * the command style is "argv" when the terminal receives the command as
+#   separate arguments, and "line" when it joins the arguments into a single
+#   shell line that it types into the terminal — OnyxSH does that, and the
+#   quoting is lost on the way, so the command has to be a ready to type
+#   line instead of an argument vector.
+TERMINAL_SPECS = {
+    "gnome-terminal":  ("--working-directory=", "--", "argv"),
+    "konsole":         ("--workdir", "-e", "argv"),
+    "xfce4-terminal":  ("--working-directory=", "-x", "argv"),
+    "alacritty":       ("--working-directory=", "-e", "argv"),
+    "kitty":           ("--directory", None, "argv"),
+    "foot":            ("--working-directory=", None, "argv"),
+    "tilix":           ("--working-directory=", "-e", "argv"),
+    "terminator":      (None, "-x", "argv"),
+    "urxvt":           ("-cd", "-e", "argv"),
+    "qterminal":       ("--workdir", "-e", "argv"),
+    "lxterminal":      ("--working-directory=", "-e", "argv"),
+    "sakura":          ("--working-directory=", "-e", "argv"),
+    "deepin-terminal": ("--workdir", "-e", "argv"),
+    "xterm":           (None, "-e", "argv"),
+    "st":              (None, "-e", "argv"),
+    "onyxsh":          ("--working-directory", "--execute", "line"),
 }
-
-# Terminals we know how to drive, in preference order.
-KNOWN_TERMINALS = (
-    "kgx",
-    "gnome-terminal",
-    "konsole",
-    "xfce4-terminal",
-    "alacritty",
-    "kitty",
-    "wezterm",
-    "foot",
-    "tilix",
-    "terminator",
-    "mate-terminal",
-    "urxvt",
-    "qterminal",
-    "lxterminal",
-    "sakura",
-    "deepin-terminal",
-    "st",
-    "xterm",
-    "x-terminal-emulator",
-)
 
 # Desktop directories scanned for terminal emulators. The flatpak and snap
 # exports matter: those terminals are not on PATH.
@@ -284,9 +267,8 @@ _EXEC_FLAG_HINTS = ("--execute", "--exec", "--command")
 def _gsettings_string(schema, key):
     """Read a string key from GSettings, or "" when the schema is missing."""
     try:
-        if Gio.SettingsSchemaSource.get_default() is None:
-            return ""
-        if Gio.SettingsSchemaSource.get_default().lookup(schema, True) is None:
+        source = Gio.SettingsSchemaSource.get_default()
+        if source is None or source.lookup(schema, True) is None:
             return ""
         return Gio.Settings.new(schema).get_string(key) or ""
     except Exception:
@@ -327,8 +309,8 @@ def _exec_tokens(exec_line):
         return []
 
 
-def _terminal_name(tokens, path):
-    """Guess the terminal name from its desktop entry and Exec line."""
+def _terminal_name(tokens, path=""):
+    """Guess the terminal name from its Exec line and desktop entry."""
     candidates = []
     for token in tokens:
         if token.startswith("--command="):
@@ -341,13 +323,13 @@ def _terminal_name(tokens, path):
             candidates.append(app_id.rsplit(".", 1)[1])
     for candidate in candidates:
         name = os.path.basename(candidate).lower()
-        if name in EXEC_FLAGS:
+        if name in TERMINAL_SPECS:
             return name
     return ""
 
 
-def _probe_exec_flags(tokens):
-    """Ask a terminal for its help text and look for an execute flag."""
+def _probe_exec_flag(tokens):
+    """Ask a terminal for its help text and look for a command flag."""
     try:
         proc = subprocess.run(
             tokens + ["--help"],
@@ -356,91 +338,12 @@ def _probe_exec_flags(tokens):
             timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
-        return ()
+        return ""
     text = proc.stdout.decode("utf-8", "replace") if proc.stdout else ""
     for flag in _EXEC_FLAG_HINTS:
         if re.search(r"(?m)^\s*%s\b" % re.escape(flag), text):
-            return (flag,)
-    return ()
-
-
-def _desktop_terminal_candidates():
-    """Return the argv prefixes of the terminals registered on the desktop."""
-    candidates = []
-    for directory in DESKTOP_DIRS:
-        path = os.path.expanduser(directory)
-        if not os.path.isdir(path):
-            continue
-        try:
-            entries = sorted(os.listdir(path))
-        except OSError:
-            continue
-        for entry in entries:
-            if not entry.endswith(".desktop"):
-                continue
-            full = os.path.join(path, entry)
-            fields = _parse_desktop_entry(full)
-            if "TerminalEmulator" not in fields.get("Categories", "").split(";"):
-                continue
-            tokens = _exec_tokens(fields.get("Exec", ""))
-            if not tokens:
-                continue
-            resolved = _resolve_binary(tokens[0])
-            if not resolved:
-                continue
-            name = _terminal_name(tokens, full)
-            if name:
-                flags = EXEC_FLAGS[name]
-            elif fields.get("TerminalExecArg"):
-                flags = (fields["TerminalExecArg"],)
-            else:
-                flags = _probe_exec_flags(tokens)
-            candidates.append([resolved] + tokens[1:] + list(flags))
-    return candidates
-
-
-def _resolve_terminal_candidates():
-    """Return the ordered argv prefixes that may launch a terminal.
-
-    The desktop's own idea of the default terminal comes first, then the
-    freedesktop launcher, then the terminals we know, and finally the ones
-    that are only registered as desktop applications (flatpak, snap).
-    """
-    candidates = []
-
-    # 1. The terminal application the desktop declares as the default.
-    exec_path = _gsettings_string(
-        "org.gnome.desktop.default-applications.terminal", "exec")
-    exec_arg = _gsettings_string(
-        "org.gnome.desktop.default-applications.terminal", "exec-arg")
-    prefix = _resolve_exec(exec_path)
-    if prefix:
-        if exec_arg:
-            prefix.append(exec_arg)
-        candidates.append(prefix)
-
-    # 2. The classic GNOME default-terminal key.
-    name = _gsettings_string("org.gnome.desktop.preferences", "default-terminal")
-    resolved = _resolve_binary(name)
-    if resolved:
-        flags = EXEC_FLAGS.get(os.path.basename(name).lower(), ("--",))
-        candidates.append([resolved] + list(flags))
-
-    # 3. The freedesktop launcher, which honours the user's default.
-    resolved = _resolve_binary("xdg-terminal-exec")
-    if resolved:
-        candidates.append([resolved, "--"])
-
-    # 4. Terminal emulators installed on PATH.
-    for terminal in KNOWN_TERMINALS:
-        resolved = _resolve_binary(terminal)
-        if resolved:
-            candidates.append([resolved] + list(EXEC_FLAGS[terminal]))
-
-    # 5. Terminal emulators known only to the desktop.
-    candidates.extend(_desktop_terminal_candidates())
-
-    return candidates
+            return flag
+    return ""
 
 
 def _resolve_binary(name):
@@ -472,11 +375,109 @@ def _resolve_exec(command):
     return [resolved] + parts[1:]
 
 
+def _descriptor(argv, workdir, exec_option, style):
+    """Build a terminal descriptor."""
+    return {
+        "argv": list(argv),
+        "workdir": workdir,
+        "exec": exec_option,
+        "style": style,
+    }
+
+
+def _desktop_terminal_candidates():
+    """Return the descriptors of the terminals registered on the desktop."""
+    candidates = []
+    for directory in DESKTOP_DIRS:
+        path = os.path.expanduser(directory)
+        if not os.path.isdir(path):
+            continue
+        try:
+            entries = sorted(os.listdir(path))
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.endswith(".desktop"):
+                continue
+            full = os.path.join(path, entry)
+            fields = _parse_desktop_entry(full)
+            if "TerminalEmulator" not in fields.get("Categories", "").split(";"):
+                continue
+            tokens = _exec_tokens(fields.get("Exec", ""))
+            if not tokens:
+                continue
+            resolved = _resolve_binary(tokens[0])
+            if not resolved:
+                continue
+            name = _terminal_name(tokens, full)
+            spec = TERMINAL_SPECS.get(name)
+            if spec:
+                candidates.append(
+                    _descriptor([resolved] + tokens[1:], spec[0], spec[1], spec[2]))
+                continue
+            exec_option = fields.get("TerminalExecArg")
+            if not exec_option:
+                exec_option = _probe_exec_flag(tokens)
+            if not exec_option:
+                continue
+            candidates.append(
+                _descriptor([resolved] + tokens[1:], None, exec_option, "argv"))
+    return candidates
+
+
+def _resolve_terminal_candidates():
+    """Return the ordered descriptors that may launch a terminal.
+
+    The desktop's own idea of the default terminal comes first, then the
+    freedesktop launcher, then the terminals we know, and finally the ones
+    that are only registered as desktop applications (flatpak, snap).
+    """
+    candidates = []
+
+    # 1. The terminal application the desktop declares as the default.
+    exec_path = _gsettings_string(
+        "org.gnome.desktop.default-applications.terminal", "exec")
+    exec_arg = _gsettings_string(
+        "org.gnome.desktop.default-applications.terminal", "exec-arg")
+    prefix = _resolve_exec(exec_path)
+    if prefix:
+        spec = TERMINAL_SPECS.get(_terminal_name(prefix))
+        if spec:
+            candidates.append(
+                _descriptor(prefix, spec[0], spec[1], spec[2]))
+        elif exec_arg:
+            candidates.append(_descriptor(prefix, None, exec_arg, "argv"))
+
+    # 2. The classic GNOME default-terminal key.
+    name = _gsettings_string("org.gnome.desktop.preferences", "default-terminal")
+    resolved = _resolve_binary(name)
+    if resolved:
+        spec = TERMINAL_SPECS.get(os.path.basename(name).lower())
+        if spec:
+            candidates.append(_descriptor([resolved], spec[0], spec[1], spec[2]))
+
+    # 3. The freedesktop launcher, which honours the user's default.
+    resolved = _resolve_binary("xdg-terminal-exec")
+    if resolved:
+        candidates.append(_descriptor([resolved, "--"], None, None, "argv"))
+
+    # 4. Terminal emulators installed on PATH.
+    for name, spec in TERMINAL_SPECS.items():
+        resolved = _resolve_binary(name)
+        if resolved:
+            candidates.append(_descriptor([resolved], spec[0], spec[1], spec[2]))
+
+    # 5. Terminal emulators known only to the desktop.
+    candidates.extend(_desktop_terminal_candidates())
+
+    return candidates
+
+
 _TERMINAL_CACHE = []
 
 
 def _terminal_candidates():
-    """Return the cached terminal candidates.
+    """Return the cached terminal descriptors.
 
     An empty result is not cached, so installing a terminal emulator does
     not require a Nautilus restart.
@@ -499,6 +500,22 @@ def _shell():
     return shutil.which("bash") or shutil.which("sh") or "/bin/sh"
 
 
+def _option_args(option, value):
+    """Return the tokens that pass *value* to *option*."""
+    if option is None:
+        return []
+    if option.endswith("="):
+        return [option + value]
+    return [option, value]
+
+
+def _exec_args(option, *args):
+    """Return the tokens that pass the command to *option*."""
+    if option is None:
+        return list(args)
+    return [option] + list(args)
+
+
 def _build_run_script(commands):
     """Build the shell snippet that runs *commands* and keeps the window open."""
     lines = list(commands)
@@ -511,28 +528,81 @@ def _build_run_script(commands):
     return "\n".join(lines)
 
 
-def _build_open_script(workdir):
-    """Build the shell snippet that opens a shell inside *workdir*."""
-    return "cd %s || exit 1\nexec \"${SHELL:-/bin/bash}\"" % shlex.quote(workdir)
+def _open_argv(descriptor, folder):
+    """Return the argv that opens a clean shell inside *folder*.
 
-
-def _launch(script):
-    """Run a shell script inside the user's terminal.
-
-    Returns True when a terminal accepted the command.
+    When the terminal knows how to start in a folder, no command is typed
+    into it at all: the shell comes up clean, on the right directory.
     """
-    shell = _shell()
-    for prefix in _terminal_candidates():
-        argv = list(prefix) + [shell, "-c", script]
-        try:
-            subprocess.Popen(
-                argv,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            continue
-        return True
+    argv = list(descriptor["argv"])
+    workdir = _option_args(descriptor["workdir"], folder)
+    if workdir:
+        return argv + workdir
+    if descriptor["style"] == "line":
+        line = 'cd %s && exec "${SHELL:-/bin/bash}"' % shlex.quote(folder)
+        return argv + _exec_args(descriptor["exec"], line)
+    script = 'cd %s || exit 1\nexec "${SHELL:-/bin/bash}"' % shlex.quote(folder)
+    return argv + _exec_args(descriptor["exec"], _shell(), "-c", script)
+
+
+def _run_argv(descriptor, scripts, sudo=False):
+    """Return the argv that runs every script of *scripts* in the terminal."""
+    commands = []
+    for script in scripts:
+        command = _script_argv(script)
+        if sudo:
+            command = ["sudo"] + command
+        commands.append((os.path.dirname(script), command))
+
+    argv = list(descriptor["argv"])
+    workdir = _option_args(descriptor["workdir"], commands[0][0])
+    start = commands[0][0] if workdir else None
+
+    if descriptor["style"] == "line":
+        parts = []
+        for directory, command in commands:
+            text = " ".join(shlex.quote(part) for part in command)
+            if directory != start:
+                text = "cd %s && %s" % (shlex.quote(directory), text)
+            parts.append(text)
+        line = "%s; echo %s\"$?\"" % (
+            "; ".join(parts), shlex.quote(T["exit_code"] + ": "))
+        return argv + workdir + _exec_args(descriptor["exec"], line)
+
+    lines = []
+    for directory, command in commands:
+        text = " ".join(shlex.quote(part) for part in command)
+        lines.append("cd %s && %s" % (shlex.quote(directory), text))
+    script = _build_run_script(lines)
+    return argv + workdir + _exec_args(descriptor["exec"], _shell(), "-c", script)
+
+
+def _spawn(argv):
+    """Start *argv*, returning True when the process was launched."""
+    try:
+        subprocess.Popen(
+            argv,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    return True
+
+
+def _launch_open(folder):
+    """Open the default terminal with a clean shell in *folder*."""
+    for descriptor in _terminal_candidates():
+        if _spawn(_open_argv(descriptor, folder)):
+            return True
+    return False
+
+
+def _launch_run(scripts, sudo=False):
+    """Open the default terminal and run every script of *scripts*."""
+    for descriptor in _terminal_candidates():
+        if _spawn(_run_argv(descriptor, scripts, sudo)):
+            return True
     return False
 
 
@@ -589,7 +659,10 @@ class TerminalToolsExtension(GObject.GObject, Nautilus.MenuProvider):
     def get_background_items(self, folder):
         if folder is None:
             return []
-        path = folder.get_location().get_path()
+        location = folder.get_location()
+        if location is None:
+            return []
+        path = location.get_path()
         if not path:
             return []
         return [self._make_open_item([path])]
@@ -632,21 +705,11 @@ class TerminalToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         if sudo and not shutil.which("sudo"):
             _notify(T["err_no_sudo"])
             return
-
-        commands = []
-        for script in scripts:
-            argv = _script_argv(script)
-            if sudo:
-                argv = ["sudo"] + argv
-            command = " ".join(shlex.quote(part) for part in argv)
-            directory = os.path.dirname(script)
-            commands.append("cd %s && %s" % (shlex.quote(directory), command))
-
-        if not _launch(_build_run_script(commands)):
+        if not _launch_run(scripts, sudo):
             _notify(T["err_no_terminal"])
 
     def _on_open(self, _item, folders):
         for folder in folders:
-            if not _launch(_build_open_script(folder)):
+            if not _launch_open(folder):
                 _notify(T["err_no_terminal"])
                 return

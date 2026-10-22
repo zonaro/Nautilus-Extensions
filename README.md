@@ -422,7 +422,8 @@ Run scripts straight from the Nautilus context menu and drop into a terminal in 
 - **Run in terminal** — right-click a script (`.sh`, `.py`, `.pl`, `.rb`, `.php`, `.lua`) → opens the default terminal emulator and runs it
 - **Run with sudo** — same script, executed as root: the `sudo` password prompt shows up right in the terminal
 - **Open Terminal Here** — available in the folder context menu *and* in the folder background menu (right-click on empty space)
-- Uses the desktop's default terminal emulator (`xdg-terminal-exec`, GNOME's default terminal setting, or a known emulator)
+- The terminal opens **in the selected folder** and **clean** — no leftover commands on the screen
+- Uses the desktop's default terminal emulator (`xdg-terminal-exec`, GNOME's default terminal setting, or a known emulator), each one driven the way it expects (`--working-directory`, `--`, `-e`, …)
 - Ships translations for **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**
 
 ```bash

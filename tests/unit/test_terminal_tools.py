@@ -98,21 +98,131 @@ def test_run_script_keeps_the_window_open_and_reports_the_exit_code():
     assert tt.T["exit_code"] in script
 
 
-def test_open_script_enters_the_folder_and_starts_a_shell():
-    script = tt._build_open_script("/home/user/My Folder")
+def test_option_args_handles_both_option_shapes():
+    assert tt._option_args("--working-directory=", "/tmp") == ["--working-directory=/tmp"]
+    assert tt._option_args("--working-directory", "/tmp") == ["--working-directory", "/tmp"]
+    assert tt._option_args(None, "/tmp") == []
+
+
+# ---------------------------------------------------------------------------
+# Terminal descriptors
+# ---------------------------------------------------------------------------
+
+def test_terminal_specs_are_well_formed():
+    for name, spec in tt.TERMINAL_SPECS.items():
+        workdir, exec_option, style = spec
+        assert style in ("argv", "line"), name
+        assert workdir is None or isinstance(workdir, str), name
+        assert exec_option is None or isinstance(exec_option, str), name
+
+
+def test_onyxsh_uses_its_native_workdir_option_and_the_line_style():
+    # OnyxSH joins the --execute arguments into a single shell line, so the
+    # command has to be a ready to type line and the working directory has
+    # to be given by the terminal itself.
+    workdir, exec_option, style = tt.TERMINAL_SPECS["onyxsh"]
+    assert workdir == "--working-directory"
+    assert exec_option == "--execute"
+    assert style == "line"
+
+
+# ---------------------------------------------------------------------------
+# Opening a terminal
+# ---------------------------------------------------------------------------
+
+def test_open_argv_uses_the_terminal_workdir_and_types_no_command():
+    descriptor = tt._descriptor(["gnome-terminal"], "--working-directory=", "--", "argv")
+    argv = tt._open_argv(descriptor, "/home/user/My Folder")
+    assert argv == ["gnome-terminal", "--working-directory=/home/user/My Folder"]
+    # No command is typed into the terminal: the shell comes up clean.
+    assert "--" not in argv
+
+
+def test_open_argv_falls_back_to_a_shell_wrapper_without_a_workdir_option():
+    descriptor = tt._descriptor(["xterm"], None, "-e", "argv")
+    argv = tt._open_argv(descriptor, "/home/user/My Folder")
+    assert argv[:2] == ["xterm", "-e"]
+    script = argv[-1]
     assert script.startswith("cd '/home/user/My Folder' || exit 1")
     assert 'exec "${SHELL:-/bin/bash}"' in script
 
 
-def test_generated_scripts_are_valid_shell():
-    for script in (tt._build_run_script(["true"]), tt._build_open_script("/tmp")):
-        proc = subprocess.run(["bash", "-n"], input=script, text=True,
+def test_open_argv_for_a_line_terminal_types_nothing_when_it_can_set_the_folder():
+    descriptor = tt._descriptor(["onyxsh"], "--working-directory", "--execute", "line")
+    argv = tt._open_argv(descriptor, "/tmp")
+    assert argv == ["onyxsh", "--working-directory", "/tmp"]
+
+
+def test_open_argv_for_a_line_terminal_without_a_workdir_option():
+    descriptor = tt._descriptor(["onyxsh"], None, "--execute", "line")
+    argv = tt._open_argv(descriptor, "/tmp/a b")
+    assert argv[:2] == ["onyxsh", "--execute"]
+    assert argv[2] == "cd '/tmp/a b' && exec \"${SHELL:-/bin/bash}\""
+
+
+# ---------------------------------------------------------------------------
+# Running scripts
+# ---------------------------------------------------------------------------
+
+def test_run_argv_for_a_line_terminal_keeps_the_quoting():
+    descriptor = tt._descriptor(["onyxsh"], "--working-directory", "--execute", "line")
+    argv = tt._run_argv(descriptor, ["/tmp/a b/run.sh"])
+    assert argv[:4] == ["onyxsh", "--working-directory", "/tmp/a b", "--execute"]
+    line = argv[4]
+    assert line.startswith("bash '/tmp/a b/run.sh'")
+    assert "$?" in line
+
+
+def test_run_argv_for_a_line_terminal_prefixes_sudo():
+    descriptor = tt._descriptor(["onyxsh"], "--working-directory", "--execute", "line")
+    line = tt._run_argv(descriptor, ["/tmp/a b/run.sh"], sudo=True)[-1]
+    assert line.startswith("sudo bash '/tmp/a b/run.sh'")
+
+
+def test_run_argv_for_an_argv_terminal_uses_a_shell_script():
+    descriptor = tt._descriptor(["gnome-terminal"], None, "--", "argv")
+    argv = tt._run_argv(descriptor, ["/tmp/run.sh"])
+    assert argv[0] == "gnome-terminal"
+    assert argv[1] == "--"
+    assert argv[2] == tt._shell()
+    assert argv[3] == "-c"
+    script = argv[4]
+    assert "cd /tmp && bash /tmp/run.sh" in script
+    # The window has to survive the script, so the shell waits for Enter.
+    assert "read -r _" in script
+
+
+def test_run_argv_for_an_argv_terminal_with_a_workdir_option():
+    descriptor = tt._descriptor(["gnome-terminal"], "--working-directory=", "--", "argv")
+    argv = tt._run_argv(descriptor, ["/tmp/run.sh"])
+    assert argv[1] == "--working-directory=/tmp"
+
+
+def test_run_argv_runs_every_script_of_the_selection():
+    descriptor = tt._descriptor(["onyxsh"], "--working-directory", "--execute", "line")
+    line = tt._run_argv(descriptor, ["/a/one.sh", "/b/two.sh"])[-1]
+    assert "bash /a/one.sh" in line
+    assert "cd /b && bash /b/two.sh" in line
+
+
+def test_generated_commands_are_valid_shell():
+    line_descriptor = tt._descriptor(["onyxsh"], None, "--execute", "line")
+    argv_descriptor = tt._descriptor(["xterm"], None, "-e", "argv")
+    snippets = [
+        tt._open_argv(line_descriptor, "/tmp")[2],
+        tt._run_argv(line_descriptor, ["/tmp/a b/run.sh"])[2],
+        tt._open_argv(argv_descriptor, "/tmp")[-1],
+        tt._run_argv(argv_descriptor, ["/tmp/run.sh"])[-1],
+    ]
+    for snippet in snippets:
+        proc = subprocess.run(["bash", "-n"], input=snippet, text=True,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         assert proc.returncode == 0, proc.stdout
 
 
 def test_paths_with_spaces_are_quoted():
-    script = tt._build_open_script("/tmp/a b/c")
+    descriptor = tt._descriptor(["xterm"], None, "-e", "argv")
+    script = tt._open_argv(descriptor, "/tmp/a b/c")[-1]
     assert "'/tmp/a b/c'" in script
 
 
@@ -156,12 +266,15 @@ def test_terminal_name_is_guessed_from_the_exec_line(tmp_path):
 # Terminal discovery
 # ---------------------------------------------------------------------------
 
-def test_terminal_candidates_are_resolvable_prefixes():
+def test_terminal_candidates_are_resolvable_descriptors():
     candidates = tt._terminal_candidates()
     assert isinstance(candidates, list)
-    for prefix in candidates:
-        assert prefix
-        assert all(isinstance(part, str) for part in prefix)
+    for descriptor in candidates:
+        assert descriptor["argv"]
+        assert all(isinstance(part, str) for part in descriptor["argv"])
+        assert descriptor["style"] in ("argv", "line")
+        assert descriptor["workdir"] is None or isinstance(descriptor["workdir"], str)
+        assert descriptor["exec"] is None or isinstance(descriptor["exec"], str)
 
 
 def test_gsettings_string_survives_a_missing_schema():
