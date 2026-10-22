@@ -60,6 +60,33 @@ except Exception as e:
     log.warning(f"name_to_color unavailable, custom colors disabled: {e}")
     _CUSTOM_COLOR_AVAILABLE = False
 
+# ---------------------------------------------------------------------------
+# Folder icon editor — layered composer (images, text, emblems) drawn over
+# the themed folder icon. Optional module: when it is missing the extension
+# keeps working with the plain colour picker only.
+# ---------------------------------------------------------------------------
+try:
+    from folder_icon_editor import (
+        compose_layers,
+        default_layer,
+        detect_icon_for_folder,
+        normalize_layers,
+        open_editor,
+    )
+    _ICON_EDITOR_AVAILABLE = True
+except Exception as e:
+    log.warning(f"folder_icon_editor unavailable, icon editor disabled: {e}")
+    _ICON_EDITOR_AVAILABLE = False
+
+    def normalize_layers(raw):
+        """Fallback when folder_icon_editor is missing: no layers at all."""
+        return []
+
+    compose_layers = None
+    default_layer = None
+    detect_icon_for_folder = None
+    open_editor = None
+
 # Disk cache for generated folder icons. One deterministic file per color,
 # so Nautilus (which keys its icon cache by URI) never serves a stale icon.
 _CUSTOM_CACHE_SUBDIR = "folder-color"
@@ -525,7 +552,11 @@ def _open_overlay(path):
 
 def _base_pil_image(spec):
     """Colored folder icon as a 256×256 PIL RGBA image (best effort)."""
-    from PIL import Image
+    try:
+        from PIL import Image
+    except Exception as e:
+        log.error(f"PIL unavailable: {e}")
+        return None
     parts = _split_color_spec(spec)
     if not parts:
         return None
@@ -553,28 +584,35 @@ def _base_pil_image(spec):
 
 
 def _compose_final(spec, state):
-    """PNG bytes (256×256): colored folder icon + transformed overlay."""
-    base = _base_pil_image(spec)
-    if base is None:
-        return None
-    canvas = base.copy()
-    opath = (state or {}).get("overlay_path")
-    if opath:
-        ov = _open_overlay(opath)
-        if ov is not None:
-            ov = _transform_overlay(
-                ov,
-                int(state.get("opacity", 100)),
-                int(state.get("scale", 100)),
-                int(state.get("rotation", 0)),
-            )
-            cx = (CANVAS_SIZE - ov.width) // 2 + int(state.get("offset_x", 0))
-            cy = (CANVAS_SIZE - ov.height) // 2 + int(state.get("offset_y", 0))
-            canvas.alpha_composite(ov, (cx, cy))
-    buf = io.BytesIO()
+    """PNG bytes (256×256): colored folder icon + the layer stack."""
     try:
-        canvas.save(buf, "PNG")
-        return buf.getvalue()
+        base = _base_pil_image(spec)
+        if base is None:
+            return None
+        if _ICON_EDITOR_AVAILABLE:
+            return compose_layers(base, normalize_layers(state))
+        # Fallback for a partial install: the legacy single-overlay state.
+        canvas = base.copy()
+        opath = (state or {}).get("overlay_path")
+        if opath:
+            ov = _open_overlay(opath)
+            if ov is not None:
+                ov = _transform_overlay(
+                    ov,
+                    int(state.get("opacity", 100)),
+                    int(state.get("scale", 100)),
+                    int(state.get("rotation", 0)),
+                )
+                cx = (CANVAS_SIZE - ov.width) // 2 + int(state.get("offset_x", 0))
+                cy = (CANVAS_SIZE - ov.height) // 2 + int(state.get("offset_y", 0))
+                canvas.alpha_composite(ov, (cx, cy))
+        buf = io.BytesIO()
+        try:
+            canvas.save(buf, "PNG")
+            return buf.getvalue()
+        except Exception as e:
+            log.error(f"compose icon: {e}")
+            return None
     except Exception as e:
         log.error(f"compose icon: {e}")
         return None
@@ -583,8 +621,12 @@ def _compose_final(spec, state):
 def _ensure_overlay_icon(spec, state):
     """Cache (and return the file:// URI of) the composed PNG icon."""
     parts = _split_color_spec(spec)
-    opath = (state or {}).get("overlay_path")
-    if not parts or not opath:
+    if not parts:
+        return ""
+    if _ICON_EDITOR_AVAILABLE:
+        if not normalize_layers(state):
+            return ""
+    elif not (state or {}).get("overlay_path"):
         return ""
     slug = "-".join(parts)
     theme = re.sub(r"[^a-z0-9-]+", "",
@@ -624,11 +666,17 @@ def _save_overlay_state(path, state):
 
 
 def _load_overlay_state(path):
+    """Saved state of a folder (dict) or None.
+
+    A corrupted/foreign file (e.g. a JSON list) must never reach the
+    callers as a non-dict — `.get()` on it would raise inside Nautilus.
+    """
     try:
         with open(_overlay_state_path(path), "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except Exception:
         return None
+    return data if isinstance(data, dict) else None
 
 
 def _clear_overlay_state(path):
@@ -636,6 +684,179 @@ def _clear_overlay_state(path):
         os.unlink(_overlay_state_path(path))
     except OSError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Current colour of a folder — the editor must open with the colour the
+# folder actually has, otherwise applying it back would repaint the folder
+# with the grey default and lose the user's colour.
+# ---------------------------------------------------------------------------
+
+def _spec_from_custom_icon(uri):
+    """Recover the colour spec from a cached custom-icon filename.
+
+    'file:///…/folder-adwaita-3366ff-f5c211.svg'          -> '3366ff;f5c211'
+    'file:///…/folder-adwaita-3366ff-f5c211-<digest>.png'  -> '3366ff;f5c211'
+    'file:///…/folder-adwaita-3366ff.svg'                  -> '3366ff'
+    Returns '' when the URI carries no recoverable hex parts.
+    """
+    if not uri:
+        return ""
+    try:
+        name = str(uri).split("?")[0].split("#")[0].rstrip("/").split("/")[-1]
+    except Exception:
+        return ""
+    if not name:
+        return ""
+    stem = name.rsplit(".", 1)[0] if "." in name else name
+    best = []
+    run = []
+    for part in stem.split("-"):
+        if len(part) == 6 and all(c in "0123456789abcdef" for c in part.lower()):
+            run.append(part.lower())
+            continue
+        if len(run) >= len(best):
+            best = run
+        run = []
+    if len(run) >= len(best):
+        best = run
+    return ";".join(best)
+
+
+def _folder_custom_attrs(path):
+    """(custom_icon_uri, custom_icon_name) of the folder; ('', '') on failure."""
+    try:
+        info = Gio.File.new_for_path(path).query_info(
+            "metadata::custom-icon,metadata::custom-icon-name", 0, None)
+        uri = info.get_attribute_as_string("metadata::custom-icon") or ""
+        name = info.get_attribute_as_string("metadata::custom-icon-name") or ""
+        return str(uri), str(name)
+    except Exception as e:
+        log.error(f"custom attrs {path}: {e}")
+        return "", ""
+
+
+def _color_name_to_hex(name):
+    """Theme colour name -> '#rrggbb' (empty when it cannot be resolved)."""
+    if not name or not _CUSTOM_COLOR_AVAILABLE:
+        return ""
+    try:
+        result = generate_color(name)
+        if isinstance(result, list):
+            result = result[0] if result else ""
+        result = str(result)[:7]
+        if len(result) == 7:
+            return result.lower()
+    except Exception as e:
+        log.error(f"builtin color resolve: {e}")
+    return ""
+
+
+def _theme_color_entry(icon_name, colors):
+    """The theme colour entry matching a themed icon name, or None."""
+    if not icon_name:
+        return None
+    entries = colors or []
+    for entry in entries:
+        try:
+            if entry.get("icon") == icon_name:
+                return entry
+        except Exception:
+            continue
+    tail = str(icon_name).rsplit("-", 1)[-1].lower()
+    for entry in entries:
+        try:
+            if str(entry.get("name", "")).lower() == tail:
+                return entry
+        except Exception:
+            continue
+    return None
+
+
+def _current_color_specs(path, colors=None):
+    """The folder's CURRENT colour.
+
+    Returns (spec, hexes):
+      spec  — 'rrggbb' or 'rrggbb;rrggbb' ('' when unknown)
+      hexes — list of '#rrggbb' (empty when unknown)
+
+    Resolution order:
+      1. the layer-state file's 'spec'
+      2. the cached custom icon filename (via _spec_from_custom_icon)
+      3. a themed colour icon (metadata::custom-icon-name)
+      4. otherwise ('', [])
+    """
+    saved = _load_overlay_state(path)
+    if isinstance(saved, dict):
+        parts = _split_color_spec(saved.get("spec") or "")
+        if parts:
+            return ";".join(parts), ["#" + part for part in parts]
+
+    uri, icon_name = _folder_custom_attrs(path)
+    parts = _split_color_spec(_spec_from_custom_icon(uri))
+    if parts:
+        return ";".join(parts), ["#" + part for part in parts]
+
+    entry = _theme_color_entry(icon_name, colors)
+    if entry is not None:
+        hex_color = _color_name_to_hex(entry.get("name", ""))
+        if hex_color:
+            return hex_color.lstrip("#"), ["#" + hex_color.lstrip("#")]
+
+    return "", []
+
+
+def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes):
+    """Apply the editor result to the folders.
+
+    Returns True when everything was applied (or there was nothing to change).
+    """
+    paths = [p for p in (paths or []) if p]
+    if not paths:
+        return True
+    spec = ";".join(str(h).lstrip("#").lower() for h in (hexes or []))
+    initial_spec = ";".join(str(h).lstrip("#").lower()
+                             for h in (initial_hexes or []))
+
+    if not layers:
+        # Nothing to change -> do not touch the folder at all. This is what
+        # keeps a folder coloured through the normal colour menu from being
+        # repainted with the editor's grey default.
+        current = _load_overlay_state(paths[0])
+        current_layers = None
+        try:
+            current_layers = normalize_layers(current) if current else []
+        except Exception as e:
+            log.error(f"normalize layers: {e}")
+        # An unknown layer state is never a no-op: applying is safer than
+        # silently dropping the layers of the folder.
+        if current_layers is not None and not current_layers \
+                and spec == initial_spec:
+            return True
+
+    ok = True
+    for path in paths:
+        try:
+            if layers:
+                state = {"spec": spec, "layers": layers}
+                if foldercolor.set_custom_overlay_color(path, spec, state):
+                    _save_overlay_state(path, state)
+                else:
+                    log.error(f"overlay color not applied: {path}")
+                    ok = False
+            else:
+                result = foldercolor.set_custom_color(path, spec)
+                if result is False:
+                    log.error(f"custom color not applied: {path}")
+                    ok = False
+                else:
+                    # Remember the colour spec so the editor opens with the
+                    # right colours next time (no layers -> plain colour icon).
+                    _save_overlay_state(path, {"spec": spec})
+        except Exception as e:
+            log.error(f"apply icon state {path}: {e}")
+            ok = False
+    return ok
 
 # ---------------------------------------------------------------------------
 # Dolphin folder colors — fallback chain:
@@ -874,9 +1095,11 @@ _lang = locale.getlocale()[0] or ""
 
 if _lang.startswith("fr"):
     _T = {
-        "Color": "Couleur",
+        "Customize…": "Personnaliser…",
+        "Customize icon…": "Personnaliser l'icône…",
+        "Detect icon…": "Détecter une icône…",
+        "Finds an icon file already inside the folder": "Recherche un fichier d'icône déjà présent dans le dossier",
         "Emblem": "Emblème",
-        "Custom color…": "Couleur personnalisée…",
         "Black": "Noir",
         "Blue": "Bleu",
         "Brown": "Marron",
@@ -901,28 +1124,51 @@ if _lang.startswith("fr"):
         "Apply": "Appliquer",
         "Color %d": "Couleur %d",
         "Name or #hex — e.g. vermelho, Lucas": "Nom ou #hex — ex. rouge, Lucas",
-        "Overlay": "Calque",
+        "Layers": "Calques",
         "Add image…": "Ajouter une image…",
-        "Remove": "Supprimer",
-        "No overlay": "Aucun calque",
+        "Add text…": "Ajouter du texte…",
+        "Add emblem…": "Ajouter un emblème…",
+        "Choose an icon": "Choisir une icône",
+        "No icon found": "Aucune icône trouvée dans ce dossier",
+        "Remove layer": "Supprimer le calque",
+        "Move up": "Monter",
+        "Move down": "Descendre",
+        "No layers": "Aucun calque",
+        "Layer settings": "Réglages du calque",
+        "No layer selected": "Aucun calque sélectionné",
+        "Drag to reorder": "Glisser pour réorganiser",
+        "Image": "Image",
+        "Text": "Texte",
+        "Font": "Police",
+        "Size": "Taille",
+        "Bold": "Gras",
+        "Italic": "Italique",
+        "Text color": "Couleur du texte",
+        "Select emblem": "Choisir un emblème",
+        "Type text": "Saisir le texte",
         "Opacity": "Opacité",
         "Scale": "Échelle",
         "X offset": "Décalage X",
         "Y offset": "Décalage Y",
         "Rotation": "Rotation",
-        "Pick overlay image": "Choisir une image de calque",
+        "Hue": "Teinte",
+        "Saturation": "Saturation",
+        "Pick image": "Choisir une image",
         "Images": "Images",
         "Cannot open this image.": "Impossible d'ouvrir cette image.",
         "Drag to move": "Glisser pour déplacer",
         "Scroll to resize": "Molette pour redimensionner",
         "Shift + Scroll to rotate": "Maj + Molette pour pivoter",
         "Alt + Scroll for opacity": "Alt + Molette pour l'opacité",
+        "Ctrl + Scroll for hue": "Ctrl + Molette pour la teinte",
     }
 elif _lang.startswith("de"):
     _T = {
-        "Color": "Farbe",
+        "Customize…": "Anpassen…",
+        "Customize icon…": "Symbol anpassen…",
+        "Detect icon…": "Symbol erkennen…",
+        "Finds an icon file already inside the folder": "Sucht eine Symbol-Datei, die bereits im Ordner liegt",
         "Emblem": "Emblem",
-        "Custom color…": "Benutzerdefinierte Farbe…",
         "Black": "Schwarz",
         "Blue": "Blau",
         "Brown": "Braun",
@@ -947,28 +1193,51 @@ elif _lang.startswith("de"):
         "Apply": "Anwenden",
         "Color %d": "Farbe %d",
         "Name or #hex — e.g. vermelho, Lucas": "Name oder #hex — z.B. rot, Lucas",
-        "Overlay": "Ebene",
+        "Layers": "Ebenen",
         "Add image…": "Bild hinzufügen…",
-        "Remove": "Entfernen",
-        "No overlay": "Keine Ebene",
+        "Add text…": "Text hinzufügen…",
+        "Add emblem…": "Emblem hinzufügen…",
+        "Choose an icon": "Symbol auswählen",
+        "No icon found": "Kein Symbol im Ordner gefunden",
+        "Remove layer": "Ebene entfernen",
+        "Move up": "Nach oben",
+        "Move down": "Nach unten",
+        "No layers": "Keine Ebene",
+        "Layer settings": "Ebeneneinstellungen",
+        "No layer selected": "Keine Ebene ausgewählt",
+        "Drag to reorder": "Ziehen zum Umsortieren",
+        "Image": "Bild",
+        "Text": "Text",
+        "Font": "Schrift",
+        "Size": "Größe",
+        "Bold": "Fett",
+        "Italic": "Kursiv",
+        "Text color": "Textfarbe",
+        "Select emblem": "Emblem auswählen",
+        "Type text": "Text eingeben",
         "Opacity": "Deckkraft",
         "Scale": "Skalierung",
         "X offset": "Versatz X",
         "Y offset": "Versatz Y",
         "Rotation": "Drehung",
-        "Pick overlay image": "Ebenenbild auswählen",
+        "Hue": "Farbton",
+        "Saturation": "Sättigung",
+        "Pick image": "Bild auswählen",
         "Images": "Bilder",
         "Cannot open this image.": "Dieses Bild konnte nicht geöffnet werden.",
         "Drag to move": "Ziehen zum Verschieben",
         "Scroll to resize": "Scrollen zum Skalieren",
         "Shift + Scroll to rotate": "Umschalt + Scrollen zum Drehen",
         "Alt + Scroll for opacity": "Alt + Scrollen für Deckkraft",
+        "Ctrl + Scroll for hue": "Strg + Scrollen für Farbton",
     }
 elif _lang.startswith("es"):
     _T = {
-        "Color": "Color",
+        "Customize…": "Personalizar…",
+        "Customize icon…": "Personalizar icono…",
+        "Detect icon…": "Detectar icono…",
+        "Finds an icon file already inside the folder": "Busca un archivo de icono que ya esté dentro de la carpeta",
         "Emblem": "Emblema",
-        "Custom color…": "Color personalizado…",
         "Black": "Negro",
         "Blue": "Azul",
         "Brown": "Marrón",
@@ -993,28 +1262,51 @@ elif _lang.startswith("es"):
         "Apply": "Aplicar",
         "Color %d": "Color %d",
         "Name or #hex — e.g. vermelho, Lucas": "Nombre o #hex — ej. rojo, Lucas",
-        "Overlay": "Superposición",
+        "Layers": "Capas",
         "Add image…": "Añadir imagen…",
-        "Remove": "Quitar",
-        "No overlay": "Sin superposición",
+        "Add text…": "Añadir texto…",
+        "Add emblem…": "Añadir emblema…",
+        "Choose an icon": "Elegir un icono",
+        "No icon found": "No se encontró ningún icono en esta carpeta",
+        "Remove layer": "Quitar capa",
+        "Move up": "Subir",
+        "Move down": "Bajar",
+        "No layers": "Sin capas",
+        "Layer settings": "Ajustes de capa",
+        "No layer selected": "Ninguna capa seleccionada",
+        "Drag to reorder": "Arrastrar para reordenar",
+        "Image": "Imagen",
+        "Text": "Texto",
+        "Font": "Fuente",
+        "Size": "Tamaño",
+        "Bold": "Negrita",
+        "Italic": "Cursiva",
+        "Text color": "Color del texto",
+        "Select emblem": "Elegir emblema",
+        "Type text": "Escribir texto",
         "Opacity": "Opacidad",
         "Scale": "Escala",
         "X offset": "Desplazamiento X",
         "Y offset": "Desplazamiento Y",
         "Rotation": "Rotación",
-        "Pick overlay image": "Elegir imagen de superposición",
+        "Hue": "Tono",
+        "Saturation": "Saturación",
+        "Pick image": "Elegir imagen",
         "Images": "Imágenes",
         "Cannot open this image.": "No se pudo abrir esta imagen.",
         "Drag to move": "Arrastrar para mover",
         "Scroll to resize": "Rueda para redimensionar",
         "Shift + Scroll to rotate": "Mayús + Rueda para rotar",
         "Alt + Scroll for opacity": "Alt + Rueda para opacidad",
+        "Ctrl + Scroll for hue": "Ctrl + Rueda para tono",
     }
 elif _lang.startswith("pt"):
     _T = {
-        "Color": "Cor",
+        "Customize…": "Personalizar…",
+        "Customize icon…": "Personalizar ícone…",
+        "Detect icon…": "Detectar ícone…",
+        "Finds an icon file already inside the folder": "Procura um arquivo de ícone que já está dentro da pasta",
         "Emblem": "Emblema",
-        "Custom color…": "Cor personalizada…",
         "Black": "Preto",
         "Blue": "Azul",
         "Brown": "Marrom",
@@ -1039,22 +1331,43 @@ elif _lang.startswith("pt"):
         "Apply": "Aplicar",
         "Color %d": "Cor %d",
         "Name or #hex — e.g. vermelho, Lucas": "Nome ou #hex — ex. vermelho, Lucas",
-        "Overlay": "Sobreposição",
+        "Layers": "Camadas",
         "Add image…": "Adicionar imagem…",
-        "Remove": "Remover",
-        "No overlay": "Sem sobreposição",
+        "Add text…": "Adicionar texto…",
+        "Add emblem…": "Adicionar emblema…",
+        "Choose an icon": "Escolher um ícone",
+        "No icon found": "Nenhum ícone encontrado nesta pasta",
+        "Remove layer": "Remover camada",
+        "Move up": "Subir",
+        "Move down": "Descer",
+        "No layers": "Sem camadas",
+        "Layer settings": "Ajustes da camada",
+        "No layer selected": "Nenhuma camada selecionada",
+        "Drag to reorder": "Arrastar para reordenar",
+        "Image": "Imagem",
+        "Text": "Texto",
+        "Font": "Fonte",
+        "Size": "Tamanho",
+        "Bold": "Negrito",
+        "Italic": "Itálico",
+        "Text color": "Cor do texto",
+        "Select emblem": "Escolher emblema",
+        "Type text": "Digitar texto",
         "Opacity": "Opacidade",
         "Scale": "Escala",
         "X offset": "Deslocamento X",
         "Y offset": "Deslocamento Y",
         "Rotation": "Rotação",
-        "Pick overlay image": "Escolher imagem de sobreposição",
+        "Hue": "Matiz",
+        "Saturation": "Saturação",
+        "Pick image": "Escolher imagem",
         "Images": "Imagens",
         "Cannot open this image.": "Não foi possível abrir esta imagem.",
         "Drag to move": "Arrastar para mover",
         "Scroll to resize": "Scroll para redimensionar",
         "Shift + Scroll to rotate": "Shift + Scroll para girar",
         "Alt + Scroll for opacity": "Alt + Scroll para opacidade",
+        "Ctrl + Scroll for hue": "Ctrl + Scroll para matiz",
     }
 else:
     _T = {}
@@ -1063,9 +1376,10 @@ else:
 def _(s):
     return _T.get(s, s)
 
-COLOR  = _("Color")
+CUSTOMIZE = _("Customize…")
+CUSTOMIZE_ICON_LABEL = _("Customize icon…")
 EMBLEM = _("Emblem")
-CUSTOM_COLOR_LABEL = _("Custom color…")
+
 
 COLORS_ALL = {
     "black":   _("Black"),
@@ -1352,6 +1666,21 @@ class FolderColor:
 # Nautilus Menu Provider
 # ---------------------------------------------------------------------------
 
+def _nautilus_window():
+    """The active Nautilus window, or None (used as a dialog transient)."""
+    app = Gtk.Application.get_default()
+    if app is None:
+        return None
+    win = app.get_active_window()
+    if win is not None:
+        return win
+    try:
+        windows = app.get_windows()
+    except Exception:
+        return None
+    return windows[0] if windows else None
+
+
 class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
     # FIX 5 : __gtype_name__ explicite pour éviter les conflits de types GLib
     # avec d'autres extensions ou entre rechargements.
@@ -1396,7 +1725,7 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
 
         if self.all_dirs and colors:
             top_menuitem = Nautilus.MenuItem(
-                name="FolderColorMenu::colors", label=COLOR, icon="color-picker")
+                name="FolderColorMenu::customize", label=CUSTOMIZE, icon="color-picker")
         elif emblems:
             top_menuitem = Nautilus.MenuItem(
                 name="FolderColorMenu::colors", label=EMBLEM, icon="color-picker")
@@ -1417,13 +1746,21 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
                 item.connect("activate", self._menu_activate_color, items, color)
                 submenu.append_item(item)
 
-            if _CUSTOM_COLOR_AVAILABLE:
+            if _ICON_EDITOR_AVAILABLE:
                 item = Nautilus.MenuItem(
-                    name="FolderColorMenu::custom_color",
-                    label=CUSTOM_COLOR_LABEL,
+                    name="FolderColorMenu::customize_icon",
+                    label=CUSTOMIZE_ICON_LABEL,
                     icon="color-picker",
                 )
                 item.connect("activate", self._menu_activate_custom_color, items)
+                submenu.append_item(item)
+
+                item = Nautilus.MenuItem(
+                    name="FolderColorMenu::detect_icon",
+                    label=_("Detect icon…"),
+                    icon="edit-find",
+                )
+                item.connect("activate", self._menu_activate_detect_icon, items)
                 submenu.append_item(item)
 
         # Emblèmes
@@ -1489,6 +1826,29 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             return
         self._show_custom_color_dialog(paths)
 
+    def _menu_activate_detect_icon(self, menu, items):
+        """Detect an icon inside the folder and add it to the editor."""
+        paths = [item.get_location().get_path()
+                 for item in items if not item.is_gone()]
+        paths = [p for p in paths if p]
+        if not paths:
+            return
+
+        def on_chosen(path):
+            if not path:
+                return
+            self._show_custom_color_dialog(paths, extra_image=path)
+
+        try:
+            # Every selected folder is scanned and their candidates are
+            # offered in one list; the chosen image becomes a layer of the
+            # state that is applied to the whole selection (the editor's
+            # model is one state for all selected folders).
+            detect_icon_for_folder(paths, tr=_, on_chosen=on_chosen,
+                                   parent=_nautilus_window())
+        except Exception as e:
+            log.error(f"detect icon: {e}")
+
     @staticmethod
     def _rgba_to_hex(rgba):
         try:
@@ -1509,421 +1869,69 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             pass
         return None
 
-    def _show_custom_color_dialog(self, paths):
-        """Modal dialog: one name entry + color picker per icon shape."""
-        sample = os.path.basename(paths[0].rstrip("/")) or paths[0]
+    @staticmethod
+    def _hexes_from_state(saved, row_count):
+        """Rebuild the per-shape colour list from a saved state."""
+        hexes = ["#808080"] * row_count
+        if not saved or not isinstance(saved, dict):
+            return hexes
+        parts = _split_color_spec(saved.get("spec") or "")
+        if not parts:
+            return hexes
+        if len(parts) > 1:
+            hexes = ["#" + part for part in parts[:row_count]]
+            hexes += ["#808080"] * (row_count - len(hexes))
+        else:
+            hexes = ["#" + parts[0]] * row_count
+        return hexes
+
+    def _show_custom_color_dialog(self, paths, extra_image=None):
+        """Layer editor: per-shape colours + image/text/emblem layers.
+
+        ``extra_image`` is an image picked by the "Detect icon…" flow: it is
+        added as the topmost layer (index 0) before the editor opens.
+        """
+        if not _ICON_EDITOR_AVAILABLE:
+            log.error("icon editor unavailable")
+            return
+
         theme_svg = _theme_folder_svg_text()
         _root, shapes = _svg_shapes(theme_svg) if theme_svg else (None, [])
         row_count = len(shapes) if shapes else 1
-        state = {"hexes": ["#808080"] * row_count}
 
-        dialog = Gtk.Dialog(title=CUSTOM_COLOR_LABEL)
-        dialog.set_modal(True)
-        try:
-            dialog.set_default_size(520, -1)
-        except Exception:
-            pass
-        dialog.add_buttons(_("Cancel"), Gtk.ResponseType.CANCEL,
-                           _("Apply"), Gtk.ResponseType.OK)
-        try:
-            dialog.set_default_response(Gtk.ResponseType.OK)
-        except Exception:
-            pass
+        saved = _load_overlay_state(paths[0]) or {}
+        # The editor must open with the colour the folder actually has,
+        # otherwise applying it back would repaint it with the grey default.
+        spec, _current_hexes = _current_color_specs(
+            paths[0], self.foldercolor.get_colors_theme())
+        hexes = self._hexes_from_state({"spec": spec} if spec else {}, row_count)
+        layers = normalize_layers(saved)
+        if extra_image:
+            # scale 70 mirrors folder_icon_editor._DETECTED_SCALE, which is
+            # private to that module (not exported), so the literal is kept
+            # in sync by hand.
+            layers = normalize_layers(
+                [default_layer("image", path=extra_image, scale=70)] + layers)
 
-        content = dialog.get_content_area()
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        try:
-            box.set_margin_top(12)
-            box.set_margin_bottom(12)
-            box.set_margin_start(12)
-            box.set_margin_end(12)
-        except Exception:
-            pass
-        outer_scroll = Gtk.ScrolledWindow()
-        try:
-            outer_scroll.set_min_content_height(320)
-            outer_scroll.set_max_content_height(560)
-            outer_scroll.set_policy(Gtk.PolicyType.NEVER,
-                                    Gtk.PolicyType.AUTOMATIC)
-            outer_scroll.set_propagate_natural_height(True)
-        except Exception:
-            pass
-        outer_scroll.set_child(box)
-        content.append(outer_scroll)
-
-        box.append(Gtk.Label(label=sample))
-
-        scroll = Gtk.ScrolledWindow()
-        try:
-            scroll.set_min_content_height(min(64 * row_count, 300))
-            scroll.set_propagate_natural_height(True)
-        except Exception:
-            pass
-        box.append(scroll)
-        rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        try:
-            scroll.set_child(rows_box)
-        except Exception:
-            box.append(rows_box)
-
-        preview = Gtk.Image()
-        try:
-            preview.set_pixel_size(128)
-        except Exception:
-            pass
-        box.append(preview)
-
-        hex_label = Gtk.Label(label=state["hexes"][0])
-        try:
-            hex_label.add_css_class("monospace")
-        except Exception:
-            pass
-        box.append(hex_label)
-
-        # -- Overlay: optional image placed over the colored folder icon -----
-        overlay_state = {"opacity": 100, "scale": 100,
-                         "offset_x": 0, "offset_y": 0,
-                         "rotation": 0, "overlay_path": ""}
-        saved = _load_overlay_state(paths[0])
-        saved_spec = ""
-        if saved:
-            saved_spec = saved.get("spec") or ""
-            saved_parts = _split_color_spec(saved_spec)
-            if saved_parts:
-                if len(saved_parts) > 1:
-                    state["hexes"] = ["#" + p for p in saved_parts[:row_count]]
-                    state["hexes"] += ["#808080"] * (row_count - len(state["hexes"]))
-                else:
-                    state["hexes"] = ["#" + saved_parts[0]] * row_count
-            opath = saved.get("overlay_path") or ""
-            if opath:
-                overlay_state["overlay_path"] = opath
-                for k in ("opacity", "scale", "offset_x", "offset_y", "rotation"):
-                    v = saved.get(k)
-                    if isinstance(v, (int, float)):
-                        overlay_state[k] = int(v)
-
-        box.append(Gtk.Separator())
-
-        ov_lbl = Gtk.Label(label="<b>" + _("Overlay") + "</b>")
-        ov_lbl.set_use_markup(True)
-        ov_lbl.set_halign(Gtk.Align.START)
-        box.append(ov_lbl)
-
-        ov_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        add_btn = Gtk.Button(label=_("Add image…"))
-        add_btn.connect("clicked", lambda b: on_add_overlay())
-        ov_row.append(add_btn)
-        remove_btn = Gtk.Button(label=_("Remove"))
-        remove_btn.add_css_class("destructive-action")
-        remove_btn.connect("clicked", lambda b: on_remove_overlay())
-        remove_btn.set_sensitive(False)
-        ov_row.append(remove_btn)
-        box.append(ov_row)
-
-        overlay_status = Gtk.Label(label=_("No overlay"))
-        overlay_status.set_halign(Gtk.Align.START)
-        overlay_status.set_ellipsize(Pango.EllipsizeMode.END)
-        box.append(overlay_status)
-
-        # -- Mouse controls (hovering the canvas) ----------------------------
-        def update_cursor():
+        def on_apply(new_hexes, new_layers):
             try:
-                if overlay_state.get("overlay_path"):
-                    preview.set_cursor(Gdk.Cursor.new_from_name("move"))
-                else:
-                    preview.set_cursor(None)
-            except Exception:
-                pass
-
-        def on_canvas_scroll(_ctrl, _dx, dy):
-            if not overlay_state.get("overlay_path"):
-                return Gdk.EVENT_PROPAGATE
-            state = _ctrl.get_current_event_state() or 0
-            step = max(1, int(round(abs(dy))))
-            sign = 1 if dy < 0 else -1  # scroll up → increase
-            if state & Gdk.ModifierType.SHIFT_MASK:
-                rot = overlay_state["rotation"] + sign * 5 * step
-                overlay_state["rotation"] = max(-180, min(180, rot))
-            elif state & Gdk.ModifierType.ALT_MASK:
-                op = overlay_state["opacity"] + sign * 5 * step
-                overlay_state["opacity"] = max(0, min(100, op))
-            else:
-                sc = overlay_state["scale"] + sign * 5 * step
-                overlay_state["scale"] = max(10, min(300, sc))
-            draw_preview()
-            return Gdk.EVENT_STOP
-
-        scroll_ctrl = Gtk.EventControllerScroll.new(
-            Gtk.EventControllerScrollFlags.VERTICAL)
-        try:
-            scroll_ctrl.connect("scroll", on_canvas_scroll)
-            # Scroll on the canvas must not also scroll the dialog
-            scroll_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-            scroll_ctrl.set_propagation_limit(Gtk.PropagationLimit.SAME_NATIVE)
-            preview.add_controller(scroll_ctrl)
-        except Exception:
-            pass
-
-        drag_state = {"base_x": 0, "base_y": 0, "active": False}
-
-        def on_drag_begin(_g, _x, _y):
-            if not overlay_state.get("overlay_path"):
-                drag_state["active"] = False
-                return
-            drag_state["base_x"] = overlay_state["offset_x"]
-            drag_state["base_y"] = overlay_state["offset_y"]
-            drag_state["active"] = True
-
-        def on_drag_update(_g, ox, oy):
-            if not drag_state["active"]:
-                return
-            alloc = preview.get_allocated_width() or 128
-            factor = CANVAS_SIZE / float(alloc)
-            nx = drag_state["base_x"] + int(ox * factor)
-            ny = drag_state["base_y"] + int(oy * factor)
-            nx = max(-CANVAS_SIZE, min(CANVAS_SIZE, nx))
-            ny = max(-CANVAS_SIZE, min(CANVAS_SIZE, ny))
-            if (nx, ny) != (overlay_state["offset_x"], overlay_state["offset_y"]):
-                overlay_state["offset_x"] = nx
-                overlay_state["offset_y"] = ny
-                draw_preview()
-
-        def on_drag_end(_g, ox, oy):
-            on_drag_update(_g, ox, oy)
-            drag_state["active"] = False
-
-        drag_gesture = Gtk.GestureDrag.new()
-        try:
-            drag_gesture.connect("drag-begin", on_drag_begin)
-            drag_gesture.connect("drag-update", on_drag_update)
-            drag_gesture.connect("drag-end", on_drag_end)
-            preview.add_controller(drag_gesture)
-        except Exception:
-            pass
-
-        hint = Gtk.Label()
-        hint.set_use_markup(True)
-        hint.set_halign(Gtk.Align.START)
-        hint.set_markup(
-            "<small>"
-            "<b>Drag</b> — {move}\n"
-            "<b>Scroll</b> — {resize}\n"
-            "<b>Shift + Scroll</b> — {rotate}\n"
-            "<b>Alt + Scroll</b> — {opacity}"
-            "</small>".format(
-                move=_("Drag to move"),
-                resize=_("Scroll to resize"),
-                rotate=_("Shift + Scroll to rotate"),
-                opacity=_("Alt + Scroll for opacity")))
-        hint.set_sensitive(bool(overlay_state.get("overlay_path")))
-        box.append(hint)
-
-        def on_add_overlay():
-            file_dlg = Gtk.FileDialog(title=_("Pick overlay image"))
-            filt = Gtk.FileFilter()
-            filt.set_name(_("Images"))
-            for m in _OVERLAY_MIMES:
-                filt.add_mime_type(m)
-            store = Gio.ListStore.new(Gtk.FileFilter)
-            store.append(filt)
-            file_dlg.set_filters(store)
-            file_dlg.set_default_filter(filt)
-            file_dlg.open(dialog, None, on_overlay_picked)
-
-        def on_overlay_picked(file_dlg, result):
-            try:
-                path = file_dlg.open_finish(result).get_path()
-            except Exception:
-                return
-            if _open_overlay(path) is None:
-                log.error(f"overlay open failed: {path}")
-                return
-            overlay_state["overlay_path"] = path
-            overlay_status.set_label(os.path.basename(path))
-            overlay_status.set_tooltip_text(path)
-            hint.set_sensitive(True)
-            update_cursor()
-            remove_btn.set_sensitive(True)
-            draw_preview()
-
-        def on_remove_overlay():
-            overlay_state["overlay_path"] = ""
-            overlay_status.set_label(_("No overlay"))
-            overlay_status.set_tooltip_text("")
-            hint.set_sensitive(False)
-            update_cursor()
-            remove_btn.set_sensitive(False)
-            draw_preview()
-
-        if overlay_state.get("overlay_path"):
-            overlay_status.set_label(
-                os.path.basename(overlay_state["overlay_path"]))
-            overlay_status.set_tooltip_text(overlay_state["overlay_path"])
-            hint.set_sensitive(True)
-            update_cursor()
-            remove_btn.set_sensitive(True)
-
-        entries = []
-        pickers = []
-        syncing = {"busy": False}
-
-        def resolve_name(text):
-            """Color name -> '#rrggbb' or '' when invalid."""
-            text = str(text or "").strip()
-            if not text:
-                return ""
-            try:
-                color = generate_color(text)
+                return _apply_icon_state(self.foldercolor, paths, new_hexes,
+                                         new_layers, hexes)
             except Exception as e:
-                log.error(f"custom color resolve: {e}")
-                return ""
-            if isinstance(color, list):
-                color = color[0] if color else ""
-            color = str(color)[:7].lower()
-            if len(color) != 7 or not color.startswith("#"):
-                return ""
-            if len(_split_color_spec(color)) != 1:
-                return ""
-            return color
+                log.error(f"apply icon state: {e}")
+                return False
 
-        def draw_preview(*_args):
-            """Render the real (themed, tinted) icon into the preview image."""
-            parts = [h.lstrip("#") for h in state["hexes"]]
-            spec = ";".join(parts)
-            label_text = " + ".join(state["hexes"])
-            if overlay_state.get("overlay_path"):
-                data = _compose_final(spec, overlay_state)
-                if data:
-                    try:
-                        loader = GdkPixbuf.PixbufLoader.new_with_mime_type(
-                            "image/png")
-                        loader.write(data)
-                        loader.close()
-                        preview.set_from_pixbuf(loader.get_pixbuf())
-                    except Exception as e:
-                        log.error(f"overlay preview pixbuf: {e}")
-                    hex_label.set_text(
-                        label_text + "  •  "
-                        + os.path.basename(overlay_state["overlay_path"]))
-                    return
-            data, preview_ext = _custom_icon_data(spec)
-            if data is None:
-                data = _folder_svg(parts[0]).encode("utf-8")
-                preview_ext = ".svg"
-            preview_path = os.path.join(
-                _custom_cache_dir(), "folder-preview" + preview_ext)
-            try:
-                with open(preview_path, "wb") as f:
-                    f.write(data)
-                preview.set_from_file(preview_path)
-            except Exception as e:
-                log.error(f"custom color preview: {e}")
-            hex_label.set_text(label_text)
-
-        def set_row(index, hex_color, from_entry=True, from_picker=True):
-            if syncing["busy"]:
-                return
-            syncing["busy"] = True
-            try:
-                state["hexes"][index] = hex_color
-                rgba = self._hex_to_rgba(hex_color)
-                if from_picker and rgba is not None:
-                    try:
-                        pickers[index].set_rgba(rgba)
-                    except Exception:
-                        pass
-                if from_entry and entries[index].get_text().strip() != hex_color:
-                    try:
-                        entries[index].set_text(hex_color)
-                    except Exception:
-                        pass
-                draw_preview()
-            finally:
-                syncing["busy"] = False
-
-        def on_entry_changed(entry, index):
-            raw = entry.get_text()
-            if ";" in raw:
-                chunks = [c.strip() for c in raw.split(";")]
-                for offset, chunk in enumerate(chunks):
-                    target = index + offset
-                    if target >= row_count:
-                        break
-                    resolved = resolve_name(chunk)
-                    if resolved:
-                        set_row(target, resolved)
-                return
-            resolved = resolve_name(raw)
-            if resolved:
-                set_row(index, resolved, from_entry=False)
-
-        def on_picker_set(picker, index):
-            try:
-                hex_color = self._rgba_to_hex(picker.get_rgba())
-            except Exception:
-                return
-            if hex_color:
-                set_row(index, hex_color, from_picker=False)
-
-        for i in range(row_count):
-            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            row.append(Gtk.Label(label=_("Color %d") % (i + 1)))
-            entry = Gtk.Entry()
-            entry.set_placeholder_text(_("Name or #hex — e.g. vermelho, Lucas"))
-            entry.set_hexpand(True)
-            entry.set_activates_default(True)
-            picker = Gtk.ColorButton()
-            try:
-                rgba = self._hex_to_rgba(state["hexes"][i])
-                if rgba is not None:
-                    picker.set_rgba(rgba)
-            except Exception:
-                pass
-            entry.connect("changed", on_entry_changed, i)
-            try:
-                picker.connect("color-set", on_picker_set, i)
-            except Exception:
-                pass
-            row.append(entry)
-            row.append(picker)
-            rows_box.append(row)
-            entries.append(entry)
-            pickers.append(picker)
-
-        if saved_spec:
-            for entry, hex_color in zip(entries, state["hexes"]):
-                try:
-                    entry.set_text(hex_color)
-                except Exception:
-                    pass
-
-        def on_response(dlg, response):
-            try:
-                if response == Gtk.ResponseType.OK:
-                    spec = ";".join(state["hexes"])
-                    for path in paths:
-                        if overlay_state.get("overlay_path"):
-                            ov = dict(overlay_state)
-                            ov["spec"] = spec
-                            if self.foldercolor.set_custom_overlay_color(
-                                    path, spec, ov):
-                                _save_overlay_state(path, ov)
-                        else:
-                            self.foldercolor.set_custom_color(path, spec)
-                            _clear_overlay_state(path)
-            finally:
-                try:
-                    dlg.destroy()
-                except Exception:
-                    pass
-
-        dialog.connect("response", on_response)
-        draw_preview()
-        try:
-            dialog.present()
-        except Exception as e:
-            log.error(f"custom color dialog: {e}")
+        open_editor(
+            title=CUSTOMIZE_ICON_LABEL,
+            row_count=row_count,
+            hexes=hexes,
+            layers=layers,
+            base_builder=_base_pil_image,
+            emblem_icons=self.foldercolor.get_emblems_theme(),
+            tr=_,
+            on_apply=on_apply,
+            scan_dir=paths,
+        )
 
     def _menu_activate_restore(self, menu, items):
         manager = _dolphin_manager()

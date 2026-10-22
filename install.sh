@@ -108,7 +108,7 @@ slug_desc() {
 slug_files() {
   case "$1" in
     edit-with)            echo "nautilus_edit_ext.py";;
-    folder-color-revival) echo "folder-color-revival.py name_to_color.py color_database.json";;
+    folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py name_to_color.py color_database.json";;
     audio-tools|video-tools|media-converter)
                           echo "$1.py media_dialogs.py";;
     *)                    echo "$1.py";;
@@ -124,6 +124,7 @@ slug_deps() {
     dual-panel)                   echo "rsync";;
     duration-column)              echo "ffmpeg";;
     file-tools|paste-into-file)   echo "pillow";;
+    folder-color-revival)         echo "pillow cairo pangocairo";;
     image-tools)                  echo "pillow ffmpeg";;
     audio-tools)                  echo "ffmpeg mutagen";;
     video-tools)                  echo "ffmpeg";;
@@ -271,6 +272,7 @@ pkg_name() {
         ffmpegthumbnailer)   echo "ffmpegthumbnailer";;
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
+        pangocairo)          echo "gir1.2-pangocairo-1.0";;
         pillow)              echo "python3-pil";;
         mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
@@ -295,6 +297,7 @@ pkg_name() {
         ffmpegthumbnailer)   echo "ffmpegthumbnailer";;
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
+        pangocairo)          echo "pango";;
         pillow)              echo "python3-pillow";;
         mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
@@ -319,6 +322,7 @@ pkg_name() {
         ffmpegthumbnailer)   echo "ffmpegthumbnailer";;
         pypdf)               echo "python-pypdf";;
         cairo)               echo "python-cairo";;
+        pangocairo)          echo "pango";;
         pillow)              echo "python-pillow";;
         mutagen)             echo "python-mutagen";;
         libarchive-c)        echo "python-libarchive-c";;
@@ -343,6 +347,7 @@ pkg_name() {
         ffmpegthumbnailer)   echo "ffmpegthumbnailer";;
         pypdf)               echo "python3-pypdf";;
         cairo)               echo "python3-cairo";;
+        pangocairo)          echo "typelib-1_0-PangoCairo-1_0";;
         pillow)              echo "python3-Pillow";;
         mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;

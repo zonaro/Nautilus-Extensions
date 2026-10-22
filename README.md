@@ -134,7 +134,7 @@ ao mesmo tempo na mesma máquina.
 | ✂️ **Cut Item Dimmer** | `nautilus-cut-dim` | Visual dimming of cut (Ctrl+X) files |
 | 📊 **Progress Mirror** | `nautilus-progress-mirror` | Pop-up window mirroring long copy/move progress |
 | ✏️ **Edit With** | `nautilus-edit-gedit` | Open text files with any installed editor (alphabetical submenu) |
-| 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging + Dolphin (KDE) color import |
+| 📁 **Folder Color Revival** | `nautilus-folder-color-revival` | Color & emblem tagging + layered icon editor with icon auto-detect + Dolphin (KDE) color import |
 | 👁️ **Hidden Dim (icon)** | `nautilus-hidden-dim-icon` | Dim only the icon of hidden files |
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
@@ -367,6 +367,33 @@ A dynamic side preview for selected files — see before you open.
 
 ---
 
+## 🎨 Featured: Folder Color Revival — layered icon editor
+
+Right-click a folder → **Personalizar…** (*Customize…*) opens a layered editor for the folder icon. The icon is a stack of independent layers, composited live while you edit.
+
+- **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk
+- **Detect icon…** — a menu item under *Personalizar…* and a *Detect icon…* button inside the editor scan the folder (two levels down, hidden and build folders skipped) for image files whose names look like icons in seven languages (favicon, logo, brasão, escudo, …); one match goes straight onto the stack, several open a chooser with previews, none report "No icon found" — the chosen file lands as a badge-sized image layer (scale 70), ready to adjust
+- **Text layers** — any font installed on the machine, rendered to an image (size, bold, italic and text colour included)
+- **Emblem layers** — emblems from the current icon theme (the *Add emblem…* button is disabled when the theme has none)
+- **Drag & drop** to reorder the stack — the list is top-first, so the first row is what you see on top
+- **Per-layer controls** — hue, saturation and opacity work on image, text and emblem layers alike, plus scale, rotation and X/Y offset
+- **Live preview** — every change is rendered immediately; the composed icon is cached on disk and re-rendered only when the layers change
+- **Base colours** — the folder's base colours (one row per shape of the theme's folder icon) are edited in the same dialog
+
+Inside the editor:
+
+| Gesture | Action |
+|---|---|
+| Drag on the preview | Move the selected layer |
+| Scroll on the preview | Scale the selected layer |
+| Shift + Scroll | Rotate the selected layer |
+| Alt + Scroll | Opacity of the selected layer |
+| Ctrl + Scroll | Hue of the selected layer |
+
+The extension ships translations for Portuguese (default), English, French, German and Spanish, and degrades gracefully: without the optional editor module the menu entry is simply not shown, and missing fonts or emblems never break the rest of the extension.
+
+---
+
 ## 👁️ Featured: Hidden File Dimming
 
 Two complementary extensions (install only **one**) to reduce visual clutter when "Show hidden files" is enabled in Nautilus.
@@ -400,7 +427,7 @@ A central hub to manage all the other extensions without manually moving files.
 
 - **`nautilus-cut-dim`** — visually dims items cut with `Ctrl+X` so you don't forget what's in the clipboard
 - **`nautilus-duration-column`** — adds a sortable Duration column (HH:MM:SS) for audio/video files via `ffprobe`
-- **`nautilus-folder-color-revival`** — revive the classic folder colorizer; imports Dolphin (KDE) folder colors automatically; works on modern Nautilus 46+
+- **`nautilus-folder-color-revival`** — revive the classic folder colorizer; imports Dolphin (KDE) folder colors automatically; includes a layered icon editor (images, text and emblems, reordered by drag & drop, plus icon auto-detect); works on modern Nautilus 46+
 - **`nautilus-edit-gedit`** — open text files with any installed editor via an alphabetical "Edit With" submenu (filtered by extension to avoid clutter)
 - **`nautilus-progress-mirror`** — a small window appears over Nautilus during long copies/moves, mirroring the native progress (bar, details, cancel button); short operations stay silent and the native progress circle is left untouched
 
