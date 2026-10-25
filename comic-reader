@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# comic-reader — open a comic archive page by page.
+#
+# Thin launcher for comic-reader.desktop (double-click). The real work lives
+# in comic-tools.py so there is a single implementation: same cache, same
+# natural page order, same viewer detection as the Nautilus context menu.
+#
+# Usage: comic-reader FILE.cbz [FILE.cbr ...]
+
+set -u
+
+for dir in "$HOME/.local/share/nautilus-python/extensions" \
+           "/usr/share/zonaro-nautilus-extensions"; do
+  if [ -f "$dir/comic-tools.py" ]; then
+    exec python3 "$dir/comic-tools.py" --open "$@"
+  fi
+done
+
+echo "comic-reader: comic-tools.py not found — install the comic-tools extension" >&2
+exit 1

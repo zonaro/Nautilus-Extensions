@@ -1,0 +1,3 @@
+comic-tools.py usr/share/zonaro-nautilus-extensions/
+comic-reader usr/bin/
+comic-reader.desktop usr/share/applications/

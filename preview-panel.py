@@ -22,7 +22,7 @@
 # NAME: Preview Panel – Nautilus Python Extension
 # REQUIRES: python3-nautilus (>= 4.0), python3-gi, gir1.2-adw-1,
 #            ffmpegthumbnailer, poppler-utils (pdftoppm), libreoffice,
-#            wmctrl, xdotool
+#            p7zip-full (CB7/CBR/CBT), unrar (CBR), wmctrl, xdotool
 # INSTALL:
 #   cp preview-panel.py ~/.local/share/nautilus-python/extensions/
 #   rm -rf ~/.local/share/nautilus-python/extensions/__pycache__
@@ -202,6 +202,15 @@ OFFICE_EXTS = {
     ".docx", ".doc", ".docm", ".xlsx", ".xls", ".xlsm",
     ".pptx", ".ppt", ".pptm", ".odt", ".ods", ".odp", ".odg", ".rtf",
 }
+COMIC_EXTS  = {".cbz", ".cbr", ".cb7", ".cbt"}
+COMIC_MIMES = {
+    "application/vnd.comicbook+zip", "application/vnd.comicbook-rar",
+    "application/x-cbz", "application/x-cbr", "application/x-cb7",
+    "application/x-cbt", "application/x-ext-cbz", "application/x-ext-cbr",
+    "application/x-ext-cb7", "application/x-ext-cbt",
+}
+SEVENZIP_BINS  = ("7z", "7za", "7zz")
+MAX_COMIC_BYTES = 64 * 1024 * 1024  # garde-fou : une seule page extraite
 
 THUMB_DIR   = os.path.expanduser("~/.cache/thumbnails/large")
 TRACKER_BIN = "/usr/bin/tracker3"
@@ -387,6 +396,174 @@ def _thumb_office(path):
     except Exception:
         pass
     return None
+
+# --- Comics ---------------------------------------------------------------
+
+_DIGITS_RE = re.compile(r"(\d+)")
+
+def _natural_key(name):
+    """Clé de tri naturel : page-2 avant page-10."""
+    chunks = tuple(
+        (0, int(chunk), "") if i % 2 else (1, 0, chunk.casefold())
+        for i, chunk in enumerate(_DIGITS_RE.split(name)) if chunk)
+    return (chunks, name)
+
+def _is_comic(path, mime):
+    """Bande dessinée : extension CBZ/CBR/CB7/CBT ou type MIME comicbook."""
+    if (mime or "").lower() in COMIC_MIMES:
+        return True
+    return os.path.splitext(path or "")[1].lower() in COMIC_EXTS
+
+def _find_bin(*names):
+    """Premier exécutable présent dans PATH, ou None."""
+    import shutil
+    for name in names:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+def _is_comic_page(name):
+    """Page image de l'archive (ignore dossiers, __MACOSX et fichiers cachés)."""
+    parts = name.replace("\\", "/").split("/")
+    if not name or "__MACOSX" in parts:
+        return False
+    base = parts[-1]
+    if not base or base.startswith("."):
+        return False
+    return os.path.splitext(base)[1].lower() in IMAGE_EXTS
+
+def _comic_zip_entries(path):
+    import zipfile
+    with zipfile.ZipFile(path) as zf:
+        return [i.filename for i in zf.infolist()
+                if not i.is_dir() and _is_comic_page(i.filename)]
+
+def _comic_7z_entries(path):
+    binary = _find_bin(*SEVENZIP_BINS)
+    if not binary:
+        return []
+    out = subprocess.run([binary, "l", "-slt", "-ba", path],
+                         capture_output=True, text=True, timeout=15)
+    names = []
+    for line in out.stdout.splitlines():
+        if line.startswith("Path = "):
+            name = line[len("Path = "):].strip()
+            if _is_comic_page(name):
+                names.append(name)
+    return names
+
+def _comic_rar_entries(path):
+    binary = _find_bin("unrar")
+    if binary:
+        out = subprocess.run([binary, "lb", path],
+                             capture_output=True, text=True, timeout=15)
+        if out.returncode == 0 and out.stdout.strip():
+            return [n.strip() for n in out.stdout.splitlines()
+                    if _is_comic_page(n.strip())]
+    # unrar absent ou en échec : 7z lit la plupart des RAR4/RAR5
+    return _comic_7z_entries(path)
+
+def _comic_entries(path):
+    """Pages image de l'archive, dans l'ordre naturel (page-2 avant page-10)."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".cbz":
+        names = _comic_zip_entries(path)
+    elif ext == ".cbr":
+        names = _comic_rar_entries(path)
+    else:  # .cb7 / .cbt (7z lit aussi les tar)
+        names = _comic_7z_entries(path)
+    return sorted(names, key=_natural_key)
+
+def _comic_page_count(path):
+    """Nombre de pages image de l'archive, ou None si illisible."""
+    try:
+        return len(_comic_entries(path))
+    except Exception:
+        return None
+
+def _comic_extract_zip(path, entry, dest):
+    import zipfile
+    with zipfile.ZipFile(path) as zf:
+        info = zf.getinfo(entry)
+        if info.file_size > MAX_COMIC_BYTES:
+            return None
+        target = os.path.join(dest, os.path.basename(entry))
+        with zf.open(info) as src, open(target, "wb") as out:
+            out.write(src.read(MAX_COMIC_BYTES + 1))
+    return target
+
+def _comic_extract_7z(path, entry, dest):
+    binary = _find_bin(*SEVENZIP_BINS)
+    if not binary:
+        return None
+    subprocess.run([binary, "e", "-y", "-bd", "-o" + dest, path, entry],
+                   capture_output=True, timeout=20)
+    return os.path.join(dest, os.path.basename(entry))
+
+def _comic_extract_rar(path, entry, dest):
+    binary = _find_bin("unrar")
+    if binary:
+        proc = subprocess.run(
+            [binary, "e", "-o+", "-idq", os.path.abspath(path), entry],
+            cwd=dest, capture_output=True, timeout=20)
+        if proc.returncode == 0:
+            return os.path.join(dest, os.path.basename(entry))
+    return _comic_extract_7z(path, entry, dest)
+
+def _comic_extract(path, entry, dest):
+    """Extrait une seule page dans *dest* ; retourne son chemin ou None."""
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".cbz":
+            src = _comic_extract_zip(path, entry, dest)
+        elif ext == ".cbr":
+            src = _comic_extract_rar(path, entry, dest)
+        else:
+            src = _comic_extract_7z(path, entry, dest)
+        if not src or not os.path.isfile(src):
+            return None
+        size = os.path.getsize(src)
+        if size <= 0 or size > MAX_COMIC_BYTES:
+            return None
+        return src
+    except Exception:
+        return None
+
+def _thumb_comic(path):
+    """Bande dessinée : cache GNOME ou 1re page de l'archive (CBZ/CBR/CB7/CBT)."""
+    cached = _thumb_cached(path)
+    if cached:
+        return cached
+    tmp_dir = None
+    out_png = None
+    try:
+        entries = _comic_entries(path)
+        if not entries:
+            return None
+        tmp_dir = tempfile.mkdtemp()
+        src = _comic_extract(path, entries[0], tmp_dir)
+        if not src:
+            return None
+        from gi.repository import GdkPixbuf
+        pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(src, 1024, 1024, True)
+        if pb is None:
+            return None
+        fd, out_png = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        pb.savev(out_png, "png", [], [])
+        if os.path.getsize(out_png) <= 0:
+            return None
+        return _save_to_cache(out_png, path)
+    except Exception:
+        return None
+    finally:
+        import shutil
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        if out_png:
+            try: os.remove(out_png)
+            except OSError: pass
 
 # ---------------------------------------------------------------------------
 # Tracker3 metadata
@@ -883,7 +1060,10 @@ class PreviewPanel(Gtk.Window):
 
         # Thumbnail
         thumb = None
-        if cat == "image" or ext in IMAGE_EXTS:
+        if _is_comic(path, mime):
+            thumb = _thumb_comic(path)
+            print(f"[preview] thumb_comic={thumb}", file=sys.stderr)
+        elif cat == "image" or ext in IMAGE_EXTS:
             thumb = _thumb_image(path)
             print(f"[preview] thumb_image={thumb}", file=sys.stderr)
         elif cat == "video":
@@ -938,6 +1118,11 @@ class PreviewPanel(Gtk.Window):
 
         if text_data:
             rows.append((T["lines"], str(text_data.count("\n"))))
+
+        if _is_comic(path, mime) and "pages" not in tracker:
+            comic_pages = _comic_page_count(path)
+            if comic_pages:
+                rows.append((T["pages"], str(comic_pages)))
 
         GObject.idle_add(self._apply, token, thumb, text_data, rows, path)
 

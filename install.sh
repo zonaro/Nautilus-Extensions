@@ -46,6 +46,7 @@ SLUGS=(
   audio-tools
   clone-repository
   column-browser
+  comic-tools
   compress-pdf
   cut-dim
   deb-installer
@@ -78,6 +79,7 @@ slug_desc() {
     audio-tools)          echo "Convert audio files (ffmpeg)";;
     clone-repository)     echo "Clone git repos and Git submenu";;
     column-browser)       echo "Miller-columns folder browser (F9)";;
+    comic-tools)          echo "Open comics (cbz/cbr/cb7/cbt) page by page";;
     compress-pdf)         echo "Compress PDF files via Ghostscript";;
     cut-dim)              echo "Dim items cut with Ctrl+X";;
     deb-installer)        echo "Visual .deb package installer";;
@@ -121,6 +123,7 @@ slug_files() {
 slug_deps() {
   case "$1" in
     archive-browser|extract-here) echo "libarchive-c p7zip p7zip-plugins unrar";;
+    comic-tools)                  echo "p7zip p7zip-plugins unrar";;
     clone-repository)             echo "git";;
     compress-pdf)                 echo "ghostscript pypdf";;
     dual-panel)                   echo "rsync";;
@@ -303,8 +306,8 @@ pkg_name() {
         pillow)              echo "python3-pillow";;
         mutagen)             echo "python3-mutagen";;
         libarchive-c)        echo "python3-libarchive-c";;
-        p7zip)               echo "p7zip";;
-        p7zip-plugins)       echo "p7zip-plugins";;
+        p7zip)               echo "7zip";;
+        p7zip-plugins)       echo "";;
         poppler)             echo "poppler-utils";;
         rsync)               echo "rsync";;
         ripgrep)             echo "ripgrep";;
@@ -564,6 +567,26 @@ fi
 rm -rf "$EXT_DIR/__pycache__"
 if [ -d "$EXT_DIR/$MEDIA_CORE_DIR" ]; then
   find "$EXT_DIR/$MEDIA_CORE_DIR" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+fi
+
+# Comic Tools also owns the default handler for comic archives, so that
+# double-clicking a .cbz opens the pages instead of an archive browser.
+if printf '%s\n' "${SELECTED[@]}" | grep -qx comic-tools; then
+  mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
+  install -m 755 "$SCRIPT_DIR/comic-reader" "$HOME/.local/bin/comic-reader"
+  install -m 644 "$SCRIPT_DIR/comic-reader.desktop" \
+    "$HOME/.local/share/applications/comic-reader.desktop"
+  if command -v xdg-mime >/dev/null 2>&1; then
+    for mime in application/vnd.comicbook+zip application/vnd.comicbook-rar \
+                application/x-cbz application/x-cbr application/x-cb7 \
+                application/x-cbt application/x-ext-cbz application/x-ext-cbr \
+                application/x-ext-cb7 application/x-ext-cbt; do
+      xdg-mime default comic-reader.desktop "$mime" 2>/dev/null || true
+    done
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+  fi
 fi
 
 echo "==> Restarting Nautilus..."

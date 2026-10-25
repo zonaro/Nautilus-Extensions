@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Comic Reader
+Name[pt_BR]=Leitor de Quadrinhos
+Name[fr]=Lecteur de BD
+Name[es]=Lector de cómics
+Name[de]=Comic-Betrachter
+Comment=Read comic archives page by page
+Comment[pt_BR]=Ler arquivos de quadrinho página por página
+Comment[fr]=Lire les archives de BD page par page
+Comment[es]=Leer cómics página a página
+Comment[de]=Comic-Archive Seite für Seite lesen
+Exec=comic-reader %f
+Icon=image-x-generic
+Terminal=false
+Categories=Graphics;Viewer;
+MimeType=application/vnd.comicbook+zip;application/vnd.comicbook-rar;application/x-cbz;application/x-cbr;application/x-cb7;application/x-cbt;application/x-ext-cbz;application/x-ext-cbr;application/x-ext-cb7;application/x-ext-cbt;
+StartupNotify=true

@@ -120,6 +120,7 @@ ao mesmo tempo na mesma máquina.
 |---|---|---|
 | 🗂️ **Dual Panel** | `nautilus-dual-panel` | Double-pane file manager inside Nautilus |
 | 🧭 **Column Browser** | `nautilus-column-browser` | Miller-columns (macOS Finder style) folder browser |
+| 🎨 **Comic Tools** | `zonaro-nautilus-comic-tools` | Open CBZ/CBR/CB7/CBT comics page by page, in natural order, with a page cache |
 | ⚙️ **Extensions Manager** | `nautilus-extensions-manager` | Enable/disable extensions on the fly |
 | 🗜️ **Archive Browser** | `nautilus-archive-browser` | Browse, extract and **create** archives |
 | 📦 **Extract Here** | `nautilus-extract-here` | Fast extraction (7z, rar, zip…) with multi-volume & password |
@@ -368,6 +369,20 @@ A dynamic side preview for selected files — see before you open.
 - PDF first page preview
 - Text file content preview
 - Toggle via context menu
+
+---
+
+## 🎨 Featured: Comic Tools
+
+Read comic archives without unpacking anything by hand: right-click a `.cbz`, `.cbr`, `.cb7` or `.cbt` and the pages open in your image viewer.
+
+- Double-click also works — `install.sh` registers **Comic Reader** as the default handler for the comicbook MIME types (`xdg-mime`), so the archive opens as pages instead of an archive browser
+- Natural page order (`page-2` before `page-10`), nested folders flattened
+- Pages extracted once to `~/.cache/nautilus-comics/` (keyed by path + mtime + size), so reopening the same issue is instant
+- Uses the viewer you already have (`loupe`, then `eog`, then `gwenview`)
+- No dedicated comic reader required
+
+> **Space-bar preview** is already handled by GNOME: Sushi routes the comicbook MIME types to the Evince comics backend shipped with `evince-libs`. This extension therefore ships no previewer plugin — it only adds the context-menu action, plus the cover in the Preview Panel.
 
 ---
 
