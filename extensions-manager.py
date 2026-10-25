@@ -279,22 +279,50 @@ class ExtManagerWindow(Adw.Window):
 
     def __init__(self):
         super().__init__(title=T["title"])
-        self.set_default_size(560, -1)
+        self.set_default_size(720, 520)
+        self.set_size_request(320, 360)
         self.set_resizable(True)
+        self.set_modal(False)
         self.set_transient_for(_nautilus_window())
 
         tv = Adw.ToolbarView()
         header = Adw.HeaderBar()
         header.set_decoration_layout(":close")
         header.set_title_widget(Gtk.Label(label=T["title"]))
+
+        # Botão para maximizar/restaurar
+        self._max_btn = Gtk.Button.new_from_icon_name("view-fullscreen-symbolic")
+        self._max_btn.set_tooltip_text("Maximizar/Restaurar")
+        self._max_btn.connect("clicked", self._toggle_maximize)
+        header.pack_end(self._max_btn)
+
         tv.add_top_bar(header)
 
-        # Contenu principal
+        # Contenu principal com rolagem
         main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main.set_vexpand(True)
+        main.set_hexpand(True)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_hexpand(True)
+        scrolled.set_propagate_natural_height(True)
+
+        clamp = Adw.Clamp()
+        clamp.set_maximum_size(900)
+        clamp.set_tightening_threshold(700)
+        clamp.set_margin_start(12)
+        clamp.set_margin_end(12)
+        clamp.set_margin_top(6)
+        clamp.set_margin_bottom(6)
 
         self._content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        main.append(self._content)
+        self._content.set_hexpand(True)
+        clamp.set_child(self._content)
+        scrolled.set_child(clamp)
+
+        main.append(scrolled)
 
         # Sélecteur de langue
         if LANGUAGES:
@@ -355,6 +383,14 @@ class ExtManagerWindow(Adw.Window):
         self.set_content(tv)
 
         self._populate()
+
+    def _toggle_maximize(self, _btn):
+        if self.is_maximized():
+            self.unmaximize()
+            self._max_btn.set_icon_name("view-fullscreen-symbolic")
+        else:
+            self.maximize()
+            self._max_btn.set_icon_name("view-restore-symbolic")
 
     def present(self):
         # Wayland: presenting synchronously from a menu-activate handler leaves
