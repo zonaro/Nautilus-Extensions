@@ -121,6 +121,7 @@ ao mesmo tempo na mesma máquina.
 | 🗂️ **Dual Panel** | `nautilus-dual-panel` | Double-pane file manager inside Nautilus |
 | 🧭 **Column Browser** | `nautilus-column-browser` | Miller-columns (macOS Finder style) folder browser |
 | 🎨 **Comic Tools** | `zonaro-nautilus-comic-tools` | Open CBZ/CBR/CB7/CBT comics page by page, in natural order, with a page cache |
+| 🧷 **Move and Symlink** | `zonaro-nautilus-move-and-symlink` | Move files/folders to another folder and leave a symlink at the original spot |
 | ⚙️ **Extensions Manager** | `nautilus-extensions-manager` | Enable/disable extensions on the fly |
 | 🗜️ **Archive Browser** | `nautilus-archive-browser` | Browse, extract and **create** archives |
 | 📦 **Extract Here** | `nautilus-extract-here` | Fast extraction (7z, rar, zip…) with multi-volume & password |

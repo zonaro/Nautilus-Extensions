@@ -60,6 +60,7 @@ SLUGS=(
   folder-color-revival
   hidden-dim-all
   hidden-dim-icon
+  move-and-symlink
   image-tools
   media-converter
   merge-pdf
@@ -93,6 +94,7 @@ slug_desc() {
     folder-color-revival) echo "Folder color & emblem tagging";;
     hidden-dim-all)       echo "Dim icon + label of hidden files";;
     hidden-dim-icon)      echo "Dim only the icon of hidden files";;
+    move-and-symlink)     echo "Move items and leave a symlink behind";;
     image-tools)          echo "Grayscale, crop, annotate, convert...";;
     media-converter)      echo "FFmpeg-powered media conversion UI";;
     merge-pdf)            echo "Merge multiple PDFs into one";;
