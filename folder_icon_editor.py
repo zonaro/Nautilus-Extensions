@@ -755,6 +755,76 @@ def _resolve_color(text):
     return _normalize_hex(str(color)[:7])
 
 
+def _clamp_dialog_size(avail_w, avail_h, base_w=820, base_h=700,
+                       margin_x=48, margin_y=140, min_w=520, min_h=460):
+    """Limit the dialog's default size to the screen minus a margin.
+
+    Pure and display-free so it can be unit tested. The result never exceeds
+    the base size and never drops below the minimum usable size, so the dialog
+    stays legible even on a pathologically small screen.
+    """
+    try:
+        avail_w = int(avail_w)
+        avail_h = int(avail_h)
+    except Exception:
+        avail_w, avail_h = 0, 0
+    width = base_w
+    height = base_h
+    if avail_w > 0:
+        width = min(base_w, max(min_w, avail_w - margin_x))
+    else:
+        width = min_w
+    if avail_h > 0:
+        height = min(base_h, max(min_h, avail_h - margin_y))
+    else:
+        height = min_h
+    return width, height
+
+
+def _screen_available_size():
+    """Best-effort (width, height) of the primary monitor's usable area.
+
+    Wayland's Gdk.Monitor does not always expose get_workarea(), so we try it
+    and fall back to get_geometry(). Any failure returns a sane desktop size.
+    """
+    fallback = (1920, 1080)
+    try:
+        display = Gdk.Display.get_default()
+        if display is None:
+            return fallback
+        monitor = None
+        try:
+            monitor = display.get_primary_monitor()
+        except Exception:
+            monitor = None
+        if monitor is None:
+            monitors = display.get_monitors()
+            if monitors is not None and monitors.get_n_items() > 0:
+                monitor = monitors.get_item(0)
+        if monitor is None:
+            return fallback
+        rect = None
+        try:
+            rect = monitor.get_workarea()
+        except Exception:
+            rect = None
+        if rect is None:
+            try:
+                rect = monitor.get_geometry()
+            except Exception:
+                rect = None
+        if rect is None:
+            return fallback
+        width = int(getattr(rect, "width", 0) or 0)
+        height = int(getattr(rect, "height", 0) or 0)
+        if width <= 0 or height <= 0:
+            return fallback
+        return width, height
+    except Exception as e:
+        log.debug(f"screen size probe: {e}")
+        return fallback
+
+
 # ---------------------------------------------------------------------------
 # Drag & drop helpers
 # ---------------------------------------------------------------------------
@@ -1314,7 +1384,9 @@ class _Editor:
         dialog = Gtk.Dialog(title=self.title)
         dialog.set_modal(True)
         try:
-            dialog.set_default_size(820, 700)
+            avail_w, avail_h = _screen_available_size()
+            size_w, size_h = _clamp_dialog_size(avail_w, avail_h)
+            dialog.set_default_size(size_w, size_h)
         except Exception as e:
             log.error(f"dialog size: {e}")
         dialog.add_buttons(self.tr("Cancel"), Gtk.ResponseType.CANCEL,
@@ -1334,7 +1406,19 @@ class _Editor:
                 getattr(root, "set_" + margin)(12)
             except Exception:
                 pass
-        dialog.get_content_area().append(root)
+        # On screens smaller than the dialog's natural size the content would
+        # otherwise be clipped out of view with no way to reach it; a scrolled
+        # window (natural size preserved) reveals it via a scrollbar instead.
+        scroller = Gtk.ScrolledWindow()
+        try:
+            scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+            scroller.set_propagate_natural_height(True)
+            scroller.set_propagate_natural_width(True)
+            scroller.set_vexpand(True)
+        except Exception as e:
+            log.debug(f"dialog scroller: {e}")
+        scroller.set_child(root)
+        dialog.get_content_area().append(scroller)
 
         upper = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         root.append(upper)
@@ -1747,7 +1831,25 @@ class _Editor:
         self.syncing = False
         entry.connect("changed", self._on_text_changed)
         self.widgets["text"] = entry
-        self.settings_box.append(self._labelled_row(self.tr("Text"), entry))
+
+        # Emoji button beside the field: opens the native GTK EmojiChooser and
+        # drops the picked emoji in at the cursor.
+        emoji_button = Gtk.Button()
+        emoji_button.set_tooltip_text(self.tr("Insert emoji"))
+        try:
+            image = Gtk.Image.new_from_icon_name("face-smile-symbolic")
+            if image is not None:
+                emoji_button.set_child(image)
+        except Exception as e:
+            log.debug(f"emoji icon: {e}")
+            emoji_button.set_label("😀")
+        emoji_button.connect("clicked", self._on_emoji_clicked, entry)
+        self.widgets["emoji_button"] = emoji_button
+
+        text_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        text_row.append(entry)
+        text_row.append(emoji_button)
+        self.settings_box.append(self._labelled_row(self.tr("Text"), text_row))
 
         families = self._font_family_names()
         dropdown = Gtk.DropDown.new_from_strings(families)
@@ -1862,6 +1964,52 @@ class _Editor:
         layer["text"] = entry.get_text()
         self._update_row_labels()
         self._refresh_preview()
+
+    def _on_emoji_clicked(self, button, entry):
+        """Open the native GTK EmojiChooser and insert the pick at the cursor.
+
+        The chooser is created per click and unparented when it closes, so it
+        never outlives the button (settings are rebuilt on every layer change).
+        """
+        try:
+            chooser = Gtk.EmojiChooser()
+        except Exception as e:
+            log.error(f"emoji chooser: {e}")
+            return
+
+        def on_picked(_chooser, emoji):
+            try:
+                pos = entry.get_position()
+                text = entry.get_text() or ""
+                # set_text() fires "changed" -> _on_text_changed, which pushes
+                # the new text into the layer and refreshes the preview.
+                entry.set_text(text[:pos] + emoji + text[pos:])
+                entry.set_position(pos + len(emoji))
+                entry.grab_focus()
+            except Exception as e:
+                log.error(f"emoji insert: {e}")
+            try:
+                _chooser.popdown()
+            except Exception:
+                pass
+
+        def on_closed(chooser_):
+            try:
+                chooser_.unparent()
+            except Exception:
+                pass
+
+        chooser.connect("emoji-picked", on_picked)
+        chooser.connect("closed", on_closed)
+        try:
+            chooser.set_parent(button)
+            chooser.popup()
+        except Exception as e:
+            log.error(f"emoji popup: {e}")
+            try:
+                chooser.unparent()
+            except Exception:
+                pass
 
     def _on_font_changed(self, dropdown, _pspec):
         if self.syncing:

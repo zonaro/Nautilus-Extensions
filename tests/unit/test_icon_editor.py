@@ -241,5 +241,35 @@ class TestDropAnchor(unittest.TestCase):
             fie._payload_index(None)
 
 
+class TestClampDialogSize(unittest.TestCase):
+    """_clamp_dialog_size() limits the dialog to the screen, with a floor."""
+
+    def test_large_screen_keeps_base_size(self):
+        self.assertEqual(
+            fie._clamp_dialog_size(1920, 1080), (820, 700))
+
+    def test_narrow_screen_limits_width(self):
+        # 700 - 48 margin -> 652 wide, height untouched.
+        width, height = fie._clamp_dialog_size(700, 1080)
+        self.assertEqual(width, 652)
+        self.assertEqual(height, 700)
+
+    def test_short_screen_limits_height(self):
+        # 600 - 140 margin -> 460 high (== floor), width untouched.
+        width, height = fie._clamp_dialog_size(1920, 600)
+        self.assertEqual(width, 820)
+        self.assertEqual(height, 460)
+
+    def test_never_below_minimums(self):
+        # A tiny screen still yields the usable minimum, not a collapsed box.
+        self.assertEqual(
+            fie._clamp_dialog_size(200, 150), (520, 460))
+
+    def test_invalid_available_falls_back_to_minimums(self):
+        for avail in ((0, 0), (-10, -20), (None, None)):
+            self.assertEqual(
+                fie._clamp_dialog_size(*avail), (520, 460))
+
+
 if __name__ == "__main__":
     unittest.main()
