@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# nautilus-follow-run — run a script in the terminal that follows Nautilus.
+#
+# Thin launcher for nautilus-follow-run.desktop (double-click) and for anyone
+# who prefers a command: the real work lives in follow-shell.py, so the wire
+# protocol, the marker detection and the fallback rules have a single
+# implementation shared with the Nautilus context menu.
+#
+# Usage: nautilus-follow-run FILE [FILE ...] [--cwd DIR] [--sudo]
+#        nautilus-follow-run cd --path DIR
+#        nautilus-follow-run status
+#
+# A bare file argument means "run", which is what the desktop entry passes.
+
+set -u
+
+# Default the operation to "run" so Exec=nautilus-follow-run %f works.
+case "${1:-}" in
+  run|cd|status|quit) ;;
+  *) set -- run "$@" ;;
+esac
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "nautilus-follow-run: python3 is required but was not found on PATH" >&2
+  exit 1
+fi
+
+# follow-shell.py travels with the extension: next to this helper (checkout or
+# a wrapper install), then the per-user and the system-wide extension dirs.
+self_dir=$(CDPATH= cd -P "$(dirname "$0")" 2>/dev/null && pwd) || self_dir=""
+
+for dir in "$self_dir" \
+           "$HOME/.local/share/nautilus-python/extensions" \
+           "/usr/share/zonaro-nautilus-extensions"; do
+  [ -n "$dir" ] || continue
+  if [ -f "$dir/follow-shell.py" ]; then
+    exec python3 "$dir/follow-shell.py" --send "$@"
+  fi
+done
+
+echo "nautilus-follow-run: follow-shell.py not found — install the terminal-tools extension" >&2
+exit 1

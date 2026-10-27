@@ -86,8 +86,8 @@ en: [
    desc:"Clone any git repository into the current folder — paste a URL, pick from your gh repos.",
    feats:["Background menu: Clone Repository… clones into the current folder","Auto-pastes a valid git URL from the clipboard","Autocomplete of your GitHub repos via the gh CLI (silently off when gh is missing)","ENTER or Clone runs git clone with progress plus success/error feedback","Inside a repository the clone entry hides and a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash"]},
    {id:"terminal-tools", name:"🖥️ Terminal Tools",
-    desc:"Run scripts in a terminal — with or without sudo — and open a terminal in any folder.",
-    feats:["Right-click a script → Run in Terminal","A sudo variant for privileged scripts","Right-click a folder (or its empty space) → Open Terminal Here","Uses your default terminal emulator"]}
+    desc:"Run scripts in a terminal — with or without sudo — open a terminal in any folder, or a synced terminal that follows the window as you navigate.",
+    feats:["Right-click a script → Run in Terminal","A sudo variant for privileged scripts","Right-click a folder (or its empty space) → Open Terminal Here","Uses your default terminal emulator","Open Synced Terminal Here — follows the folder you navigate to in this window","The shell issues the cd itself, so it works with any terminal emulator","Run in Synced Terminal — scripts run in that same session","Live following needs bash, zsh or fish; other shells get a normal terminal","Relies on private Nautilus internals: a Nautilus upgrade can disable following, degrading to a normal terminal"]}
 ],
 fr: [
  {id:"dual-panel", name:"🗂️ Double panneau",
@@ -175,8 +175,8 @@ fr: [
    desc:"Clonez n'importe quel dépôt git dans le dossier courant — collez une URL ou choisissez parmi vos dépôts gh.",
    feats:["Menu du fond de dossier : Cloner le dépôt… clone dans le dossier courant","Colle auto une URL git valide depuis le presse-papiers","Autocomplétion de vos dépôts GitHub via la CLI gh (désactivée silencieusement sans gh)","ENTRÉE ou Cloner lance git clone avec progression et retour succès/erreur","Dans un dépôt, le clonage se cache et un sous-menu Git offre Pull/Push/Fetch/État/Journal/Commit/Branche/Stash"]},
   {id:"terminal-tools", name:"🖥️ Outils de terminal",
-   desc:"Exécutez des scripts dans un terminal — avec ou sans sudo — et ouvrez un terminal dans n'importe quel dossier.",
-   feats:["Clic droit sur un script → Exécuter dans le terminal","Une variante sudo pour les scripts privilégiés","Clic droit sur un dossier (ou son espace vide) → Ouvrir un terminal ici","Utilise votre émulateur de terminal par défaut"]}
+   desc:"Exécutez des scripts dans un terminal — avec ou sans sudo — ouvrez un terminal dans n'importe quel dossier, ou un terminal synchronisé qui suit la fenêtre pendant la navigation.",
+   feats:["Clic droit sur un script → Exécuter dans le terminal","Une variante sudo pour les scripts privilégiés","Clic droit sur un dossier (ou son espace vide) → Ouvrir un terminal ici","Utilise votre émulateur de terminal par défaut","Ouvrir un terminal synchronisé ici — suit le dossier où vous naviguez dans cette fenêtre","Le cd est émis par le shell lui-même : compatible avec tout émulateur de terminal","Exécuter dans le terminal synchronisé — les scripts tournent dans cette même session","Le suivi en direct exige bash, zsh ou fish ; les autres shells ouvrent un terminal normal","Repose sur des internes privés de Nautilus : une mise à jour peut désactiver le suivi, avec repli sur un terminal normal"]}
 ],
 de: [
  {id:"dual-panel", name:"🗂️ Doppelpanel",
@@ -264,8 +264,8 @@ de: [
    desc:"Ein beliebiges Git-Repository in den aktuellen Ordner klonen — URL einfügen oder aus gh-Repos wählen.",
    feats:["Hintergrundmenü: Repository klonen… klont in den aktuellen Ordner","Fügt eine gültige Git-URL automatisch aus der Zwischenablage ein","Autovervollständigung der eigenen GitHub-Repos via gh-CLI (ohne gh still deaktiviert)","ENTER oder Klonen startet git clone mit Fortschritt plus Erfolgs-/Fehlermeldung","In einem Repository blendet sich Klonen aus und ein Git-Untermenü bietet Pull/Push/Fetch/Status/Verlauf/Commit/Branch/Stash"]},
   {id:"terminal-tools", name:"🖥️ Terminal-Werkzeuge",
-   desc:"Skripte im Terminal ausführen — mit oder ohne sudo — und in jedem Ordner ein Terminal öffnen.",
-   feats:["Rechtsklick auf ein Skript → Im Terminal ausführen","Eine sudo-Variante für privilegierte Skripte","Rechtsklick auf einen Ordner (oder dessen freie Fläche) → Terminal hier öffnen","Nutzt Ihr Standard-Terminalemulator"]}
+   desc:"Skripte im Terminal ausführen — mit oder ohne sudo — in jedem Ordner ein Terminal öffnen oder ein synchronisiertes Terminal, das dem Fenster beim Navigieren folgt.",
+   feats:["Rechtsklick auf ein Skript → Im Terminal ausführen","Eine sudo-Variante für privilegierte Skripte","Rechtsklick auf einen Ordner (oder dessen freie Fläche) → Terminal hier öffnen","Nutzt Ihr Standard-Terminalemulator","Synchronisiertes Terminal hier öffnen — folgt dem Ordner, zu dem Sie in diesem Fenster navigieren","Das cd gibt die Shell selbst aus: funktioniert mit jedem Terminalemulator","Im synchronisierten Terminal ausführen — Skripte laufen in derselben Sitzung","Live-Folgen braucht bash, zsh oder fish; andere Shells öffnen ein normales Terminal","Nutzt private Nautilus-Interna: Ein Nautilus-Update kann das Folgen abschalten, dann bleibt ein normales Terminal"]}
 ],
 "pt-BR": [
  {id:"dual-panel", name:"🗂️ Painel duplo",
@@ -350,8 +350,8 @@ de: [
    desc:"Clone qualquer repositório git na pasta atual — cole a URL ou escolha entre seus repos do gh.",
    feats:["Menu do fundo da pasta: Clonar repositório… clona na pasta atual","Cola auto uma URL git válida da área de transferência","Autocompletar dos seus repos do GitHub via CLI gh (desligado em silêncio sem gh)","ENTER ou Clonar roda git clone com progresso e retorno de sucesso/erro","Dentro de um repositório o clonar se esconde e um submenu Git oferece Pull/Push/Fetch/Status/Histórico/Commit/Branch/Stash"]},
   {id:"terminal-tools", name:"🖥️ Ferramentas de terminal",
-   desc:"Execute scripts num terminal — com ou sem sudo — e abra um terminal em qualquer pasta.",
-   feats:["Clique direito em um script → Executar no terminal","Uma variante com sudo para scripts privilegiados","Clique direito em uma pasta (ou no espaço vazio) → Abrir terminal aqui","Usa o seu emulador de terminal padrão"]}
+   desc:"Execute scripts num terminal — com ou sem sudo — abra um terminal em qualquer pasta, ou um terminal sincronizado que acompanha a janela enquanto você navega.",
+   feats:["Clique direito em um script → Executar no terminal","Uma variante com sudo para scripts privilegiados","Clique direito em uma pasta (ou no espaço vazio) → Abrir terminal aqui","Usa o seu emulador de terminal padrão","Abrir terminal sincronizado aqui — acompanha a pasta para onde você navega nesta janela","O cd é emitido pelo próprio shell: funciona com qualquer emulador de terminal","Executar no terminal sincronizado — os scripts rodam nessa mesma sessão","O acompanhamento ao vivo exige bash, zsh ou fish; outros shells abrem um terminal normal","Depende de internos privados do Nautilus: uma atualização pode desativar o acompanhamento, caindo para um terminal normal"]}
 ],
 es: [
  {id:"dual-panel", name:"🗂️ Panel doble",
@@ -439,8 +439,8 @@ es: [
    desc:"Clona cualquier repositorio git en la carpeta actual — pega la URL o elige entre tus repos de gh.",
    feats:["Menú del fondo de la carpeta: Clonar repositorio… clona en la carpeta actual","Pega auto una URL git válida del portapapeles","Autocompletado de tus repos de GitHub vía la CLI gh (desactivado en silencio sin gh)","ENTER o Clonar ejecuta git clone con progreso y aviso de éxito/error","Dentro de un repositorio el clonado se oculta y un submenú Git ofrece Pull/Push/Fetch/Estado/Historial/Commit/Rama/Stash"]},
   {id:"terminal-tools", name:"🖥️ Herramientas de terminal",
-   desc:"Ejecuta scripts en una terminal — con o sin sudo — y abre una terminal en cualquier carpeta.",
-   feats:["Clic derecho en un script → Ejecutar en la terminal","Una variante con sudo para scripts privilegiados","Clic derecho en una carpeta (o en su espacio vacío) → Abrir terminal aquí","Usa tu emulador de terminal predeterminado"]}
+   desc:"Ejecuta scripts en una terminal — con o sin sudo — abre una terminal en cualquier carpeta, o una terminal sincronizada que sigue la ventana mientras navegas.",
+   feats:["Clic derecho en un script → Ejecutar en la terminal","Una variante con sudo para scripts privilegiados","Clic derecho en una carpeta (o en su espacio vacío) → Abrir terminal aquí","Usa tu emulador de terminal predeterminado","Abrir terminal sincronizada aquí — sigue la carpeta a la que navegas en esta ventana","El cd lo emite el propio shell: funciona con cualquier emulador de terminal","Ejecutar en la terminal sincronizada — los scripts corren en esa misma sesión","El seguimiento en vivo requiere bash, zsh o fish; otros shells abren una terminal normal","Depende de internos privados de Nautilus: una actualización puede desactivar el seguimiento y queda una terminal normal"]}
 ]
 };
 

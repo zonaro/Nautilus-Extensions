@@ -238,7 +238,10 @@ Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0,
 Description: run scripts in the terminal and open a terminal in a folder
  Adds context menu entries to run shell and script files in the default
  terminal emulator — with a plain and a sudo variant — and to open a
- terminal inside any folder, including the folder background.
+ terminal inside any folder, including the folder background. A synced
+ terminal follows the window it was opened from: navigating in Files makes
+ the shell cd along, and scripts can run inside that same session through
+ the nautilus-follow-run desktop entry.
 
 Package: zonaro-nautilus-video-to-audio
 Architecture: all

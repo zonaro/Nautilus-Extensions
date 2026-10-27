@@ -102,7 +102,7 @@ slug_desc() {
     preview-panel)        echo "Dynamic file preview panel (F4)";;
     progress-mirror)      echo "Mirror copy/move progress in a window";;
     search-content)       echo "Text search & replace via grep/ripgrep (F8)";;
-    terminal-tools)       echo "Run scripts in the terminal + open a terminal in a folder";;
+    terminal-tools)       echo "Run scripts in the terminal + open a terminal that follows the folder";;
     video-to-audio)       echo "Extract audio from videos (legacy shim, see video-tools)";;
     video-tools)          echo "Convert videos + extract audio (ffmpeg)";;
     watermark-pdf)        echo "Text/image PDF watermarking";;
@@ -117,6 +117,7 @@ slug_files() {
     folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py name_to_color.py color_database.json";;
     audio-tools|video-tools|media-converter)
                           echo "$1.py media_dialogs.py";;
+    terminal-tools)       echo "terminal-tools.py follow-shell.py";;
     *)                    echo "$1.py";;
   esac
 }
@@ -585,6 +586,30 @@ if printf '%s\n' "${SELECTED[@]}" | grep -qx comic-tools; then
                 application/x-ext-cb7 application/x-ext-cbt; do
       xdg-mime default comic-reader.desktop "$mime" 2>/dev/null || true
     done
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+  fi
+fi
+
+# Terminal Tools also ships the synced terminal's command line client and the
+# desktop entry that runs a script inside the terminal following Nautilus.
+# Only the shell script types are claimed as the default handler: .py and the
+# other types stay available through "Open With", so nothing the user already
+# opens in an editor gets hijacked.
+if printf '%s\n' "${SELECTED[@]}" | grep -qx terminal-tools; then
+  mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
+  if [ -f "$SCRIPT_DIR/nautilus-follow-run" ]; then
+    install -m 755 "$SCRIPT_DIR/nautilus-follow-run" "$HOME/.local/bin/nautilus-follow-run"
+  fi
+  if [ -f "$SCRIPT_DIR/nautilus-follow-run.desktop" ]; then
+    install -m 644 "$SCRIPT_DIR/nautilus-follow-run.desktop" \
+      "$HOME/.local/share/applications/nautilus-follow-run.desktop"
+    if command -v xdg-mime >/dev/null 2>&1; then
+      for mime in text/x-shellscript application/x-sh application/x-shellscript; do
+        xdg-mime default nautilus-follow-run.desktop "$mime" 2>/dev/null || true
+      done
+    fi
   fi
   if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true

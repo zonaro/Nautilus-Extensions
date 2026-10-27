@@ -147,7 +147,7 @@ ao mesmo tempo na mesma máquina.
 | 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Annotate** editor (rectangle/ellipse/arrow/text, undo-redo, zoom) and nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash |
-| 🖥️ **Terminal Tools** | `zonaro-nautilus-terminal-tools` | Run scripts in the default terminal (with or without sudo) + open a terminal in any folder |
+| 🖥️ **Terminal Tools** | `zonaro-nautilus-terminal-tools` | Run scripts in the default terminal (with or without sudo), open a terminal in any folder, and open a synced terminal that follows the window as you navigate |
 | 🔧 **Common** | `nautilus-extensions-tof-common` | Shared linker script (installed automatically) |
 
 > 🌍 All extensions support **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**.
@@ -440,6 +440,10 @@ Run scripts straight from the Nautilus context menu and drop into a terminal in 
 - **Open Terminal Here** — available in the folder context menu *and* in the folder background menu (right-click on empty space)
 - The terminal opens **in the selected folder** and **clean** — no leftover commands on the screen
 - Uses the desktop's default terminal emulator (`xdg-terminal-exec`, GNOME's default terminal setting, or a known emulator), each one driven the way it expects (`--working-directory`, `--`, `-e`, …)
+- **Open Synced Terminal Here** — the terminal follows the window it was opened from: navigate in Nautilus and the shell inside it `cd`s to the active folder. The `cd` is written by the shell itself, so it works with any terminal emulator — no emulator-specific API is used
+- **Run in Synced Terminal** — "Run in Terminal" and "Run with sudo" reuse that synced terminal when it is reachable, so the script runs in the same session; otherwise they behave exactly as before
+- **Supported shells** — bash, zsh and fish report their prompt and get live following; any other shell opens a normal terminal, with no following
+- **Honest limitation** — following relies on private Nautilus internals, so a Nautilus upgrade can disable it. The extension degrades to a normal terminal instead of breaking
 - Ships translations for **French 🇫🇷 · English 🇬🇧 · German 🇩🇪 · Spanish 🇪🇸 · Portuguese (BR) 🇧🇷**
 
 ```bash

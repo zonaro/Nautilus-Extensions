@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Run in Synced Terminal
+Name[pt_BR]=Executar no terminal sincronizado
+Name[fr]=Exécuter dans le terminal synchronisé
+Name[es]=Ejecutar en la terminal sincronizada
+Name[de]=Im synchronisierten Terminal ausführen
+Comment=Run this script in the terminal that follows Nautilus
+Comment[pt_BR]=Executar este script no terminal que acompanha o Nautilus
+Comment[fr]=Exécuter ce script dans le terminal qui suit Nautilus
+Comment[es]=Ejecutar este script en la terminal que sigue a Nautilus
+Comment[de]=Dieses Skript im Terminal ausführen, das Nautilus folgt
+Exec=nautilus-follow-run %f
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;Development;
+MimeType=text/x-shellscript;application/x-sh;application/x-shellscript;application/x-executable;application/x-python;text/x-python;
+StartupNotify=true
