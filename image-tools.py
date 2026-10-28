@@ -74,6 +74,14 @@ except Exception:
     MediaCategory = None
     Path = None
 
+# AI upscale helper (Upscayl NCNN backend). Lives next to this file so
+# nautilus-python can import it; defensive import keeps the extension working
+# even if image_ai_upscale.py is missing from the install.
+try:
+    from image_ai_upscale import run_upscale_for
+except ImportError:  # pragma: no cover - installed alongside image-tools.py
+    run_upscale_for = None
+
 # ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
@@ -248,6 +256,11 @@ if _lang.startswith("fr"):
         "cv_done_failed":  "{count} image(s) convertie(s), {failed} échec(s).",
         "cv_nothing":      "Aucune conversion nécessaire — {count} fichier(s) déjà au format cible.",
         "done_skip":       "{skipped} fichier(s) ignoré(s) (déjà au format cible).",
+        # --- AI upscale (Upscayl NCNN backend) ---
+        "ai_top_menu":     "Outils IA",
+        "ai_top_tip":      "Outils d'image basés sur l'IA (backend Upscayl NCNN)",
+        "ai_upscale":      "Upscaler…",
+        "ai_upscale_tip":  "Upscaler des images par IA (backend Upscayl)",
     }
 elif _lang.startswith("de"):
     T = {
@@ -412,6 +425,11 @@ elif _lang.startswith("de"):
         "cv_done_failed":  "{count} Bild(er) konvertiert, {failed} fehlgeschlagen.",
         "cv_nothing":      "Keine Konvertierung nötig — {count} Datei(en) bereits im Zielformat.",
         "done_skip":       "{skipped} Datei(en) übersprungen (bereits im Zielformat).",
+        # --- AI upscale (Upscayl NCNN backend) ---
+        "ai_top_menu":     "KI-Tools",
+        "ai_top_tip":      "KI-gestützte Bildwerkzeuge (Upscayl NCNN Backend)",
+        "ai_upscale":      "Hochskalieren…",
+        "ai_upscale_tip":  "Bilder per KI hochskalieren (Upscayl-Backend)",
     }
 elif _lang.startswith("es"):
     T = {
@@ -576,6 +594,11 @@ elif _lang.startswith("es"):
         "cv_done_failed":  "{count} imagen(es) convertida(s), {failed} fallo(s).",
         "cv_nothing":      "No hace falta conversión — {count} archivo(s) ya tienen el formato destino.",
         "done_skip":       "{skipped} archivo(s) omitido(s) (ya en el formato destino).",
+        # --- AI upscale (Upscayl NCNN backend) ---
+        "ai_top_menu":     "Herramientas IA",
+        "ai_top_tip":      "Herramientas de imagen con IA (backend Upscayl NCNN)",
+        "ai_upscale":      "Superescalar…",
+        "ai_upscale_tip":  "Superescalar imágenes con IA (backend Upscayl)",
     }
 elif _lang.startswith("pt"):
     T = {
@@ -740,6 +763,11 @@ elif _lang.startswith("pt"):
         "cv_done_failed":  "{count} imagem(ns) convertida(s), {failed} falha(s).",
         "cv_nothing":      "Nenhuma conversão necessária — {count} arquivo(s) já estão no formato de destino.",
         "done_skip":       "{skipped} arquivo(s) ignorado(s) (já no formato de destino).",
+        # --- AI upscale (Upscayl NCNN backend) ---
+        "ai_top_menu":     "Ferramentas de IA",
+        "ai_top_tip":      "Ferramentas de imagem com IA (backend Upscayl NCNN)",
+        "ai_upscale":      "Upscale…",
+        "ai_upscale_tip":  "Upscale de imagens por IA (backend Upscayl)",
     }
 else:
     T = {
@@ -904,6 +932,11 @@ else:
         "cv_done_failed":  "{count} image(s) converted, {failed} failed.",
         "cv_nothing":      "No conversion needed — {count} file(s) already have the target format.",
         "done_skip":       "{skipped} file(s) skipped (already in the target format).",
+        # --- AI upscale (Upscayl NCNN backend) ---
+        "ai_top_menu":     "AI Tools",
+        "ai_top_tip":      "AI-powered image tools (Upscayl NCNN backend)",
+        "ai_upscale":      "Upscale…",
+        "ai_upscale_tip":  "Upscale images with AI (Upscayl backend)",
     }
 
 # ---------------------------------------------------------------------------
@@ -3329,6 +3362,29 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
         item.set_submenu(submenu)
         return item
 
+    def _ai_tools_submenu(self, images, videos, dirs):
+        """Ferramentas de IA: Upscale… (imagens) + Remover marcas d'água de IA."""
+        submenu = Nautilus.Menu()
+        has_items = False
+        if images and run_upscale_for is not None:
+            self._add(submenu, "AiUpscale", T["ai_upscale"],
+                      lambda *_a: run_upscale_for(images),
+                      tip=T["ai_upscale_tip"])
+            has_items = True
+        raiw = self._raiw_submenu(images, videos, dirs)
+        if raiw is not None:
+            submenu.append_item(raiw)
+            has_items = True
+        if not has_items:
+            return None
+        item = Nautilus.MenuItem(
+            name="ImageTools::AiTools",
+            label=T["ai_top_menu"],
+            tip=T["ai_top_tip"],
+        )
+        item.set_submenu(submenu)
+        return item
+
     def _convert_item(self, images):
         try:
             from media_core.presets_manager import Presets
@@ -3404,9 +3460,9 @@ class ImageToolsExtension(GObject.GObject, Nautilus.MenuProvider):
                           self._cb_annotate, images[0], tip=T["an_tip"])
             submenu.append_item(self._convert_item(images))
 
-        raiw = self._raiw_submenu(images, videos, dirs)
-        if raiw is not None:
-            submenu.append_item(raiw)
+        ai = self._ai_tools_submenu(images, videos, dirs)
+        if ai is not None:
+            submenu.append_item(ai)
 
         return [top]
 
