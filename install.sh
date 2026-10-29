@@ -38,6 +38,14 @@ PPA_DIR="/usr/share/zonaro-nautilus-extensions"
 # Directory holding the media conversion core (needed by a few extensions).
 MEDIA_CORE_DIR="media_core"
 
+# Upscayl NCNN CLI backend (optional, for the AI image upscale entry).
+# Released as standalone per-platform zips; we only ever use the Linux zip and
+# extract just the `upscayl-bin` executable — never the Electron app.
+UPSCAYL_VERSION="20251207-174704"
+UPSCAYL_LINUX_ASSET="upscayl-bin-${UPSCAYL_VERSION}-linux.zip"
+UPSCAYL_SHA256="a9fab3c770b62f2b7a35d8d6d61eb4e8b3aef79128b665c919d080b85a2292f2"
+UPSCAYL_DOWNLOAD_URL="https://github.com/upscayl/upscayl-ncnn/releases/download/${UPSCAYL_VERSION}/${UPSCAYL_LINUX_ASSET}"
+
 # ---------------------------------------------------------------------------
 # Extension catalog
 # ---------------------------------------------------------------------------
@@ -510,6 +518,53 @@ install_raiw_cli() {
   fi
 }
 
+# Optional: upscayl-bin standalone CLI (AI image upscale backend).
+# Installs only the `upscayl-bin` executable from an official upscayl-ncnn
+# release, into a per-user XDG directory — no root, no Electron, no silent
+# downloads outside of this explicit opt-in step.
+install_upscayl_cli() {
+  if command -v upscayl-bin >/dev/null 2>&1; then
+    echo "==> upscayl-bin already on PATH ($(command -v upscayl-bin)), skipping."
+    return 0
+  fi
+  if ! command -v curl >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "WARNING: curl/unzip required to install upscayl-bin; skipping."
+    return 1
+  fi
+  local install_root="${XDG_DATA_HOME:-$HOME/.local/share}/nautilus-extensions/upscayl"
+  local bin_dir="$install_root/bin"
+  mkdir -p "$bin_dir"
+  local tmp_zip; tmp_zip="$(mktemp)"
+  echo "==> Baixando upscayl-bin ${UPSCAYL_VERSION} (backend autônomo, sem Electron)..."
+  if ! curl -fsSL "$UPSCAYL_DOWNLOAD_URL" -o "$tmp_zip"; then
+    echo "WARNING: Falha ao baixar upscayl-bin. Instale manualmente em:"
+    echo "         $UPSCAYL_DOWNLOAD_URL"
+    rm -f "$tmp_zip"
+    return 1
+  fi
+  echo "${UPSCAYL_SHA256}  $tmp_zip" | sha256sum -c - >/dev/null 2>&1 || {
+    echo "WARNING: SHA-256 do upscayl-bin não confere; instalação abortada."
+    rm -f "$tmp_zip"
+    return 1
+  }
+  local tmp_dir; tmp_dir="$(mktemp -d)"
+  unzip -o "$tmp_zip" -d "$tmp_dir" >/dev/null 2>&1 || true
+  local found=""
+  for cand in "$tmp_dir"/upscayl-bin "$tmp_dir"/upscayl; do
+    if [ -x "$cand" ]; then found="$cand"; break; fi
+  done
+  if [ -z "$found" ]; then
+    echo "WARNING: Binário upscayl-bin não encontrado no release zip."
+    rm -rf "$tmp_dir" "$tmp_zip"
+    return 1
+  fi
+  cp "$found" "$bin_dir/upscayl-bin"
+  chmod +x "$bin_dir/upscayl-bin"
+  echo "==> upscayl-bin instalado em $bin_dir/upscayl-bin"
+  echo "    Adicione ao PATH se necessário: export PATH=\"$bin_dir:\$PATH\""
+  rm -rf "$tmp_dir" "$tmp_zip"
+}
+
 selected_has() {
   local s
   for s in "${SELECTED[@]}"; do
@@ -539,6 +594,28 @@ if selected_has image-tools; then
   fi
 else
   echo "==> Image Tools not selected, skipping remove-ai-watermarks CLI."
+fi
+
+if selected_has image-tools; then
+  if [ "$NO_OPTIONAL" -eq 1 ]; then
+    echo "==> Skipping upscayl-bin CLI (--no-optional)."
+  elif [ "$ASSUME_YES" -eq 1 ]; then
+    install_upscayl_cli
+  elif [ -e /dev/tty ]; then
+    printf "Instalar o CLI upscayl-bin (backend para o Upscale de IA)? [S/n] " > /dev/tty
+    read -r UPSCAYL_ANSWER < /dev/tty || UPSCAYL_ANSWER=""
+    case "${UPSCAYL_ANSWER:-Y}" in
+      [nN]*) echo "==> Skipping upscayl-bin CLI (Upscale menu ainda será exibido com aviso).";;
+      *)     install_upscayl_cli;;
+    esac
+  else
+    case "${UPSCAYL_INSTALL:-Y}" in
+      [nN]*) echo "==> Skipping upscayl-bin CLI (Upscale menu ainda será exibido com aviso).";;
+      *)     install_upscayl_cli;;
+    esac
+  fi
+else
+  echo "==> Image Tools not selected, skipping upscayl-bin CLI."
 fi
 
 # ---------------------------------------------------------------------------

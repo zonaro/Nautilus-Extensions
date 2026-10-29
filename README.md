@@ -144,7 +144,7 @@ ao mesmo tempo na mesma máquina.
 | 👁️ **Hidden Dim (all)** | `nautilus-hidden-dim-all` | Dim icon + label of hidden files |
 | 📋 **Paste Into File** | — (manual install) | Save clipboard as .txt/.png/.jpg/.zip with preview |
 | 🗂️ **File Tools** | — (manual install) | Friendly-name, copy-path, enum-rename, clean-empty, timestamp-folder, symlinks, base64, copy-content |
-| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Annotate** editor (rectangle/ellipse/arrow/text, undo-redo, zoom) and nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) |
+| 🖼️ **Image Tools** | — (manual install) | Grayscale, invert, crop, circle, resize, watermark, optimize-web (Pillow) + **Annotate** editor (rectangle/ellipse/arrow/text, undo-redo, zoom) and nested **Convert Image** (PNG/JPEG/WebP/ICO/256px square) and **Remove AI Watermarks** submenus for images, video and folders (`remove-ai-watermarks` CLI) and **AI Upscale** (Upscayl NCNN backend, super-resolution) |
 | 🔧 **Dev Minify** | — (manual install) | Minify JS/CSS files (regex-based, `.min.ext`) |
 | 📥 **Clone Repository** | — (manual install) | Clone any git repo into the current folder (URL paste + `gh` autocomplete); inside repos a Git submenu offers Pull/Push/Fetch/Status/History/Commit/Branch/Stash |
 | 🖥️ **Terminal Tools** | `zonaro-nautilus-terminal-tools` | Run scripts in the default terminal (with or without sudo), open a terminal in any folder, and open a synced terminal that follows the window as you navigate |

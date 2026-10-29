@@ -152,7 +152,8 @@ Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0,
 Description: image editing tools for the Nautilus context menu
  Grayscale, invert, crop, circle, resize, combine, watermark, colourise and
  web-optimise actions built on Pillow, plus an annotate editor and nested
- convert-image and remove-AI-watermarks submenus.
+ convert-image and remove-AI-watermarks submenus, and an AI Upscale entry
+ (Upscayl NCNN backend via the optional upscayl-bin CLI).
 
 Package: zonaro-nautilus-media-converter
 Architecture: all
