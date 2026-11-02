@@ -306,13 +306,31 @@ def test_open_editor_signature_matches_the_contract():
     parameters = list(signature.parameters.values())
     assert [p.name for p in parameters] == [
         "title", "row_count", "hexes", "layers", "base_builder", "on_apply",
-        "emblem_icons", "tr", "scan_dir"]
+        "emblem_icons", "tr", "scan_dir",
+        # #21: the Global tab and the folder-theme selector are opt-in, so a
+        # caller that only wants the colour editor keeps the old behaviour.
+        "on_apply_theme", "theme_builder", "global_host"]
     assert all(p.kind == inspect.Parameter.KEYWORD_ONLY for p in parameters)
     assert signature.parameters["emblem_icons"].default is None
     assert signature.parameters["tr"].default is None
     # The scanned folder is optional: without it the editor simply does not
     # offer the "Detect icon..." action.
     assert signature.parameters["scan_dir"].default is None
+    assert signature.parameters["on_apply_theme"].default is None
+    assert signature.parameters["theme_builder"].default is None
+    # Without a host there is no Global tab at all (partial installs).
+    assert signature.parameters["global_host"].default is None
+
+
+def test_the_host_offers_the_global_icon_host():
+    """The Global tab driver exists and exposes the editor's contract."""
+    host = fcr.GlobalIconHost(tr=lambda text: text)
+    for name in ("themes", "state", "apply", "restore", "is_active",
+                 "accent_hex", "base_builder"):
+        assert callable(getattr(host, name, None)), name
+    # A fresh process has no derived theme installed.
+    assert host.is_active() in (True, False)
+
 
 
 def _tr_keys(path):

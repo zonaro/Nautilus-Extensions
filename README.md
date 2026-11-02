@@ -391,14 +391,26 @@ Read comic archives without unpacking anything by hand: right-click a `.cbz`, `.
 
 Right-click a folder → **Personalizar…** (*Customize…*) opens a layered editor for the folder icon. The icon is a stack of independent layers, composited live while you edit.
 
-- **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk
+- **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk, or drag from Nautilus / a browser onto the preview; **Ctrl+V** pastes an image from the clipboard (a copied file or a copied picture)
 - **Detect icon…** — a menu item under *Personalizar…* and a *Detect icon…* button inside the editor scan the folder (two levels down, hidden and build folders skipped) for image files whose names look like icons in seven languages (favicon, logo, brasão, escudo, …); one match goes straight onto the stack, several open a chooser with previews, none report "No icon found" — the chosen file lands as a badge-sized image layer (scale 70), ready to adjust
 - **Text layers** — any font installed on the machine, rendered to an image (size, bold, italic and text colour included)
 - **Emblem layers** — emblems from the current icon theme (the *Add emblem…* button is disabled when the theme has none)
-- **Drag & drop** to reorder the stack — the list is top-first, so the first row is what you see on top
+- **Drag & drop** to reorder the stack — the list is top-first, so the first row is what you see on top. Dropping an image file *on a row* replaces that picture instead of adding a layer
 - **Per-layer controls** — hue, saturation and opacity work on image, text and emblem layers alike, plus scale, rotation and X/Y offset
 - **Live preview** — every change is rendered immediately; the composed icon is cached on disk and re-rendered only when the layers change
 - **Base colours** — the folder's base colours (one row per shape of the theme's folder icon) are edited in the same dialog
+- **Folder theme** — apply another installed icon theme's folder shape to the selected folders only (materialised as a cached `metadata::custom-icon`, so the rest of the system keeps its theme)
+
+### Folder and Global tabs
+
+The dialog opens on the **Folder** tab, which customises the selected folders exactly as before. The **Global** tab customises the *default* folder icon — every folder without its own customization:
+
+- The result is installed as a **derived icon theme** in `~/.local/share/icons/zonaro-folder-<digest>` that overrides only `folder` and inherits the rest from the base theme, then activated through `org.gnome.desktop.interface icon-theme`. Nautilus picks it up on reload (log out and back in, or restart Nautilus).
+- Its **theme selector** chooses which installed theme the derived icon inherits — that is, the system icon theme for everything else.
+- **Use the accent colour** tints the global icon with the GNOME accent colour and keeps following later accent changes (`accent-color` is watched through `Gio.Settings`; disable the toggle to stop following).
+- **Restore the default folder icon** removes every derived theme and switches back to the theme that was active before.
+
+Only one derived theme is kept at a time: applying the global icon again prunes the previous one. Changing the icon theme outside this extension is not re-derived — the global icon simply stops applying (documented simplification, tracked in issue #21).
 
 Inside the editor:
 
@@ -409,8 +421,11 @@ Inside the editor:
 | Shift + Scroll | Rotate the selected layer |
 | Alt + Scroll | Opacity of the selected layer |
 | Ctrl + Scroll | Hue of the selected layer |
+| Ctrl + V | Paste an image from the clipboard |
+| Drop on the preview | Add the dropped images as layers |
+| Drop on a layer row | Replace that image layer |
 
-The extension ships translations for Portuguese (default), English, French, German and Spanish, and degrades gracefully: without the optional editor module the menu entry is simply not shown, and missing fonts or emblems never break the rest of the extension.
+The extension ships translations for Portuguese (default), English, French, German and Spanish, and degrades gracefully: without the optional editor module the menu entry is simply not shown, without `folder_icon_theme.py` the Global tab is simply absent, and missing fonts or emblems never break the rest of the extension.
 
 ---
 

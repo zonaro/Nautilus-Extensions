@@ -122,7 +122,7 @@ slug_desc() {
 slug_files() {
   case "$1" in
     edit-with)            echo "nautilus_edit_ext.py";;
-    folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py name_to_color.py color_database.json";;
+    folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py folder_icon_theme.py name_to_color.py color_database.json";;
     audio-tools|video-tools|media-converter)
                           echo "$1.py media_dialogs.py";;
     terminal-tools)       echo "terminal-tools.py follow-shell.py";;

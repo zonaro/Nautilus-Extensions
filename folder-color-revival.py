@@ -71,7 +71,9 @@ try:
         default_layer,
         detect_icon_for_folder,
         normalize_layers,
+        normalize_state,
         open_editor,
+        pack_state,
     )
     _ICON_EDITOR_AVAILABLE = True
 except Exception as e:
@@ -82,10 +84,33 @@ except Exception as e:
         """Fallback when folder_icon_editor is missing: no layers at all."""
         return []
 
+    def normalize_state(raw):
+        """Fallback state reader: keep only a colour spec and no layers."""
+        source = raw if isinstance(raw, dict) else {}
+        return {"version": 0, "spec": str(source.get("spec") or ""),
+                "theme": str(source.get("theme") or ""), "layers": []}
+
+    def pack_state(spec, layers, theme=""):
+        """Fallback state writer for a partial install."""
+        return {"spec": str(spec or ""), "theme": str(theme or ""),
+                "layers": list(layers or [])}
+
     compose_layers = None
     default_layer = None
     detect_icon_for_folder = None
     open_editor = None
+
+# ---------------------------------------------------------------------------
+# Global folder icon scope (#21) — derived icon theme, accent inheritance and
+# theme discovery. Optional module: without it only the Folder tab exists.
+# ---------------------------------------------------------------------------
+try:
+    import folder_icon_theme as icon_theme
+    _ICON_THEME_AVAILABLE = True
+except Exception as e:
+    log.warning(f"folder_icon_theme unavailable, Global tab disabled: {e}")
+    _ICON_THEME_AVAILABLE = False
+    icon_theme = None
 
 # Disk cache for generated folder icons. One deterministic file per color,
 # so Nautilus (which keys its icon cache by URI) never serves a stale icon.
@@ -158,13 +183,35 @@ def _current_theme_name():
         return "hicolor"
 
 
-def _theme_folder_svg_text():
-    """Raw SVG text of the CURRENT theme's 'folder' icon, or ''.
+def _effective_theme_name():
+    """The theme to take folder shapes from.
 
-    Filesystem lookup inside the current theme dirs only — never the
-    display fallback chain (which would silently return another theme).
+    When the active theme is one of our derived themes (#21), its own folder
+    icon is the *output* of the customizer, so the shape must come from the
+    base theme it inherits instead of nesting the composition in itself.
     """
-    for theme_dir in _theme_dir_candidates(_current_theme_name()):
+    theme = _current_theme_name()
+    if _ICON_THEME_AVAILABLE and icon_theme is not None:
+        try:
+            if str(theme).startswith(icon_theme.DERIVED_PREFIX):
+                base = icon_theme.load_state().get("base_theme") or ""
+                if base:
+                    return base
+        except Exception as e:
+            log.debug(f"derived base theme: {e}")
+    return theme
+
+
+def _theme_folder_svg_text(theme=None):
+    """Raw SVG text of a theme's 'folder' icon, or ''.
+
+    Filesystem lookup inside the theme's own dirs only — never the display
+    fallback chain (which would silently return another theme). ``theme``
+    defaults to the effective theme (the current one, or the base theme when
+    a derived theme is active).
+    """
+    name = theme if theme else _effective_theme_name()
+    for theme_dir in _theme_dir_candidates(name):
         scalable = os.path.join(theme_dir, "scalable", "places", "folder.svg")
         if os.path.isfile(scalable):
             try:
@@ -199,15 +246,6 @@ def _icon_base_dirs():
             os.path.join(str(Path.home()), ".local", "share", "icons"),
             "/usr/local/share/icons",
             "/usr/share/icons"]
-
-
-def _current_theme_png_path():
-    """A colored folder PNG variant from the CURRENT theme dirs, or ''."""
-    for theme_dir in _theme_dir_candidates(_current_theme_name()):
-        found = _find_variant_png(theme_dir)
-        if found:
-            return found
-    return ""
 
 
 def _theme_dir_candidates(theme):
@@ -252,9 +290,10 @@ def _find_variant_png(theme_dir):
     return best
 
 
-def _current_theme_png_path():
-    """A colored folder PNG variant from the CURRENT theme dirs, or ''."""
-    for theme_dir in _theme_dir_candidates(_current_theme_name()):
+def _current_theme_png_path(theme=None):
+    """A colored folder PNG variant from a theme's dirs, or ''."""
+    name = theme if theme else _effective_theme_name()
+    for theme_dir in _theme_dir_candidates(name):
         found = _find_variant_png(theme_dir)
         if found:
             return found
@@ -413,17 +452,19 @@ def _split_color_spec(spec):
     return parts
 
 
-def _custom_icon_data(spec):
+def _custom_icon_data(spec, theme=None):
     """Tinted folder icon (bytes, ext) — no cache write.
 
     Sources in order: theme folder SVG (multi-tint) -> theme folder PNG
-    variant (whole-icon tint) -> generic folder (first color).
+    variant (whole-icon tint) -> generic folder (first color). ``theme``
+    selects another installed theme (the Global tab renders a chosen theme
+    before installing it, #21).
     """
     parts = _split_color_spec(spec)
     if not parts:
         return None, None
-    theme_svg = _theme_folder_svg_text()
-    variant_png = "" if theme_svg else _current_theme_png_path()
+    theme_svg = _theme_folder_svg_text(theme)
+    variant_png = "" if theme_svg else _current_theme_png_path(theme)
     if theme_svg:
         svg = _tint_svg_multi(theme_svg, parts)
         if svg:
@@ -550,8 +591,13 @@ def _open_overlay(path):
         return None
 
 
-def _base_pil_image(spec):
-    """Colored folder icon as a 256×256 PIL RGBA image (best effort)."""
+def _base_pil_image(spec, theme=None):
+    """Colored folder icon as a 256×256 PIL RGBA image (best effort).
+
+    ``theme`` picks the folder shape from another installed theme; empty
+    means the effective theme (current, or its base when a derived theme
+    installed by the Global tab is active).
+    """
     try:
         from PIL import Image
     except Exception as e:
@@ -560,14 +606,14 @@ def _base_pil_image(spec):
     parts = _split_color_spec(spec)
     if not parts:
         return None
-    theme_svg = _theme_folder_svg_text()
+    theme_svg = _theme_folder_svg_text(theme)
     if theme_svg:
         svg = _tint_svg_multi(theme_svg, parts)
         if svg:
             img = _svg_rasterize(svg.encode("utf-8"))
             if img is not None:
                 return _fit_square(img)
-    variant_png = "" if theme_svg else _current_theme_png_path()
+    variant_png = "" if theme_svg else _current_theme_png_path(theme)
     if variant_png:
         data = _tint_png_file(variant_png, parts[0])
         if data:
@@ -586,7 +632,8 @@ def _base_pil_image(spec):
 def _compose_final(spec, state):
     """PNG bytes (256×256): colored folder icon + the layer stack."""
     try:
-        base = _base_pil_image(spec)
+        state = state if isinstance(state, dict) else {}
+        base = _base_pil_image(spec, state.get("theme") or "")
         if base is None:
             return None
         if _ICON_EDITOR_AVAILABLE:
@@ -623,10 +670,14 @@ def _ensure_overlay_icon(spec, state):
     parts = _split_color_spec(spec)
     if not parts:
         return ""
+    state = state if isinstance(state, dict) else {}
+    theme = str(state.get("theme") or "")
     if _ICON_EDITOR_AVAILABLE:
-        if not normalize_layers(state):
+        # A theme-only customization (no layer at all) still has to be
+        # composed: that is the "the folder uses this theme's icon" case.
+        if not normalize_layers(state) and not theme:
             return ""
-    elif not (state or {}).get("overlay_path"):
+    elif not state.get("overlay_path"):
         return ""
     slug = "-".join(parts)
     theme = re.sub(r"[^a-z0-9-]+", "",
@@ -806,39 +857,41 @@ def _current_color_specs(path, colors=None):
     return "", []
 
 
-def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes):
+def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
+                      theme=""):
     """Apply the editor result to the folders.
 
-    Returns True when everything was applied (or there was nothing to change).
+    ``theme`` is the folder-icon theme picked in the editor ('' = the
+    current one). Returns True when everything was applied (or there was
+    nothing to change).
     """
     paths = [p for p in (paths or []) if p]
     if not paths:
         return True
+    theme = str(theme or "")
     spec = ";".join(str(h).lstrip("#").lower() for h in (hexes or []))
     initial_spec = ";".join(str(h).lstrip("#").lower()
                              for h in (initial_hexes or []))
+    use_overlay = bool(layers) or bool(theme)
 
-    if not layers:
+    if not use_overlay:
         # Nothing to change -> do not touch the folder at all. This is what
         # keeps a folder coloured through the normal colour menu from being
         # repainted with the editor's grey default.
-        current = _load_overlay_state(paths[0])
-        current_layers = None
-        try:
-            current_layers = normalize_layers(current) if current else []
-        except Exception as e:
-            log.error(f"normalize layers: {e}")
+        current = normalize_state(_load_overlay_state(paths[0]))
         # An unknown layer state is never a no-op: applying is safer than
         # silently dropping the layers of the folder.
-        if current_layers is not None and not current_layers \
+        if not current["layers"] and not current["theme"] \
                 and spec == initial_spec:
             return True
 
     ok = True
     for path in paths:
         try:
-            if layers:
-                state = {"spec": spec, "layers": layers}
+            if use_overlay:
+                # One state for colours + layers + theme: the composed icon
+                # is cached by its digest, so a theme change repaints it.
+                state = pack_state(spec, layers, theme)
                 if foldercolor.set_custom_overlay_color(path, spec, state):
                     _save_overlay_state(path, state)
                 else:
@@ -852,7 +905,7 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes):
                 else:
                     # Remember the colour spec so the editor opens with the
                     # right colours next time (no layers -> plain colour icon).
-                    _save_overlay_state(path, {"spec": spec})
+                    _save_overlay_state(path, pack_state(spec, [], ""))
         except Exception as e:
             log.error(f"apply icon state {path}: {e}")
             ok = False
@@ -1168,6 +1221,15 @@ if _lang.startswith("fr"):
         "Shift + Scroll to rotate": "Maj + Molette pour pivoter",
         "Alt + Scroll for opacity": "Alt + Molette pour l'opacité",
         "Ctrl + Scroll for hue": "Ctrl + Molette pour la teinte",
+        "Folder": "Dossier",
+        "Global": "Global",
+        "Theme (current)": "Thème (actuel)",
+        "Folder theme": "Thème du dossier",
+        "Use the accent colour": "Utiliser la couleur d'accentuation",
+        "Restore the default folder icon": "Rétablir l'icône de dossier par défaut",
+        "Could not apply the global icon.": "Impossible d'appliquer l'icône globale.",
+        "Could not restore the folder icon.": "Impossible de rétablir l'icône du dossier.",
+        "The clipboard holds no image.": "Le presse-papiers ne contient pas d'image.",
     }
 elif _lang.startswith("de"):
     _T = {
@@ -1238,6 +1300,15 @@ elif _lang.startswith("de"):
         "Shift + Scroll to rotate": "Umschalt + Scrollen zum Drehen",
         "Alt + Scroll for opacity": "Alt + Scrollen für Deckkraft",
         "Ctrl + Scroll for hue": "Strg + Scrollen für Farbton",
+        "Folder": "Ordner",
+        "Global": "Global",
+        "Theme (current)": "Thema (aktuell)",
+        "Folder theme": "Ordnersymbol-Thema",
+        "Use the accent colour": "Akzentfarbe verwenden",
+        "Restore the default folder icon": "Standard-Ordnersymbol wiederherstellen",
+        "Could not apply the global icon.": "Das globale Symbol konnte nicht angewendet werden.",
+        "Could not restore the folder icon.": "Das Ordnersymbol konnte nicht wiederhergestellt werden.",
+        "The clipboard holds no image.": "Die Zwischenablage enthält kein Bild.",
     }
 elif _lang.startswith("es"):
     _T = {
@@ -1308,6 +1379,15 @@ elif _lang.startswith("es"):
         "Shift + Scroll to rotate": "Mayús + Rueda para rotar",
         "Alt + Scroll for opacity": "Alt + Rueda para opacidad",
         "Ctrl + Scroll for hue": "Ctrl + Rueda para tono",
+        "Folder": "Carpeta",
+        "Global": "Global",
+        "Theme (current)": "Tema (actual)",
+        "Folder theme": "Tema de carpeta",
+        "Use the accent colour": "Usar el color de acento",
+        "Restore the default folder icon": "Restaurar el icono de carpeta predeterminado",
+        "Could not apply the global icon.": "No se pudo aplicar el icono global.",
+        "Could not restore the folder icon.": "No se pudo restaurar el icono de la carpeta.",
+        "The clipboard holds no image.": "El portapapeles no contiene ninguna imagen.",
     }
 elif _lang.startswith("pt"):
     _T = {
@@ -1378,6 +1458,15 @@ elif _lang.startswith("pt"):
         "Shift + Scroll to rotate": "Shift + Scroll para girar",
         "Alt + Scroll for opacity": "Alt + Scroll para opacidade",
         "Ctrl + Scroll for hue": "Ctrl + Scroll para matiz",
+        "Folder": "Pasta",
+        "Global": "Global",
+        "Theme (current)": "Tema (atual)",
+        "Folder theme": "Tema da pasta",
+        "Use the accent colour": "Usar a cor de destaque",
+        "Restore the default folder icon": "Restaurar o ícone de pasta padrão",
+        "Could not apply the global icon.": "Não foi possível aplicar o ícone global.",
+        "Could not restore the folder icon.": "Não foi possível restaurar o ícone da pasta.",
+        "The clipboard holds no image.": "A área de transferência não contém nenhuma imagem.",
     }
 else:
     _T = {}
@@ -1691,6 +1780,163 @@ def _nautilus_window():
     return windows[0] if windows else None
 
 
+class GlobalIconHost:
+    """Adapter between the editor's Global tab and the icon theme layer.
+
+    The editor only knows this small interface (#21): ``themes()``,
+    ``state()``, ``apply(spec, layers, theme, follow_accent)``, ``restore()``,
+    ``is_active()`` and ``accent_hex()``. Keeping it in one class means the
+    dialog module stays free of GSettings and icon-theme paths.
+    """
+
+    def __init__(self, tr=None):
+        self.tr = tr if callable(tr) else (lambda text: text)
+
+    # -- discovery --------------------------------------------------------
+    def themes(self):
+        if not _ICON_THEME_AVAILABLE:
+            return []
+        try:
+            return icon_theme.discover_folder_themes()
+        except Exception as e:
+            log.error(f"discover folder themes: {e}")
+            return []
+
+    def state(self):
+        if not _ICON_THEME_AVAILABLE:
+            return {}
+        try:
+            return icon_theme.load_state()
+        except Exception as e:
+            log.error(f"global state: {e}")
+            return {}
+
+    # -- discovery helpers used by the dialog opener -----------------------
+    def folder_state(self, path):
+        """Normalized folder state of ``path`` ({} when none is stored)."""
+        return normalize_state(_load_overlay_state(path))
+
+    def is_active(self):
+        if not _ICON_THEME_AVAILABLE:
+            return False
+        try:
+            return icon_theme.state_is_active()
+        except Exception as e:
+            log.error(f"global icon active state: {e}")
+            return False
+
+    def accent_hex(self):
+        if not _ICON_THEME_AVAILABLE:
+            return "#3584e4"
+        try:
+            return icon_theme.resolve_accent_hex()
+        except Exception as e:
+            log.error(f"accent colour: {e}")
+            return "#3584e4"
+
+    def base_builder(self, spec, theme=""):
+        """256×256 PIL base of ``theme``'s folder icon tinted with ``spec``."""
+        return _base_pil_image(spec, theme)
+
+    # -- apply ------------------------------------------------------------
+    def apply(self, *, spec, layers, theme="", follow_accent=False):
+        """Install (and activate) the derived theme carrying the global icon."""
+        if not _ICON_THEME_AVAILABLE or compose_layers is None:
+            log.error("global icon needs folder_icon_editor and folder_icon_theme")
+            return False
+        current = _current_theme_name()
+        stored = self.state()
+        base_theme = str(theme or "")
+        if not base_theme or base_theme.startswith(icon_theme.DERIVED_PREFIX):
+            base_theme = stored.get("base_theme") or _effective_theme_name()
+        parts = _split_color_spec(spec)
+        if follow_accent:
+            # The accent owns the colour: every shape takes the accent hue.
+            parts = [self.accent_hex().lstrip("#")] * max(1, len(parts))
+            spec = ";".join(parts)
+        if not parts:
+            return False
+        normalized = normalize_layers(layers)
+        base = _base_pil_image(spec, base_theme)
+        if base is None:
+            log.error(f"global icon base failed ({base_theme})")
+            return False
+        data = compose_layers(base, normalized)
+        if not data:
+            log.error("global icon composition failed")
+            return False
+        name = icon_theme.derived_theme_name(base_theme, spec, normalized)
+        if not icon_theme.write_derived_theme(name, base_theme, data):
+            return False
+        icon_theme.prune_derived_themes(keep=name)
+        previous = stored.get("previous_theme") or ""
+        if current and not current.startswith(icon_theme.DERIVED_PREFIX):
+            # First global apply: remember what the user had before ours.
+            previous = current
+        if not icon_theme.set_icon_theme(name):
+            return False
+        icon_theme.save_state({
+            "spec": spec,
+            "layers": normalized,
+            "theme": str(theme or ""),
+            "base_theme": base_theme,
+            "follow_accent": bool(follow_accent),
+            "derived_theme": name,
+            "previous_theme": previous,
+            "row_count": max(1, len(parts)),
+        })
+        return True
+
+    def restore(self):
+        """Remove every derived theme and go back to the previous theme."""
+        if not _ICON_THEME_AVAILABLE:
+            return False
+        stored = self.state()
+        previous = stored.get("previous_theme") or stored.get("base_theme") or ""
+        removed = icon_theme.remove_derived_themes()
+        if not removed and not stored.get("derived_theme"):
+            return False
+        if previous and not previous.startswith(icon_theme.DERIVED_PREFIX):
+            icon_theme.set_icon_theme(previous)
+        icon_theme.clear_state()
+        return True
+
+
+def _ensure_accent_watcher():
+    """Re-render the managed global icon when the accent colour changes.
+
+    The watcher only acts when the user enabled "use the accent colour" and
+    the derived theme is still the active one, so switching the icon theme
+    outside this extension is never fought (documented simplification).
+    """
+    if not _ICON_THEME_AVAILABLE:
+        return False
+
+    def on_accent(_colour):
+        host = GlobalIconHost()
+        state = host.state()
+        name = state.get("derived_theme") or ""
+        if not state.get("follow_accent") or not name:
+            return
+        try:
+            if icon_theme.get_icon_theme() != name:
+                return
+        except Exception:
+            return
+        log.info("accent changed: re-rendering the global folder icon")
+        host.apply(spec=state.get("spec") or "",
+                   layers=state.get("layers") or [],
+                   theme=state.get("theme") or "",
+                   follow_accent=True)
+
+    try:
+        return icon_theme.watch_accent(on_accent)
+    except Exception as e:
+        log.error(f"accent watcher: {e}")
+        return False
+
+
+
 class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
     # FIX 5 : __gtype_name__ explicite pour éviter les conflits de types GLib
     # avec d'autres extensions ou entre rechargements.
@@ -1909,13 +2155,15 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         _root, shapes = _svg_shapes(theme_svg) if theme_svg else (None, [])
         row_count = len(shapes) if shapes else 1
 
-        saved = _load_overlay_state(paths[0]) or {}
+        saved = normalize_state(_load_overlay_state(paths[0]))
         # The editor must open with the colour the folder actually has,
         # otherwise applying it back would repaint it with the grey default.
         spec, _current_hexes = _current_color_specs(
             paths[0], self.foldercolor.get_colors_theme())
         hexes = self._hexes_from_state({"spec": spec} if spec else {}, row_count)
         layers = normalize_layers(saved)
+        # The folder theme picked last time ('' = the current theme).
+        chosen = {"theme": str(saved.get("theme") or "")}
         if extra_image:
             # scale 70 mirrors folder_icon_editor._DETECTED_SCALE, which is
             # private to that module (not exported), so the literal is kept
@@ -1926,10 +2174,20 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         def on_apply(new_hexes, new_layers):
             try:
                 return _apply_icon_state(self.foldercolor, paths, new_hexes,
-                                         new_layers, hexes)
+                                         new_layers, hexes,
+                                         theme=chosen["theme"])
             except Exception as e:
                 log.error(f"apply icon state: {e}")
                 return False
+
+        def on_apply_theme(theme):
+            """Remember the folder theme; on_apply writes it with the icon."""
+            chosen["theme"] = str(theme or "")
+            return True
+
+        global_host = GlobalIconHost(tr=_) if _ICON_THEME_AVAILABLE else None
+        if global_host is not None:
+            _ensure_accent_watcher()
 
         open_editor(
             title=CUSTOMIZE_ICON_LABEL,
@@ -1941,6 +2199,9 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             tr=_,
             on_apply=on_apply,
             scan_dir=paths,
+            on_apply_theme=on_apply_theme,
+            theme_builder=_base_pil_image,
+            global_host=global_host,
         )
 
     def _menu_activate_restore(self, menu, items):

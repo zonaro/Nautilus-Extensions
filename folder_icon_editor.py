@@ -18,6 +18,7 @@ folder: the images whose name looks like an icon name -- in any language
 """
 
 import io
+import hashlib
 import logging
 import math
 import os
@@ -115,6 +116,35 @@ _RANGES = {
 }
 
 _HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
+
+# Editor scopes. The "folder" scope writes metadata::custom-icon on the
+# selected folders; the "global" one installs a derived icon theme (#21).
+SCOPE_FOLDER = "folder"
+SCOPE_GLOBAL = "global"
+
+# Persisted state schema version of a folder scope. Bumped when a key changes
+# meaning; new optional keys do not bump it (#29).
+STATE_VERSION = 2
+
+# Imported images: a picture is rejected before it is decoded when it is
+# bigger than this, so a stray 500 MB TIFF cannot freeze the dialog (#30).
+MAX_IMAGE_BYTES = 32 * 1024 * 1024
+MAX_IMAGE_SIDE = 12000
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp", ".gif",
+               ".tif", ".tiff")
+
+# Magic numbers of the formats the editor really renders. SVG is text, so it
+# is sniffed separately.
+_IMAGE_MAGIC = (
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"\xff\xd8\xff", "jpeg"),
+    (b"GIF87a", "gif"),
+    (b"GIF89a", "gif"),
+    (b"BM", "bmp"),
+    (b"II*\x00", "tiff"),
+    (b"MM\x00*", "tiff"),
+)
 
 # Theme sub-directories that really hold icons (Adwaita & friends).
 _THEME_SUBDIRS = (
@@ -260,6 +290,48 @@ def normalize_layers(raw):
     return []
 
 
+def normalize_spec(value):
+    """'#rrggbb[;…]' -> 'rrggbb[;…]'; '' when any part is invalid."""
+    parts = []
+    for chunk in str(value or "").split(";"):
+        slug = chunk.strip().lstrip("#").lower()
+        if len(slug) != 6 or any(c not in "0123456789abcdef" for c in slug):
+            return ""
+        parts.append(slug)
+    return ";".join(parts)
+
+
+def pack_state(spec, layers, theme=""):
+    """Folder state written next to the cached icon (versioned, #29).
+
+    Legacy readers only look at ``spec`` and ``layers``, so the new keys are
+    additive: an older extension can still open the file.
+    """
+    return {
+        "version": STATE_VERSION,
+        "spec": normalize_spec(spec),
+        "theme": str(theme or ""),
+        "layers": normalize_layers(layers),
+    }
+
+
+def normalize_state(raw):
+    """Coerce a stored/foreign folder state into the current schema.
+
+    Accepts the current dict, the legacy single-overlay state and anything
+    broken; an unknown or older version is upgraded, never discarded, so an
+    icon already applied keeps its colours and layers.
+    """
+    state = raw if isinstance(raw, dict) else {}
+    theme = state.get("theme")
+    return {
+        "version": STATE_VERSION,
+        "spec": normalize_spec(state.get("spec")),
+        "theme": str(theme) if isinstance(theme, str) and theme else "",
+        "layers": normalize_layers(state),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -367,6 +439,116 @@ def _local_file_path(candidate):
         path = os.path.abspath(os.path.expanduser(candidate))
         return path if os.path.isfile(path) else ""
     return ""
+
+
+def image_problem(path):
+    """Why ``path`` cannot be used as an image layer ('' when it can).
+
+    Checks the real content, not just the extension: a renamed ``.png`` that
+    is actually a script or an archive must never reach the renderer.
+    """
+    try:
+        if not path or not os.path.isfile(path):
+            return "missing"
+        size = os.path.getsize(path)
+        if size <= 0:
+            return "empty"
+        if size > MAX_IMAGE_BYTES:
+            return "too-large"
+        with open(path, "rb") as handle:
+            head = handle.read(1024)
+    except OSError as e:
+        log.debug(f"image probe {path}: {e}")
+        return "unreadable"
+    lowered = head.lstrip()[:512].lower()
+    if b"<svg" in lowered:
+        return ""
+    if head.startswith(b"RIFF") and head[8:12] == b"WEBP":
+        return ""
+    for magic, _kind in _IMAGE_MAGIC:
+        if head.startswith(magic):
+            return ""
+    return "unsupported"
+
+
+def parse_image_uris(payload):
+    """Image paths carried by a drag/clipboard payload.
+
+    Accepts a newline separated ``text/uri-list`` string, a list of strings
+    and a ``Gdk.FileList``. Only existing, genuinely supported local images
+    survive; remote URIs are never fetched and directories are dropped.
+    """
+    candidates = []
+
+    def collect(item, depth=0):
+        if item is None or depth > 3:
+            return
+        if isinstance(item, (list, tuple)):
+            for entry in item:
+                collect(entry, depth + 1)
+            return
+        if isinstance(item, str):
+            for line in item.replace("\r", "\n").split("\n"):
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    candidates.append(line)
+            return
+        get_files = getattr(item, "get_files", None)
+        if callable(get_files):
+            try:
+                collect(list(get_files() or []), depth + 1)
+                return
+            except Exception as e:
+                log.debug(f"drag file list: {e}")
+        get_uri = getattr(item, "get_uri", None)
+        if callable(get_uri):
+            try:
+                uri = get_uri()
+            except Exception:
+                uri = ""
+            if uri:
+                candidates.append(uri)
+
+    collect(payload)
+    paths = []
+    for candidate in candidates:
+        path = _local_file_path(candidate)
+        if not path or path in paths:
+            continue
+        if image_problem(path):
+            log.warning(f"ignored dropped image {path}: {image_problem(path)}")
+            continue
+        paths.append(path)
+    return paths
+
+
+def _drop_value_types():
+    """GTypes an image drop may arrive in (file list first, then URI text)."""
+    types = [GObject.TYPE_STRING]
+    files = getattr(Gdk, "FileList", None)
+    if files is not None:
+        types.insert(0, files)
+    return types
+
+
+def _cache_image_bytes(data, ext=".png"):
+    """Persist pasted image bytes in the cache; returns the path or ''."""
+    if not data:
+        return ""
+    try:
+        digest = hashlib.md5(data).hexdigest()[:12]
+        base = os.path.join(GLib.get_user_cache_dir(), "folder-color", "pasted")
+        os.makedirs(base, exist_ok=True)
+        path = os.path.join(base, "paste-" + digest + ext)
+        if not os.path.exists(path):
+            with open(path, "wb") as handle:
+                handle.write(data)
+        return path
+    except Exception as e:
+        log.error(f"cache pasted image: {e}")
+        return ""
+
+
 
 
 def _icon_theme_file(name):
@@ -1314,23 +1496,39 @@ def _clear_container(container):
         child = sibling
 
 
+def _scope_snapshot(scope):
+    """Deep-ish copy of what an apply would write (dirty detection)."""
+    return {
+        "hexes": list(scope.get("hexes") or []),
+        "layers": [dict(layer) for layer in scope.get("layers") or []],
+        "theme": str(scope.get("theme") or ""),
+        "follow_accent": bool(scope.get("follow_accent")),
+    }
+
+
+
 class _Editor:
     """The layer editor window."""
 
     def __init__(self, *, title, row_count, hexes, layers, base_builder,
-                 on_apply, emblem_icons=None, tr=None, scan_dir=None):
+                 on_apply, emblem_icons=None, tr=None, scan_dir=None,
+                 on_apply_theme=None, theme_builder=None, global_host=None):
         self.tr = tr if callable(tr) else (lambda text: text)
         self.title = title
         self.row_count = max(1, int(row_count or 1))
         self.hexes = self._init_hexes(hexes)
         self.layers = normalize_layers(layers)
         self.base_builder = base_builder
+        self.theme_builder = theme_builder
         self.on_apply = on_apply
+        self.on_apply_theme = on_apply_theme
+        self.global_host = global_host
         self.emblem_icons = list(emblem_icons or [])
         self.scan_dir = _scan_dirs(scan_dir)
         self.selected = 0 if self.layers else -1
         self.syncing = False
         self.rebuilding = False
+        self.switching = False
         self.drag_active = False
         self.drag_base = (0, 0)
         self.sliders = {}
@@ -1340,9 +1538,60 @@ class _Editor:
         self.font_families = None
         self.file_dialog = None
         self._preview_natural = None
+        self.scope = SCOPE_FOLDER
+        self.themes = []
+        self.theme_names = [""]
+        self.scopes = {}
+        self._init_scopes()
         self._build()
 
     # -- helpers ----------------------------------------------------------
+    def _init_scopes(self):
+        """Seed the folder scope and, when the host offers it, the global one.
+
+        The active scope's ``hexes``/``layers`` are the very list objects
+        handed to the widgets, so a colour edit lands in its own scope and
+        switching tabs never copies the layers around (#21).
+        """
+        folder = {"hexes": self.hexes, "layers": self.layers,
+                  "selected": self.selected, "theme": "",
+                  "follow_accent": False}
+        self.scopes = {SCOPE_FOLDER: folder}
+        if self.global_host is None:
+            folder["initial"] = _scope_snapshot(folder)
+            return
+        try:
+            self.themes = list(self.global_host.themes() or [])
+        except Exception as e:
+            log.error(f"global themes: {e}")
+            self.themes = []
+        try:
+            state = self.global_host.state() or {}
+        except Exception as e:
+            log.error(f"global state: {e}")
+            state = {}
+        rows = max(self.row_count, int(state.get("row_count") or 1))
+        if rows != self.row_count:
+            # The global icon may carry more shapes than the folder's theme;
+            # pad both scopes so every colour row has a value.
+            self.row_count = rows
+            self.hexes = self._init_hexes(self.hexes)
+            folder["hexes"] = self.hexes
+        spec = str(state.get("spec") or "")
+        global_hexes = self._init_hexes(
+            ["#" + part for part in spec.split(";") if len(part) == 6])
+        global_layers = normalize_layers(state.get("layers"))
+        self.scopes[SCOPE_GLOBAL] = {
+            "hexes": global_hexes,
+            "layers": global_layers,
+            "selected": 0 if global_layers else -1,
+            "theme": str(state.get("theme") or ""),
+            "follow_accent": bool(state.get("follow_accent")),
+        }
+        for scope in self.scopes.values():
+            scope["initial"] = _scope_snapshot(scope)
+        self.theme_names = [""] + [item["name"] for item in self.themes]
+
     def _init_hexes(self, hexes):
         values = []
         for value in list(hexes or []):
@@ -1355,6 +1604,7 @@ class _Editor:
         if 0 <= self.selected < len(self.layers):
             return self.layers[self.selected]
         return None
+
 
     def _type_label(self, layer):
         return self.tr(_TYPE_LABELS.get(layer.get("type"),
@@ -1421,12 +1671,16 @@ class _Editor:
         dialog.get_content_area().append(scroller)
 
         upper = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        if self.global_host is not None:
+            root.append(self._build_scope_tabs())
         root.append(upper)
         upper.append(self._build_preview_column())
         upper.append(self._build_layers_column())
 
         root.append(Gtk.Separator())
         root.append(self._build_colour_rows())
+        if self.global_host is not None:
+            root.append(self._build_scope_options())
         root.append(Gtk.Separator())
         root.append(self._bold_label(self.tr("Layer settings")))
         self.settings_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -1434,7 +1688,186 @@ class _Editor:
         root.append(self.settings_box)
 
         dialog.connect("response", self._on_response)
+        self._install_paste_shortcut(dialog)
+        self._sync_scope_options()
         self._rebuild_rows()
+
+    # -- scope tabs -------------------------------------------------------
+    def _build_scope_tabs(self):
+        """Folder / Global tabs (linked toggle buttons, no page stack)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        box.add_css_class("linked")
+        box.set_halign(Gtk.Align.CENTER)
+        self.scope_buttons = {}
+        for scope, label in ((SCOPE_FOLDER, self.tr("Folder")),
+                             (SCOPE_GLOBAL, self.tr("Global"))):
+            button = Gtk.ToggleButton(label=label)
+            button.connect("toggled", self._on_scope_toggled, scope)
+            self.scope_buttons[scope] = button
+            box.append(button)
+        self.scope_buttons[SCOPE_GLOBAL].set_group(
+            self.scope_buttons[SCOPE_FOLDER])
+        self.switching = True
+        try:
+            self.scope_buttons[SCOPE_FOLDER].set_active(True)
+        finally:
+            self.switching = False
+        return box
+
+    def _on_scope_toggled(self, button, scope):
+        if self.switching or not button.get_active():
+            return
+        self.activate_scope(scope)
+
+    def activate_scope(self, scope):
+        """Show another scope; the widgets keep working on its own lists."""
+        if scope == self.scope or scope not in self.scopes:
+            return
+        self.scopes[self.scope]["selected"] = self.selected
+        target = self.scopes[scope]
+        self.switching = True
+        try:
+            button = getattr(self, "scope_buttons", {}).get(scope)
+            if button is not None:
+                button.set_active(True)
+        finally:
+            self.switching = False
+        self.scope = scope
+        self.hexes = target["hexes"]
+        self.layers = target["layers"]
+        self.selected = target.get("selected", -1)
+        self.base_cache.clear()
+        self._sync_colour_rows()
+        self._sync_scope_options()
+        self._rebuild_rows()
+
+    def _build_scope_options(self):
+        """Theme selector (both scopes) + accent switch and restore (global)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        labels = [self.tr("Theme (current)")] + \
+            [item["label"] for item in self.themes]
+        self.theme_dropdown = Gtk.DropDown.new_from_strings(labels)
+        self.theme_dropdown.set_hexpand(True)
+        self.theme_dropdown.connect("notify::selected", self._on_theme_selected)
+        box.append(self._labelled_row(self.tr("Folder theme"),
+                                     self.theme_dropdown))
+
+        self.accent_switch = Gtk.Switch()
+        self.accent_switch.set_halign(Gtk.Align.START)
+        self.accent_switch.connect("notify::active", self._on_accent_toggled)
+        self.accent_row = self._labelled_row(
+            self.tr("Use the accent colour"), self.accent_switch)
+        box.append(self.accent_row)
+
+        self.restore_button = Gtk.Button(
+            label=self.tr("Restore the default folder icon"))
+        self.restore_button.add_css_class("destructive-action")
+        self.restore_button.connect("clicked", self._on_restore_global)
+        self.restore_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                                   spacing=6)
+        self.restore_row.append(self.restore_button)
+        box.append(self.restore_row)
+        return box
+
+    def _sync_scope_options(self):
+        """Push the active scope's theme/accent state into the widgets."""
+        if self.global_host is None:
+            return
+        scope = self.scopes[self.scope]
+        theme = scope.get("theme") or ""
+        index = self.theme_names.index(theme) if theme in self.theme_names else 0
+        self.syncing = True
+        try:
+            self.theme_dropdown.set_selected(index)
+            self.accent_switch.set_active(bool(scope.get("follow_accent")))
+        finally:
+            self.syncing = False
+        is_global = self.scope == SCOPE_GLOBAL
+        for widget in (self.accent_row, self.restore_row):
+            widget.set_visible(is_global)
+        if is_global:
+            try:
+                active = bool(self.global_host.is_active())
+            except Exception as e:
+                log.error(f"global active state: {e}")
+                active = False
+            self.restore_button.set_sensitive(active)
+        self._sync_colour_sensitivity()
+
+    def _sync_colour_sensitivity(self):
+        """Colours are the accent's when the global scope follows it."""
+        locked = self._accent_locked()
+        for entry in getattr(self, "entries", []):
+            entry.set_sensitive(not locked)
+        for picker in getattr(self, "pickers", []):
+            picker.set_sensitive(not locked)
+
+    def _accent_locked(self):
+        return (self.scope == SCOPE_GLOBAL
+                and bool(self.scopes[SCOPE_GLOBAL].get("follow_accent")))
+
+    def _accent_hex(self):
+        getter = getattr(self.global_host, "accent_hex", None)
+        if callable(getter):
+            try:
+                return _normalize_hex(getter()) or "#3584e4"
+            except Exception as e:
+                log.error(f"accent colour: {e}")
+        return "#3584e4"
+
+    def effective_hexes(self):
+        """The colours the preview and the apply use (accent wins)."""
+        if self._accent_locked():
+            return [self._accent_hex()] * self.row_count
+        return list(self.hexes)
+
+    def _on_theme_selected(self, dropdown, _pspec):
+        if self.syncing:
+            return
+        index = dropdown.get_selected()
+        if index < 0 or index >= len(self.theme_names):
+            return
+        scope = self.scopes[self.scope]
+        theme = self.theme_names[index]
+        if theme == scope.get("theme"):
+            return
+        scope["theme"] = theme
+        self.base_cache.clear()
+        self._refresh_preview()
+
+    def _on_accent_toggled(self, switch, _pspec):
+        if self.syncing or self.scope != SCOPE_GLOBAL:
+            return
+        self.scopes[SCOPE_GLOBAL]["follow_accent"] = bool(switch.get_active())
+        self._sync_colour_sensitivity()
+        self.base_cache.clear()
+        self._refresh_preview()
+
+    def _on_restore_global(self, _button):
+        if self.global_host is None:
+            return
+        try:
+            restored = self.global_host.restore()
+        except Exception as e:
+            log.error(f"restore global icon: {e}")
+            restored = False
+        if not restored:
+            self._show_alert(self.tr("Could not restore the folder icon."))
+            return
+        scope = self.scopes[SCOPE_GLOBAL]
+        scope["hexes"] = self._init_hexes([])
+        scope["layers"] = []
+        scope["theme"] = ""
+        scope["follow_accent"] = False
+        scope["selected"] = -1
+        if self.scope == SCOPE_GLOBAL:
+            self.hexes = scope["hexes"]
+            self.layers = scope["layers"]
+            self.selected = -1
+            self.base_cache.clear()
+            self._sync_colour_rows()
+            self._rebuild_rows()
+        self._sync_scope_options()
 
     def _apply_css(self):
         """Small, dialog-scoped polish: framed canvas + bordered swatches."""
@@ -1523,7 +1956,146 @@ class _Editor:
         drag.connect("drag-update", self._on_drag_update)
         drag.connect("drag-end", self._on_drag_end)
         self.preview.add_controller(drag)
+        self._install_drop_targets(frame)
         return box
+
+    # -- image import (#30) -----------------------------------------------
+    def _install_drop_targets(self, widget):
+        """Accept images dropped from Nautilus, a browser or a file manager.
+
+        Two targets: ``Gdk.FileList`` for file managers that hand over files
+        and a plain string for the ``text/uri-list`` payload browsers use.
+        Remote URLs never match: only local files survive ``_local_file_path``.
+        """
+        for value_type in _drop_value_types():
+            try:
+                target = Gtk.DropTarget.new(value_type, Gdk.DragAction.COPY)
+                target.connect("drop", self._on_images_dropped)
+                widget.add_controller(target)
+            except Exception as e:
+                log.debug(f"drop target {value_type}: {e}")
+
+    def _on_images_dropped(self, _target, value, _x, _y):
+        paths = parse_image_uris(value)
+        if not paths:
+            self._show_alert(self.tr("Cannot open this image."))
+            return False
+        self._add_image_paths(paths)
+        return True
+
+    def _on_layer_images_dropped(self, _target, value, _x, _y, index):
+        """Dropping on a layer row replaces that image layer."""
+        paths = parse_image_uris(value)
+        if not paths or not (0 <= index < len(self.layers)):
+            return False
+        layer = self.layers[index]
+        if layer.get("type") != LAYER_IMAGE:
+            return False
+        layer["path"] = paths[0]
+        layer["name"] = _derive_name(layer)
+        for extra in paths[1:]:
+            self.layers.insert(0, default_layer(LAYER_IMAGE, path=extra))
+        self.selected = 0 if len(paths) > 1 else index
+        # The rows must not be destroyed while the drop is still running.
+        GLib.idle_add(self._deferred_rebuild)
+        return True
+
+    def _add_image_paths(self, paths):
+        if not paths:
+            return False
+        for offset, path in enumerate(paths):
+            self.layers.insert(offset, default_layer(LAYER_IMAGE, path=path))
+        self.selected = 0
+        self._rebuild_rows()
+        return True
+
+    def _install_paste_shortcut(self, dialog):
+        controller = Gtk.EventControllerKey.new()
+        controller.connect("key-pressed", self._on_key_pressed)
+        dialog.add_controller(controller)
+
+    def _on_key_pressed(self, _controller, keyval, _keycode, state):
+        control = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        if control and keyval in (Gdk.KEY_v, Gdk.KEY_V):
+            self.paste_image()
+            return True
+        return False
+
+    def paste_image(self):
+        """Ctrl+V: a copied texture, or a copied file's URI list."""
+        if self.dialog is None:
+            return
+        clipboard = self._clipboard()
+        if clipboard is None:
+            return
+        try:
+            clipboard.read_texture_async(None, self._on_paste_texture)
+        except Exception as e:
+            log.error(f"clipboard texture: {e}")
+            self._read_clipboard_uris(clipboard)
+
+    def _clipboard(self):
+        try:
+            display = self.dialog.get_display() or Gdk.Display.get_default()
+            return display.get_clipboard() if display is not None else None
+        except Exception as e:
+            log.error(f"clipboard: {e}")
+            return None
+
+    def _on_paste_texture(self, clipboard, result):
+        if self.dialog is None:
+            return
+        try:
+            texture = clipboard.read_texture_finish(result)
+        except Exception as e:
+            log.debug(f"no image on the clipboard: {e}")
+            texture = None
+        if texture is not None and self._add_texture(texture):
+            return
+        self._read_clipboard_uris(clipboard)
+
+    def _read_clipboard_uris(self, clipboard):
+        try:
+            clipboard.read_value_async(GObject.TYPE_STRING, 0, None,
+                                       self._on_paste_text)
+        except Exception as e:
+            log.debug(f"clipboard text: {e}")
+
+    def _on_paste_text(self, clipboard, result):
+        if self.dialog is None:
+            return
+        try:
+            value = clipboard.read_value_finish(result)
+        except Exception as e:
+            log.debug(f"clipboard text unavailable: {e}")
+            return
+        text = value if isinstance(value, str) else str(value or "")
+        paths = parse_image_uris(text)
+        if not paths:
+            self._show_alert(self.tr("The clipboard holds no image."))
+            return
+        self._add_image_paths(paths)
+
+    def _add_texture(self, texture):
+        """A clipboard texture becomes a temporary PNG layer."""
+        try:
+            width = texture.get_width()
+            height = texture.get_height()
+        except Exception:
+            width = height = 0
+        if not (0 < width <= MAX_IMAGE_SIDE and 0 < height <= MAX_IMAGE_SIDE):
+            self._show_alert(self.tr("Cannot open this image."))
+            return False
+        try:
+            data = bytes(texture.save_to_png_bytes())
+        except Exception as e:
+            log.error(f"texture export: {e}")
+            return False
+        path = _cache_image_bytes(data)
+        if not path:
+            return False
+        return self._add_image_paths([path])
+
 
     def _build_layers_column(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -1604,6 +2176,7 @@ class _Editor:
 
     def _build_colour_rows(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.colour_box = box
         self.entries = []
         self.pickers = []
         for index in range(self.row_count):
@@ -1633,6 +2206,23 @@ class _Editor:
             self.entries.append(entry)
             self.pickers.append(picker)
         return box
+
+    def _sync_colour_rows(self):
+        """Load the active scope's hexes into the existing colour widgets."""
+        if not getattr(self, "entries", None):
+            return
+        self.syncing = True
+        try:
+            for index, entry in enumerate(self.entries):
+                value = self.hexes[index] if index < len(self.hexes) \
+                    else "#808080"
+                entry.set_text(value)
+                rgba = _rgba_from_hex(value)
+                if rgba is not None:
+                    self.pickers[index].set_rgba(rgba)
+        finally:
+            self.syncing = False
+
 
     # -- layer rows -------------------------------------------------------
     def _layer_detail(self, layer):
@@ -1691,7 +2281,20 @@ class _Editor:
         target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
         target.connect("drop", self._on_drop, index)
         row.add_controller(target)
+
+        # Dropping an image file on a layer row replaces that picture (#30);
+        # a plain layer reorder still uses the string target above.
+        for value_type in _drop_value_types():
+            try:
+                file_target = Gtk.DropTarget.new(value_type,
+                                                 Gdk.DragAction.COPY)
+                file_target.connect("drop", self._on_layer_images_dropped,
+                                    index)
+                row.add_controller(file_target)
+            except Exception as e:
+                log.debug(f"row drop target {value_type}: {e}")
         return row, name, detail
+
 
     def _rebuild_rows(self):
         self.rebuilding = True
@@ -2285,17 +2888,37 @@ class _Editor:
             self._set_row(index, hexa, from_picker=False)
 
     # -- preview ----------------------------------------------------------
+    def _active_theme(self):
+        scope = self.scopes.get(self.scope) or {}
+        return str(scope.get("theme") or "")
+
+    def _base_for(self, spec):
+        """Base folder image for ``spec`` in the active scope's theme.
+
+        ``theme_builder(spec, theme)`` is preferred because it can render
+        another theme's folder shape (the global scope does exactly that);
+        without it the legacy single-argument builder is used.
+        """
+        theme = self._active_theme()
+        key = spec if not theme else spec + "|" + theme
+        if key in self.base_cache:
+            return self.base_cache[key]
+        image = None
+        try:
+            if self.theme_builder is not None:
+                image = self.theme_builder(spec, theme)
+            else:
+                image = self.base_builder(spec)
+        except Exception as e:
+            log.error(f"base image failed: {e}")
+        self.base_cache[key] = image
+        while len(self.base_cache) > 3:
+            self.base_cache.popitem(last=False)
+        return image
+
     def _refresh_preview(self):
-        spec = ";".join(self.hexes)
-        if spec not in self.base_cache:
-            try:
-                self.base_cache[spec] = self.base_builder(spec)
-            except Exception as e:
-                log.error(f"base image failed: {e}")
-                self.base_cache[spec] = None
-            while len(self.base_cache) > 3:
-                self.base_cache.popitem(last=False)
-        data = compose_layers(self.base_cache.get(spec), self.layers)
+        spec = ";".join(self.effective_hexes())
+        data = compose_layers(self._base_for(spec), self.layers)
         if data:
             try:
                 loader = GdkPixbuf.PixbufLoader.new_with_mime_type("image/png")
@@ -2394,20 +3017,64 @@ class _Editor:
         except Exception as e:
             log.error(f"alert: {e}")
 
+    def _scope_dirty(self, scope_name):
+        """True when the scope differs from the snapshot taken at open."""
+        scope = self.scopes.get(scope_name) or {}
+        snapshot = scope.get("initial")
+        if snapshot is None:
+            return True
+        return _scope_snapshot(scope) != snapshot
+
+    def _apply_folder_scope(self):
+        """Folder scope: colours/layers first, then the theme when changed."""
+        scope = self.scopes[SCOPE_FOLDER]
+        theme = str(scope.get("theme") or "")
+        initial_theme = str((scope.get("initial") or {}).get("theme") or "")
+        if theme != initial_theme and callable(self.on_apply_theme):
+            try:
+                if self.on_apply_theme(theme) is False:
+                    return False
+            except Exception as e:
+                log.error(f"apply folder theme: {e}")
+                return False
+        try:
+            return self.on_apply(list(scope["hexes"]),
+                                 normalize_layers(scope["layers"]))
+        except Exception as e:
+            log.error(f"apply failed: {e}")
+            return False
+
+    def _apply_global_scope(self):
+        """Global scope: only when something actually changed."""
+        if self.global_host is None:
+            return True
+        if not self._scope_dirty(SCOPE_GLOBAL):
+            return True
+        scope = self.scopes[SCOPE_GLOBAL]
+        spec = ";".join(str(value).lstrip("#").lower()
+                        for value in scope["hexes"])
+        try:
+            return self.global_host.apply(
+                spec=spec,
+                layers=normalize_layers(scope["layers"]),
+                theme=str(scope.get("theme") or ""),
+                follow_accent=bool(scope.get("follow_accent")))
+        except Exception as e:
+            log.error(f"apply global icon: {e}")
+            return False
+
     def _on_response(self, dialog, response):
         if response == Gtk.ResponseType.OK:
-            try:
-                applied = self.on_apply(list(self.hexes),
-                                        normalize_layers(self.layers))
-            except Exception as e:
-                log.error(f"apply failed: {e}")
-                applied = False
+            self.scopes[self.scope]["selected"] = self.selected
             # Only an explicit False means "the host could not apply this";
             # older hosts return None on success.
-            if applied is False:
+            if self._apply_folder_scope() is False:
                 # Keep the dialog open so the user can fix the problem and
                 # retry (or cancel).
                 self._show_alert(self.tr("Cannot open this image."))
+                return
+            if self._apply_global_scope() is False:
+                self._show_alert(self.tr("Could not apply the global icon."))
                 return
         self.dialog = None
         try:
@@ -2421,19 +3088,27 @@ class _Editor:
 
 
 def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
-                emblem_icons=None, tr=None, scan_dir=None):
+                emblem_icons=None, tr=None, scan_dir=None,
+                on_apply_theme=None, theme_builder=None, global_host=None):
     """Open the layer editor dialog.
 
     ``base_builder(spec)`` returns the folder icon base image (PIL) for the
     given colour spec, ``on_apply(hexes, layers)`` is called when the user
     confirms the dialog. ``scan_dir`` is the folder being customised: when
     it is set the editor offers to detect an icon inside it.
+
+    ``theme_builder(spec, theme)`` renders the base of a *named* icon theme
+    ('' means the current one); ``on_apply_theme(theme)`` reports the folder
+    theme selected in the Folder tab. ``global_host`` enables the Global tab
+    (#21): it must provide ``themes()``, ``state()``, ``apply(...)``,
+    ``restore()``, ``is_active()`` and ``accent_hex()``.
     """
     try:
         editor = _Editor(title=title, row_count=row_count, hexes=hexes,
                          layers=layers, base_builder=base_builder,
                          on_apply=on_apply, emblem_icons=emblem_icons, tr=tr,
-                         scan_dir=scan_dir)
+                         scan_dir=scan_dir, on_apply_theme=on_apply_theme,
+                         theme_builder=theme_builder, global_host=global_host)
     except Exception as e:
         log.error(f"icon editor could not be opened: {e}")
         return
