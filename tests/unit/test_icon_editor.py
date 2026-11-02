@@ -271,5 +271,41 @@ class TestClampDialogSize(unittest.TestCase):
                 fie._clamp_dialog_size(*avail), (520, 460))
 
 
+class TestStateModel(unittest.TestCase):
+    """Versioned folder state (#29): tolerant reads, strict writes."""
+
+    def test_pack_state_is_versioned_and_normalised(self):
+        state = fie.pack_state("#3584E4;E62D42", [{"type": "text"}], "Adwaita")
+        self.assertEqual(state["version"], fie.STATE_VERSION)
+        self.assertEqual(state["spec"], "3584e4;e62d42")
+        self.assertEqual(state["theme"], "Adwaita")
+        self.assertEqual(state["layers"][0]["type"], "text")
+
+    def test_pack_state_rejects_an_invalid_spec(self):
+        self.assertEqual(fie.pack_state("zzz;123", [], "")["spec"], "")
+
+    def test_normalize_state_round_trips(self):
+        packed = fie.pack_state("3366ff", [{"type": "image",
+                                            "path": "/tmp/a.png"}], "Yaru")
+        loaded = fie.normalize_state(packed)
+        self.assertEqual(loaded["spec"], "3366ff")
+        self.assertEqual(loaded["theme"], "Yaru")
+        self.assertEqual(loaded["layers"][0]["path"], "/tmp/a.png")
+
+    def test_normalize_state_upgrades_a_legacy_file(self):
+        legacy = {"overlay_path": "/tmp/old.png", "opacity": 50}
+        state = fie.normalize_state(legacy)
+        self.assertEqual(state["version"], fie.STATE_VERSION)
+        self.assertEqual(state["layers"][0]["path"], "/tmp/old.png")
+        self.assertEqual(state["layers"][0]["opacity"], 50)
+
+    def test_normalize_state_of_garbage_is_an_empty_state(self):
+        for raw in (None, [], "nope", 42, {"layers": "no"}):
+            state = fie.normalize_state(raw)
+            self.assertEqual(state["spec"], "")
+            self.assertEqual(state["layers"], [])
+            self.assertEqual(state["theme"], "")
+
+
 if __name__ == "__main__":
     unittest.main()

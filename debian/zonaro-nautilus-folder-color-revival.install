@@ -1,4 +1,5 @@
 folder-color-revival.py usr/share/zonaro-nautilus-extensions/
 folder_icon_editor.py usr/share/zonaro-nautilus-extensions/
+folder_icon_theme.py usr/share/zonaro-nautilus-extensions/
 name_to_color.py usr/share/zonaro-nautilus-extensions/
 color_database.json usr/share/zonaro-nautilus-extensions/
