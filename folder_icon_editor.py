@@ -1723,7 +1723,9 @@ class _Editor:
 
     def __init__(self, *, title, row_count, hexes, layers, base_builder,
                  on_apply, emblem_icons=None, tr=None, scan_dir=None,
-                 on_apply_theme=None, theme_builder=None, global_host=None):
+                 on_apply_theme=None, theme_builder=None, global_host=None,
+                 on_gallery_list=None, on_gallery_apply=None,
+                 on_gallery_remove=None):
         self.tr = tr if callable(tr) else (lambda text: text)
         self.title = title
         self.row_count = max(1, int(row_count or 1))
@@ -1734,6 +1736,9 @@ class _Editor:
         self.on_apply = on_apply
         self.on_apply_theme = on_apply_theme
         self.global_host = global_host
+        self.on_gallery_list = on_gallery_list if callable(on_gallery_list) else None
+        self.on_gallery_apply = on_gallery_apply if callable(on_gallery_apply) else None
+        self.on_gallery_remove = on_gallery_remove if callable(on_gallery_remove) else None
         self.emblem_icons = list(emblem_icons or [])
         self.scan_dir = _scan_dirs(scan_dir)
         self.selected = 0 if self.layers else -1
@@ -2426,6 +2431,10 @@ class _Editor:
         self.open_project_button = Gtk.Button(label=self.tr("Open project…"))
         self.open_project_button.connect("clicked", self._on_open_project)
         move_row.append(self.open_project_button)
+        # Icon gallery (#36).
+        self.gallery_button = Gtk.Button(label=self.tr("Icon gallery…"))
+        self.gallery_button.connect("clicked", self._on_open_gallery)
+        move_row.append(self.gallery_button)
         box.append(move_row)
         return box
 
@@ -3640,6 +3649,186 @@ class _Editor:
         self._rebuild_rows()
         self._refresh_preview()
 
+    # -- icon gallery (#36) -------------------------------------------------
+    def _on_open_gallery(self, _button):
+        """Open the managed icon gallery (#36)."""
+        if self.dialog is None:
+            return
+        if self.on_gallery_list is None:
+            self._show_alert(self.tr("Gallery is not available."))
+            return
+        try:
+            entries = self.on_gallery_list() or []
+        except Exception as e:
+            log.error(f"gallery list: {e}")
+            self._show_alert(self.tr("Could not list the gallery."))
+            return
+
+        win = Gtk.Window(title=self.tr("Icon gallery"))
+        win.set_transient_for(self.dialog)
+        win.set_modal(True)
+        win.set_default_size(700, 500)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        scrolled.set_hexpand(True)
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
+        flow = Gtk.FlowBox()
+        flow.set_valign(Gtk.Align.START)
+        flow.set_max_children_per_line(4)
+        flow.set_column_spacing(12)
+        flow.set_row_spacing(12)
+        flow.set_homogeneous(True)
+
+        for entry in entries:
+            card = self._gallery_card(entry)
+            flow.append(card)
+
+        scrolled.set_child(flow)
+        vbox.append(scrolled)
+
+        close_btn = Gtk.Button(label=self.tr("Close"))
+        close_btn.set_halign(Gtk.Align.END)
+        close_btn.connect("clicked", lambda _b: win.close())
+        vbox.append(close_btn)
+
+        win.set_child(vbox)
+        win.show()
+
+    def _gallery_card(self, entry):
+        """Build a gallery card: thumbnail + name + apply/remove (#36)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_hexpand(True)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        box.set_margin_start(6)
+        box.set_margin_end(6)
+
+        content_hash = str(entry.get("hash") or "")
+        png_path = str(entry.get("png") or "")
+
+        # Thumbnail.
+        picture = Gtk.Picture()
+        try:
+            picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+            picture.set_halign(Gtk.Align.CENTER)
+            picture.set_valign(Gtk.Align.CENTER)
+        except Exception:
+            pass
+        texture = _pixbuf_to_texture(
+            GdkPixbuf.Pixbuf.new_from_file_at_size(png_path, 120, 120)
+            if png_path and os.path.exists(png_path) else None)
+        if texture is not None:
+            picture.set_paintable(texture)
+        box.append(picture)
+
+        # Name.
+        name = str(entry.get("name") or "")
+        if not name:
+            name = self.tr("Untitled")
+        name_label = Gtk.Label(label=name)
+        name_label.set_xalign(0.5)
+        name_label.set_wrap(True)
+        name_label.set_max_width_chars(18)
+        box.append(name_label)
+
+        # Date.
+        updated = str(entry.get("updated") or "")[:16]
+        date_label = Gtk.Label(label=updated)
+        date_label.set_xalign(0.5)
+        date_label.add_css_class("dim-label")
+        date_label.set_margin_bottom(6)
+        box.append(date_label)
+
+        # Buttons.
+        btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        btn_row.set_halign(Gtk.Align.CENTER)
+
+        apply_btn = Gtk.Button(label=self.tr("Apply"))
+        apply_btn.connect("clicked", self._on_gallery_apply_card, content_hash)
+        btn_row.append(apply_btn)
+
+        used_by = entry.get("used_by") or []
+        remove_btn = Gtk.Button(label=self.tr("Remove"))
+        remove_btn.add_css_class("destructive-action")
+        remove_btn.set_sensitive(not used_by)
+        if used_by:
+            remove_btn.set_tooltip_text(
+                self.tr("In use by {n} folder(s)").format(n=len(used_by)))
+        remove_btn.connect("clicked", self._on_gallery_remove_card, content_hash)
+        btn_row.append(remove_btn)
+
+        box.append(btn_row)
+        return box
+
+    def _on_gallery_apply_card(self, _button, content_hash):
+        """Apply a gallery entry to the current folder (#36)."""
+        if self.on_gallery_apply is None:
+            return
+        try:
+            entry = self.on_gallery_apply(content_hash)
+        except Exception as e:
+            log.error(f"gallery apply: {e}")
+            self._show_alert(self.tr("Could not apply the gallery icon."))
+            return
+        if entry is None:
+            return
+        # Restore the editor state from the gallery entry so the user can
+        # keep editing.
+        spec = str(entry.get("spec") or "")
+        hexes = ["#" + part for part in spec.split(";") if len(part) == 6]
+        if hexes:
+            self.hexes = self._init_hexes(hexes)
+            scope = self.scopes.get(self.scope)
+            if scope is not None:
+                scope["hexes"] = self.hexes
+        layers = entry.get("layers")
+        if isinstance(layers, list):
+            self.layers = normalize_layers(layers)
+            scope = self.scopes.get(self.scope)
+            if scope is not None:
+                scope["layers"] = self.layers
+            self.selected = 0 if self.layers else -1
+        scope = self.scopes.get(self.scope)
+        if scope is not None:
+            scope["theme"] = str(entry.get("theme") or "")
+            scope["base_image_path"] = str(entry.get("base_image") or "")
+            self.base_image_path = scope["base_image_path"]
+            self.base_image_pixbuf = None
+            if self.base_image_path:
+                try:
+                    pb = GdkPixbuf.Pixbuf.new_from_file(self.base_image_path)
+                    if pb is not None:
+                        self.base_image_pixbuf = pb
+                except Exception as e:
+                    log.error(f"restore base image: {e}")
+                    self.base_image_path = None
+        self.base_cache.clear()
+        self._sync_colour_rows()
+        self._rebuild_rows()
+        self._refresh_preview()
+
+    def _on_gallery_remove_card(self, _button, content_hash):
+        """Remove a gallery entry (#36)."""
+        if self.on_gallery_remove is None:
+            return
+        try:
+            ok = self.on_gallery_remove(content_hash)
+        except Exception as e:
+            log.error(f"gallery remove: {e}")
+            ok = False
+        if not ok:
+            self._show_alert(self.tr("Cannot remove an icon in use."))
+            return
+        self._on_open_gallery(None)
+
     def _on_move_up(self, _button):
         self._move_selected(-1)
 
@@ -3997,7 +4186,9 @@ class _Editor:
 
 def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
                 emblem_icons=None, tr=None, scan_dir=None,
-                on_apply_theme=None, theme_builder=None, global_host=None):
+                on_apply_theme=None, theme_builder=None, global_host=None,
+                on_gallery_list=None, on_gallery_apply=None,
+                on_gallery_remove=None):
     """Open the layer editor dialog.
 
     ``base_builder(spec)`` returns the folder icon base image (PIL) for the
@@ -4010,13 +4201,19 @@ def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
     theme selected in the Folder tab. ``global_host`` enables the Global tab
     (#21): it must provide ``themes()``, ``state()``, ``apply(...)``,
     ``restore()``, ``is_active()`` and ``accent_hex()``.
+
+    ``on_gallery_list()`` -> list of gallery entries; ``on_gallery_apply(hash)``
+    -> entry state (or None); ``on_gallery_remove(hash)`` -> bool (#36).
     """
     try:
         editor = _Editor(title=title, row_count=row_count, hexes=hexes,
                          layers=layers, base_builder=base_builder,
                          on_apply=on_apply, emblem_icons=emblem_icons, tr=tr,
                          scan_dir=scan_dir, on_apply_theme=on_apply_theme,
-                         theme_builder=theme_builder, global_host=global_host)
+                         theme_builder=theme_builder, global_host=global_host,
+                         on_gallery_list=on_gallery_list,
+                         on_gallery_apply=on_gallery_apply,
+                         on_gallery_remove=on_gallery_remove)
     except Exception as e:
         log.error(f"icon editor could not be opened: {e}")
         return

@@ -309,7 +309,9 @@ def test_open_editor_signature_matches_the_contract():
         "emblem_icons", "tr", "scan_dir",
         # #21: the Global tab and the folder-theme selector are opt-in, so a
         # caller that only wants the colour editor keeps the old behaviour.
-        "on_apply_theme", "theme_builder", "global_host"]
+        "on_apply_theme", "theme_builder", "global_host",
+        # #36: the managed icon gallery is opt-in.
+        "on_gallery_list", "on_gallery_apply", "on_gallery_remove"]
     assert all(p.kind == inspect.Parameter.KEYWORD_ONLY for p in parameters)
     assert signature.parameters["emblem_icons"].default is None
     assert signature.parameters["tr"].default is None
@@ -320,6 +322,10 @@ def test_open_editor_signature_matches_the_contract():
     assert signature.parameters["theme_builder"].default is None
     # Without a host there is no Global tab at all (partial installs).
     assert signature.parameters["global_host"].default is None
+    # Gallery callbacks are optional.
+    assert signature.parameters["on_gallery_list"].default is None
+    assert signature.parameters["on_gallery_apply"].default is None
+    assert signature.parameters["on_gallery_remove"].default is None
 
 
 def test_the_host_offers_the_global_icon_host():
