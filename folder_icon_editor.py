@@ -74,6 +74,7 @@ _LAYER_FIELDS = (
     "type", "name", "path", "text", "font", "font_size", "bold", "italic",
     "color", "emblem", "emblem_uri", "opacity", "scale", "rotation",
     "offset_x", "offset_y", "hue", "saturation",
+    "monochrome", "invert", "threshold", "mono_color",
 )
 
 # The fields that describe WHAT a layer shows (the transform fields below
@@ -81,6 +82,7 @@ _LAYER_FIELDS = (
 _CONTENT_FIELDS = (
     "type", "path", "text", "font", "font_size", "bold", "italic", "color",
     "emblem", "emblem_uri",
+    "monochrome", "invert", "threshold", "mono_color",
 )
 
 _DEFAULTS = {
@@ -102,6 +104,12 @@ _DEFAULTS = {
     "offset_y": 0,
     "hue": 0,
     "saturation": 0,
+    # Monochrome mode (#32): when True the layer is converted to grayscale,
+    # thresholded and tinted with mono_color; invert flips the threshold.
+    "monochrome": False,
+    "invert": False,
+    "threshold": 128,
+    "mono_color": "#ffffff",
 }
 
 _RANGES = {
@@ -112,6 +120,7 @@ _RANGES = {
     "offset_y": (-CANVAS_SIZE, CANVAS_SIZE),
     "hue": (-180, 180),
     "saturation": (-100, 100),
+    "threshold": (0, 255),
     "font_size": (8, 256),
 }
 
@@ -804,8 +813,45 @@ def _shift_saturation(img, percent):
     return Image.merge("RGBA", (*rgb.split(), alpha))
 
 
+def _apply_monochrome(img, layer):
+    """Convert to grayscale, threshold, tint with mono_color (alpha preserved).
+
+    ``monochrome`` must be truthy for anything to happen. ``invert`` flips
+    the threshold so dark pixels become the tint colour instead of light ones.
+    ``threshold`` is 0-255; ``mono_color`` is '#rrggbb'. The original alpha
+    channel is preserved untouched.
+    """
+    if not layer.get("monochrome"):
+        return img
+    img = img.convert("RGBA").copy()
+    red, green, blue, alpha = img.split()
+    gray = Image.merge("RGB", (red, green, blue)).convert("L")
+    threshold = int(layer.get("threshold", 128))
+    invert = bool(layer.get("invert"))
+    # Threshold: above -> white (255), below -> black (0).
+    if invert:
+        mask = gray.point(lambda v: 255 if v < threshold else 0)
+    else:
+        mask = gray.point(lambda v: 255 if v > threshold else 0)
+    hexa = _normalize_hex(layer.get("mono_color", "#ffffff"))
+    if not hexa:
+        hexa = "#ffffff"
+    rgba = Gdk.RGBA()
+    if not rgba.parse(hexa):
+        rgba.parse("#ffffff")
+    r = int(round(rgba.red * 255))
+    g = int(round(rgba.green * 255))
+    b = int(round(rgba.blue * 255))
+    tinted = Image.merge("RGB", (
+        Image.eval(mask, lambda v: r * v // 255),
+        Image.eval(mask, lambda v: g * v // 255),
+        Image.eval(mask, lambda v: b * v // 255),
+    ))
+    return Image.merge("RGBA", (*tinted.split(), alpha))
+
+
 def _apply_transforms(img, layer):
-    """scale -> rotation -> hue -> saturation -> opacity."""
+    """scale -> rotation -> monochrome -> hue -> saturation -> opacity."""
     # The copy matters: the render cache hands out shared images.
     img = img.convert("RGBA").copy()
     scale = int(layer.get("scale", 100))
@@ -818,6 +864,7 @@ def _apply_transforms(img, layer):
     if rotation:
         img = img.rotate(rotation, resample=Image.Resampling.BICUBIC,
                          expand=True)
+    img = _apply_monochrome(img, layer)
     hue = int(layer.get("hue", 0))
     if hue:
         img = _shift_hue(img, hue)
@@ -2565,6 +2612,98 @@ class _Editor:
             log.debug(f"scale sync: {e}")
         self.syncing = False
 
+    # -- monochrome controls (#32) -----------------------------------------
+    def _on_monochrome_toggled(self, button):
+        layer = self.current_layer()
+        if layer is None:
+            return
+        layer["monochrome"] = button.get_active()
+        button.set_label(
+            self.tr("Monochrome on") if layer["monochrome"]
+            else self.tr("Monochrome off"))
+        # Enable/disable dependent controls.
+        for child in self.settings_box:
+            self._set_monochrome_child_sensitive(child, layer["monochrome"])
+        self._refresh_preview()
+
+    def _set_monochrome_child_sensitive(self, widget, sensitive):
+        """Recursively enable/disable monochrome-dependent child widgets."""
+        try:
+            widget.set_sensitive(sensitive)
+        except Exception:
+            pass
+        try:
+            for child in widget:
+                self._set_monochrome_child_sensitive(child, sensitive)
+        except Exception:
+            pass
+
+    def _on_mono_color_picked(self, _button):
+        layer = self.current_layer()
+        if layer is None or self.dialog is None:
+            return
+        dialog = Gtk.ColorDialog()
+        rgba = _rgba_from_hex(layer.get("mono_color", "#ffffff"))
+        if rgba is None:
+            rgba = Gdk.RGBA()
+            rgba.parse("#ffffff")
+        dialog.set_rgba(rgba)
+        dialog.open(self.dialog, None, self._on_mono_color_done)
+
+    def _on_mono_color_done(self, dialog, result):
+        try:
+            rgba = dialog.open_finish(result)
+        except Exception:
+            return
+        hexa = _rgba_to_hex(rgba)
+        if not hexa:
+            return
+        layer = self.current_layer()
+        if layer is None:
+            return
+        layer["mono_color"] = hexa
+        # Repaint the swatch.
+        for child in self.settings_box:
+            self._repaint_mono_swatch(child, hexa)
+        self._refresh_preview()
+
+    def _repaint_mono_swatch(self, widget, hexa):
+        try:
+            if widget.get_name() == "mono-swatch":
+                widget.set_tooltip_text(hexa)
+                provider = Gtk.CssProvider()
+                provider.load_from_data(
+                    f".mono-swatch {{ background-color: {hexa}; "
+                    "border: 1px solid rgba(0,0,0,0.35); border-radius: 6px; "
+                    "min-width: 24px; min-height: 24px; }}\n".encode("utf-8"))
+                Gtk.StyleContext.add_provider_for_display(
+                    Gdk.Display.get_default(), provider,
+                    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+        try:
+            for child in widget:
+                self._repaint_mono_swatch(child, hexa)
+        except Exception:
+            pass
+
+    def _on_invert_toggled(self, button):
+        layer = self.current_layer()
+        if layer is None:
+            return
+        layer["invert"] = button.get_active()
+        button.set_label(
+            self.tr("Invert on") if layer["invert"]
+            else self.tr("Invert off"))
+        self._refresh_preview()
+
+    def _on_threshold_changed(self, scale):
+        layer = self.current_layer()
+        if layer is None or self.syncing:
+            return
+        layer["threshold"] = int(round(scale.get_value()))
+        self._refresh_preview()
+
     # -- type specific controls -------------------------------------------
     def _build_text_controls(self, layer):
         entry = Gtk.Entry()
@@ -2665,6 +2804,7 @@ class _Editor:
         self.widgets["emblem_uris"] = uris
         self.settings_box.append(
             self._labelled_row(self.tr("Select emblem"), dropdown))
+        self._build_monochrome_controls(layer)
 
     def _build_image_controls(self, layer):
         button = Gtk.Button(label=self.tr("Pick image"))
@@ -2676,6 +2816,7 @@ class _Editor:
         path_label.set_ellipsize(Pango.EllipsizeMode.END)
         path_label.add_css_class("dim-label")
         self.settings_box.append(path_label)
+        self._build_monochrome_controls(layer)
         # “Restore default base” — remove the custom base image and go back to
         # the themed folder icon (#31). Only shown when a custom base is set.
         self.restore_base_button = Gtk.Button(
@@ -2685,6 +2826,64 @@ class _Editor:
         self.restore_base_button.set_sensitive(bool(self.base_image_path))
         self.settings_box.append(
             self._labelled_row(self.tr("Base image"), self.restore_base_button))
+
+    def _build_monochrome_controls(self, layer):
+        """Monochrome toggle + color / invert / threshold (#32)."""
+        kind = layer.get("type", LAYER_IMAGE)
+        if kind not in (LAYER_IMAGE, LAYER_EMBLEM):
+            return
+        self.settings_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        mono_label = Gtk.Label(label=self.tr("Monochrome"))
+        mono_label.set_xalign(0)
+        mono_button = Gtk.ToggleButton(
+            label=self.tr("Monochrome on") if layer.get("monochrome")
+            else self.tr("Monochrome off"))
+        mono_button.set_active(bool(layer.get("monochrome")))
+        mono_button.connect("toggled", self._on_monochrome_toggled)
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        row.append(mono_label)
+        row.append(mono_button)
+        self.settings_box.append(row)
+
+        # Tint color.
+        color_button = Gtk.Button()
+        color_button.set_size_request(24, 24)
+        color_button.add_css_class("color-button")
+        provider = Gtk.CssProvider()
+        provider.load_from_data(
+            f".mono-swatch {{ background-color: {layer.get('mono_color', '#ffffff')}; "
+            "border: 1px solid rgba(0,0,0,0.35); border-radius: 6px; "
+            "min-width: 24px; min-height: 24px; }}\n".encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        color_button.add_css_class("mono-swatch")
+        color_button.set_name("mono-swatch")
+        color_button.set_tooltip_text(layer.get("mono_color", "#ffffff"))
+        color_button.connect("clicked", self._on_mono_color_picked)
+        self.settings_box.append(
+            self._labelled_row(self.tr("Tint color"), color_button))
+
+        # Invert toggle.
+        invert_button = Gtk.ToggleButton(
+            label=self.tr("Invert on") if layer.get("invert")
+            else self.tr("Invert off"))
+        invert_button.set_active(bool(layer.get("invert")))
+        invert_button.set_sensitive(bool(layer.get("monochrome")))
+        invert_button.connect("toggled", self._on_invert_toggled)
+        self.settings_box.append(
+            self._labelled_row(self.tr("Invert threshold"), invert_button))
+
+        # Threshold slider.
+        low, high = _RANGES["threshold"]
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, low, high, 1)
+        scale.set_hexpand(True)
+        scale.set_digits(0)
+        scale.set_value(float(layer.get("threshold", 128)))
+        scale.set_sensitive(bool(layer.get("monochrome")))
+        scale.connect("value-changed", self._on_threshold_changed)
+        self.settings_box.append(
+            self._labelled_row(self.tr("Threshold"), scale))
 
     def _font_family_names(self):
         if self.font_families is not None:
