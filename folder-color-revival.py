@@ -591,13 +591,23 @@ def _open_overlay(path):
         return None
 
 
-def _base_pil_image(spec, theme=None):
+def _base_pil_image(spec, theme=None, base_image=None):
     """Colored folder icon as a 256×256 PIL RGBA image (best effort).
 
     ``theme`` picks the folder shape from another installed theme; empty
     means the effective theme (current, or its base when a derived theme
-    installed by the Global tab is active).
+    installed by the Global tab is active). ``base_image`` is the path of a
+    custom base image (#30); when set it replaces the themed folder icon.
     """
+    if base_image:
+        try:
+            from PIL import Image
+            img = Image.open(base_image)
+            img.load()
+            return _fit_square(img.convert("RGBA"))
+        except Exception as e:
+            log.error(f"base image load: {e}")
+            return None
     try:
         from PIL import Image
     except Exception as e:
@@ -633,7 +643,8 @@ def _compose_final(spec, state):
     """PNG bytes (256×256): colored folder icon + the layer stack."""
     try:
         state = state if isinstance(state, dict) else {}
-        base = _base_pil_image(spec, state.get("theme") or "")
+        base = _base_pil_image(spec, state.get("theme") or "",
+                               state.get("base_image") or None)
         if base is None:
             return None
         if _ICON_EDITOR_AVAILABLE:
@@ -858,12 +869,13 @@ def _current_color_specs(path, colors=None):
 
 
 def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
-                      theme=""):
+                      theme="", base_image=None):
     """Apply the editor result to the folders.
 
     ``theme`` is the folder-icon theme picked in the editor ('' = the
-    current one). Returns True when everything was applied (or there was
-    nothing to change).
+    current one). ``base_image`` is the path of a custom base image (#30);
+    when set it replaces the themed folder icon as the composition base.
+    Returns True when everything was applied (or there was nothing to change).
     """
     paths = [p for p in (paths or []) if p]
     if not paths:
@@ -872,7 +884,7 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
     spec = ";".join(str(h).lstrip("#").lower() for h in (hexes or []))
     initial_spec = ";".join(str(h).lstrip("#").lower()
                              for h in (initial_hexes or []))
-    use_overlay = bool(layers) or bool(theme)
+    use_overlay = bool(layers) or bool(theme) or bool(base_image)
 
     if not use_overlay:
         # Nothing to change -> do not touch the folder at all. This is what
@@ -882,16 +894,18 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
         # An unknown layer state is never a no-op: applying is safer than
         # silently dropping the layers of the folder.
         if not current["layers"] and not current["theme"] \
-                and spec == initial_spec:
+                and not current["base_image"] and spec == initial_spec:
             return True
 
     ok = True
     for path in paths:
         try:
             if use_overlay:
-                # One state for colours + layers + theme: the composed icon
-                # is cached by its digest, so a theme change repaints it.
-                state = pack_state(spec, layers, theme)
+                # One state for colours + layers + theme + base image: the
+                # composed icon is cached by its digest, so a change
+                # repaints it.
+                state = pack_state(spec, layers, theme,
+                                   base_image=base_image)
                 if foldercolor.set_custom_overlay_color(path, spec, state):
                     _save_overlay_state(path, state)
                 else:
@@ -1221,6 +1235,12 @@ if _lang.startswith("fr"):
         "Shift + Scroll to rotate": "Maj + Molette pour pivoter",
         "Alt + Scroll for opacity": "Alt + Molette pour l'opacité",
         "Ctrl + Scroll for hue": "Ctrl + Molette pour la teinte",
+        "Choose where the image goes: new layer, selected layer or custom base image.": "Choisissez où l'image va : nouveau calque, calque s´electionn´e ou image de base personnalis´ee.",
+        "Select an image layer to replace.": "S´electionnez un calque d'image ´e remplacer.",
+        "Using the first image as the base image; the others were ignored.": "Utilisation de la premi´ere image comme image de base; les autres ont »et´e ignor´ees.",
+        "Add as layer": "Ajouter comme calque",
+        "Replace selected layer": "Remplacer le calque sélectionné",
+        "Use as base image": "Utiliser comme image de base",
         "Folder": "Dossier",
         "Global": "Global",
         "Theme (current)": "Thème (actuel)",
@@ -1300,6 +1320,12 @@ elif _lang.startswith("de"):
         "Shift + Scroll to rotate": "Umschalt + Scrollen zum Drehen",
         "Alt + Scroll for opacity": "Alt + Scrollen für Deckkraft",
         "Ctrl + Scroll for hue": "Strg + Scrollen für Farbton",
+        "Choose where the image goes: new layer, selected layer or custom base image.": "Wählen Sie, wohin das Bild soll: neue Ebene, ausgewählte Ebene oder benutzerdefiniertes Basisbild.",
+        "Select an image layer to replace.": "Wählen Sie ein Bildelement zum Ersetzen aus.",
+        "Using the first image as the base image; the others were ignored.": "Das erste Bild wird als Basisbild verwendet; die anderen wurden ignoriert.",
+        "Add as layer": "Als Ebene hinzufügen",
+        "Replace selected layer": "Ausgewählte Ebene ersetzen",
+        "Use as base image": "Als Basisbild verwenden",
         "Folder": "Ordner",
         "Global": "Global",
         "Theme (current)": "Thema (aktuell)",
@@ -1379,6 +1405,12 @@ elif _lang.startswith("es"):
         "Shift + Scroll to rotate": "Mayús + Rueda para rotar",
         "Alt + Scroll for opacity": "Alt + Rueda para opacidad",
         "Ctrl + Scroll for hue": "Ctrl + Rueda para tono",
+        "Choose where the image goes: new layer, selected layer or custom base image.": "Elige dónde va la imagen: nueva capa, capa seleccionada o imagen base personalizada.",
+        "Select an image layer to replace.": "Selecciona una capa de imagen para reemplazar.",
+        "Using the first image as the base image; the others were ignored.": "Se usa la primera imagen como imagen base; las otras fueron ignoradas.",
+        "Add as layer": "Añadir como capa",
+        "Replace selected layer": "Reemplazar capa seleccionada",
+        "Use as base image": "Usar como imagen base",
         "Folder": "Carpeta",
         "Global": "Global",
         "Theme (current)": "Tema (actual)",
@@ -1458,6 +1490,12 @@ elif _lang.startswith("pt"):
         "Shift + Scroll to rotate": "Shift + Scroll para girar",
         "Alt + Scroll for opacity": "Alt + Scroll para opacidade",
         "Ctrl + Scroll for hue": "Ctrl + Scroll para matiz",
+        "Choose where the image goes: new layer, selected layer or custom base image.": "Escolha onde a imagem vai: nova camada, camada selecionada ou imagem de base personalizada.",
+        "Select an image layer to replace.": "Selecione uma camada de imagem para substituir.",
+        "Using the first image as the base image; the others were ignored.": "Usando a primeira imagem como imagem de base; as outras foram ignoradas.",
+        "Add as layer": "Adicionar como camada",
+        "Replace selected layer": "Substituir camada selecionada",
+        "Use as base image": "Usar como imagem de base",
         "Folder": "Pasta",
         "Global": "Global",
         "Theme (current)": "Tema (atual)",
@@ -1839,8 +1877,13 @@ class GlobalIconHost:
         return _base_pil_image(spec, theme)
 
     # -- apply ------------------------------------------------------------
-    def apply(self, *, spec, layers, theme="", follow_accent=False):
-        """Install (and activate) the derived theme carrying the global icon."""
+    def apply(self, *, spec, layers, theme="", follow_accent=False,
+              base_image=None):
+        """Install (and activate) the derived theme carrying the global icon.
+
+        ``base_image`` is the path of a custom base image (#30); when set it
+        replaces the themed folder icon as the composition base.
+        """
         if not _ICON_THEME_AVAILABLE or compose_layers is None:
             log.error("global icon needs folder_icon_editor and folder_icon_theme")
             return False
@@ -1857,7 +1900,8 @@ class GlobalIconHost:
         if not parts:
             return False
         normalized = normalize_layers(layers)
-        base = _base_pil_image(spec, base_theme)
+        base = _base_pil_image(spec, base_theme,
+                               base_image=base_image or None)
         if base is None:
             log.error(f"global icon base failed ({base_theme})")
             return False
@@ -1883,6 +1927,7 @@ class GlobalIconHost:
             "follow_accent": bool(follow_accent),
             "derived_theme": name,
             "previous_theme": previous,
+            "base_image": str(base_image or ""),
             "row_count": max(1, len(parts)),
         })
         return True

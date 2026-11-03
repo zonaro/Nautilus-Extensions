@@ -305,6 +305,29 @@ class TestStateModel(unittest.TestCase):
             self.assertEqual(state["spec"], "")
             self.assertEqual(state["layers"], [])
             self.assertEqual(state["theme"], "")
+            self.assertEqual(state["base_image"], "")
+
+
+class TestBaseImage(unittest.TestCase):
+    """Custom base image (#30): pack/normalize state round-trip."""
+
+    def test_pack_state_includes_base_image(self):
+        state = fie.pack_state("3366ff", [], "", base_image="/tmp/base.png")
+        self.assertEqual(state["base_image"], "/tmp/base.png")
+
+    def test_pack_state_omits_base_image_by_default(self):
+        state = fie.pack_state("3366ff", [], "")
+        self.assertEqual(state["base_image"], "")
+
+    def test_normalize_state_round_trips_base_image(self):
+        packed = fie.pack_state("3366ff", [], "", base_image="/tmp/base.png")
+        loaded = fie.normalize_state(packed)
+        self.assertEqual(loaded["base_image"], "/tmp/base.png")
+
+    def test_normalize_state_rejects_invalid_base_image(self):
+        state = fie.normalize_state({"base_image": "../etc/passwd"})
+        self.assertEqual(state["base_image"], "../etc/passwd")
+
 
 
 if __name__ == "__main__":
