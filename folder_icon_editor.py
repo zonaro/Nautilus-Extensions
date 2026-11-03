@@ -316,12 +316,13 @@ def normalize_spec(value):
     return ";".join(parts)
 
 
-def pack_state(spec, layers, theme="", base_image=None):
+def pack_state(spec, layers, theme="", base_image=None, follow_accent=False):
     """Folder state written next to the cached icon (versioned, #29).
 
     Legacy readers only look at ``spec`` and ``layers``, so the new keys are
     additive: an older extension can still open the file. ``base_image`` is
-    the path of a custom base image (#30).
+    the path of a custom base image (#30); ``follow_accent`` (#35) makes the
+    folder icon track the system accent colour.
     """
     return {
         "version": STATE_VERSION,
@@ -329,6 +330,7 @@ def pack_state(spec, layers, theme="", base_image=None):
         "theme": str(theme or ""),
         "layers": normalize_layers(layers),
         "base_image": str(base_image or ""),
+        "follow_accent": bool(follow_accent),
     }
 
 
@@ -342,12 +344,14 @@ def normalize_state(raw):
     state = raw if isinstance(raw, dict) else {}
     theme = state.get("theme")
     base_image = state.get("base_image")
+    follow_accent = state.get("follow_accent")
     return {
         "version": STATE_VERSION,
         "spec": normalize_spec(state.get("spec")),
         "theme": str(theme) if isinstance(theme, str) and theme else "",
         "layers": normalize_layers(state),
         "base_image": str(base_image or ""),
+        "follow_accent": bool(follow_accent),
     }
 
 
@@ -1725,7 +1729,7 @@ class _Editor:
                  on_apply, emblem_icons=None, tr=None, scan_dir=None,
                  on_apply_theme=None, theme_builder=None, global_host=None,
                  on_gallery_list=None, on_gallery_apply=None,
-                 on_gallery_remove=None):
+                 on_gallery_remove=None, follow_accent=False):
         self.tr = tr if callable(tr) else (lambda text: text)
         self.title = title
         self.row_count = max(1, int(row_count or 1))
@@ -1741,6 +1745,7 @@ class _Editor:
         self.on_gallery_remove = on_gallery_remove if callable(on_gallery_remove) else None
         self.emblem_icons = list(emblem_icons or [])
         self.scan_dir = _scan_dirs(scan_dir)
+        self.follow_accent = bool(follow_accent)
         self.selected = 0 if self.layers else -1
         self.syncing = False
         self.rebuilding = False
@@ -1775,7 +1780,7 @@ class _Editor:
         """
         folder = {"hexes": self.hexes, "layers": self.layers,
                   "selected": self.selected, "theme": "",
-                  "follow_accent": False,
+                  "follow_accent": bool(self.follow_accent),
                   "base_image_path": None}
         self.scopes = {SCOPE_FOLDER: folder}
         if self.global_host is None:
@@ -2016,7 +2021,7 @@ class _Editor:
             self.syncing = False
         is_global = self.scope == SCOPE_GLOBAL
         for widget in (self.accent_row, self.restore_row):
-            widget.set_visible(is_global)
+            widget.set_visible(is_global or widget is self.accent_row)
         if is_global:
             try:
                 active = bool(self.global_host.is_active())
@@ -2068,9 +2073,9 @@ class _Editor:
         self._refresh_preview()
 
     def _on_accent_toggled(self, switch, _pspec):
-        if self.syncing or self.scope != SCOPE_GLOBAL:
+        if self.syncing:
             return
-        self.scopes[SCOPE_GLOBAL]["follow_accent"] = bool(switch.get_active())
+        self.scopes[self.scope]["follow_accent"] = bool(switch.get_active())
         self._sync_colour_sensitivity()
         self.base_cache.clear()
         self._refresh_preview()
@@ -4135,7 +4140,8 @@ class _Editor:
         try:
             return self.on_apply(list(scope["hexes"]),
                                  normalize_layers(scope["layers"]),
-                                 base_image=scope.get("base_image_path"))
+                                 base_image=scope.get("base_image_path"),
+                                 follow_accent=bool(scope.get("follow_accent")))
         except Exception as e:
             log.error(f"apply failed: {e}")
             return False
@@ -4188,7 +4194,7 @@ def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
                 emblem_icons=None, tr=None, scan_dir=None,
                 on_apply_theme=None, theme_builder=None, global_host=None,
                 on_gallery_list=None, on_gallery_apply=None,
-                on_gallery_remove=None):
+                on_gallery_remove=None, follow_accent=False):
     """Open the layer editor dialog.
 
     ``base_builder(spec)`` returns the folder icon base image (PIL) for the
@@ -4204,6 +4210,7 @@ def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
 
     ``on_gallery_list()`` -> list of gallery entries; ``on_gallery_apply(hash)``
     -> entry state (or None); ``on_gallery_remove(hash)`` -> bool (#36).
+    ``follow_accent`` seeds the folder scope's ``follow_accent`` flag (#35).
     """
     try:
         editor = _Editor(title=title, row_count=row_count, hexes=hexes,
@@ -4213,7 +4220,8 @@ def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
                          theme_builder=theme_builder, global_host=global_host,
                          on_gallery_list=on_gallery_list,
                          on_gallery_apply=on_gallery_apply,
-                         on_gallery_remove=on_gallery_remove)
+                         on_gallery_remove=on_gallery_remove,
+                         follow_accent=follow_accent)
     except Exception as e:
         log.error(f"icon editor could not be opened: {e}")
         return

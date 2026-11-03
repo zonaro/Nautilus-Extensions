@@ -311,7 +311,9 @@ def test_open_editor_signature_matches_the_contract():
         # caller that only wants the colour editor keeps the old behaviour.
         "on_apply_theme", "theme_builder", "global_host",
         # #36: the managed icon gallery is opt-in.
-        "on_gallery_list", "on_gallery_apply", "on_gallery_remove"]
+        "on_gallery_list", "on_gallery_apply", "on_gallery_remove",
+        # #35: follow_accent seeds the folder scope's accent-follow flag.
+        "follow_accent"]
     assert all(p.kind == inspect.Parameter.KEYWORD_ONLY for p in parameters)
     assert signature.parameters["emblem_icons"].default is None
     assert signature.parameters["tr"].default is None
@@ -326,6 +328,8 @@ def test_open_editor_signature_matches_the_contract():
     assert signature.parameters["on_gallery_list"].default is None
     assert signature.parameters["on_gallery_apply"].default is None
     assert signature.parameters["on_gallery_remove"].default is None
+    # follow_accent defaults to off.
+    assert signature.parameters["follow_accent"].default is False
 
 
 def test_the_host_offers_the_global_icon_host():
