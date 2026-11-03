@@ -1082,6 +1082,20 @@ _DETECT_PREVIEW_SIZE = 48
 # small enough for the folder shape to show through.
 _DETECTED_SCALE = 70
 
+# Quick palette colours (Iconic reference): blue, teal, green, yellow,
+# orange, red, pink, purple, slate — plus a custom colour picker.
+PALETTE_COLORS = (
+    ("blue",   "#3584e4"),
+    ("teal",   "#2190a4"),
+    ("green",  "#3a944a"),
+    ("yellow", "#c88800"),
+    ("orange", "#ed5b00"),
+    ("red",    "#e62d42"),
+    ("pink",   "#d56199"),
+    ("purple", "#9141ac"),
+    ("slate",  "#6f8396"),
+)
+
 # Folders that never hold the icon of a project.
 _SCAN_SKIP_DIRS = ("node_modules", ".git", "__pycache__", "vendor", "build",
                    "dist", "target", ".venv", "venv")
@@ -2220,6 +2234,63 @@ class _Editor:
         self.colour_box = box
         self.entries = []
         self.pickers = []
+
+        # -- quick palette (Iconic reference) ------------------------------
+        palette_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        palette_label = Gtk.Label(label=self.tr("Quick colours"))
+        palette_label.set_xalign(0)
+        try:
+            palette_label.set_size_request(56, -1)
+        except Exception:
+            pass
+        palette_row.append(palette_label)
+        palette_flow = Gtk.FlowBox()
+        palette_flow.add_css_class("add-flow")
+        try:
+            palette_flow.set_selection_mode(Gtk.SelectionMode.NONE)
+            palette_flow.set_row_spacing(6)
+            palette_flow.set_column_spacing(6)
+        except Exception as e:
+            log.error(f"palette flow: {e}")
+        for name, hex_color in PALETTE_COLORS:
+            swatch = Gtk.Button()
+            swatch.set_tooltip_text(f"{name} — {hex_color}")
+            swatch.set_size_request(24, 24)
+            swatch.add_css_class("color-button")
+            # Paint the swatch with its colour via inline style.
+            try:
+                swatch.set_css_modules(None)
+                swatch.set_valign(Gtk.Align.CENTER)
+                swatch.set_halign(Gtk.Align.CENTER)
+                swatch.set_can_focus(False)
+            except Exception:
+                pass
+            provider = Gtk.CssProvider()
+            provider.load_from_data(
+                f".palette-swatch {{ background-color: {hex_color}; "
+                "border: 1px solid rgba(0,0,0,0.35); border-radius: 6px; "
+                "min-width: 24px; min-height: 24px; }}\n".encode("utf-8"))
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(), provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            swatch.add_css_class("palette-swatch")
+            swatch.set_name(f"palette-{name}")
+            swatch.connect("clicked", self._on_palette_color, hex_color)
+            palette_flow.append(swatch)
+        custom_button = Gtk.Button(label=self.tr("Custom colour…"))
+        custom_button.connect("clicked", self._on_custom_colour)
+        palette_flow.append(custom_button)
+        palette_row.append(palette_flow)
+        box.append(palette_row)
+
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        try:
+            sep.set_margin_top(4)
+            sep.set_margin_bottom(4)
+        except Exception:
+            pass
+        box.append(sep)
+
         for index in range(self.row_count):
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
             label = Gtk.Label(label=self.tr("Color %d") % (index + 1))
@@ -2605,6 +2676,15 @@ class _Editor:
         path_label.set_ellipsize(Pango.EllipsizeMode.END)
         path_label.add_css_class("dim-label")
         self.settings_box.append(path_label)
+        # “Restore default base” — remove the custom base image and go back to
+        # the themed folder icon (#31). Only shown when a custom base is set.
+        self.restore_base_button = Gtk.Button(
+            label=self.tr("Restore the default folder icon"))
+        self.restore_base_button.add_css_class("destructive-action")
+        self.restore_base_button.connect("clicked", self._on_restore_base_image)
+        self.restore_base_button.set_sensitive(bool(self.base_image_path))
+        self.settings_box.append(
+            self._labelled_row(self.tr("Base image"), self.restore_base_button))
 
     def _font_family_names(self):
         if self.font_families is not None:
@@ -2854,6 +2934,20 @@ class _Editor:
                 self.base_image_path = None
                 self.base_image_pixbuf = None
                 self._show_alert(self.tr("Cannot open this image."))
+        self._update_restore_base_button()
+
+    def _on_restore_base_image(self, _button):
+        """Clear the custom base image and restore the themed folder icon (#31)."""
+        self._set_base_image(None)
+        self._update_restore_base_button()
+        self._rebuild_rows()
+        self._refresh_preview()
+
+    def _update_restore_base_button(self):
+        """Show/hide/enable the restore-base button according to state."""
+        button = getattr(self, "restore_base_button", None)
+        if button is not None:
+            button.set_sensitive(bool(self.base_image_path))
 
     def _on_row_use_as_base(self, _menu_item, index):
         """Use the image layer at ``index`` as the custom base image (#30)."""
@@ -3044,6 +3138,58 @@ class _Editor:
         hexa = _rgba_to_hex(picker.get_rgba())
         if hexa:
             self._set_row(index, hexa, from_picker=False)
+
+    def _on_palette_color(self, _button, hex_color):
+        """Apply a quick palette colour to every colour row (#31)."""
+        resolved = _normalize_hex(hex_color) or hex_color
+        if not resolved:
+            return
+        self.syncing = True
+        try:
+            for index in range(self.row_count):
+                self.hexes[index] = resolved
+                if index < len(self.entries):
+                    self.entries[index].set_text(resolved)
+                    rgba = _rgba_from_hex(resolved)
+                    if rgba is not None and index < len(self.pickers):
+                        self.pickers[index].set_rgba(rgba)
+        finally:
+            self.syncing = False
+        self._refresh_preview()
+
+    def _on_custom_colour(self, _button):
+        """Open a colour picker and apply the chosen colour to all rows (#31)."""
+        try:
+            dialog = Gtk.ColorDialog()
+            rgba = _rgba_from_hex(self.hexes[0] if self.hexes else "#808080")
+            if rgba is None:
+                rgba = Gdk.RGBA()
+                rgba.parse("#808080")
+            dialog.set_rgba(rgba)
+            dialog.open(self.dialog, None, self._on_custom_colour_done)
+        except Exception as e:
+            log.error(f"custom colour dialog: {e}")
+
+    def _on_custom_colour_done(self, dialog, result):
+        try:
+            rgba = dialog.open_finish(result)
+        except Exception as e:
+            log.debug(f"custom colour cancelled: {e}")
+            return
+        hexa = _rgba_to_hex(rgba)
+        if not hexa:
+            return
+        self.syncing = True
+        try:
+            for index in range(self.row_count):
+                self.hexes[index] = hexa
+                if index < len(self.entries):
+                    self.entries[index].set_text(hexa)
+                    if index < len(self.pickers):
+                        self.pickers[index].set_rgba(rgba)
+        finally:
+            self.syncing = False
+        self._refresh_preview()
 
     # -- preview ----------------------------------------------------------
     def _active_theme(self):
