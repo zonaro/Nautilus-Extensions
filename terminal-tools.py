@@ -299,6 +299,7 @@ TERMINAL_SPECS = {
     "xterm":           (None, "-e", "argv"),
     "st":              (None, "-e", "argv"),
     "onyxsh":          ("--working-directory", "--execute", "line"),
+    "ptyxis":          ("--working-directory=", "--execute", "argv"),
 }
 
 # Desktop directories scanned for terminal emulators. The flatpak and snap
@@ -594,8 +595,11 @@ def _open_argv(descriptor, folder):
     if descriptor["style"] == "line":
         line = 'cd %s && exec "${SHELL:-/bin/bash}"' % shlex.quote(folder)
         return argv + _exec_args(descriptor["exec"], line)
-    script = 'cd %s || exit 1\nexec "${SHELL:-/bin/bash}"' % shlex.quote(folder)
-    return argv + _exec_args(descriptor["exec"], _shell(), "-c", script)
+    # Sem working directory, passar o comando shell como único argumento.
+    # Terminais como ptyxis, xterm e st aceitam isso; bash -c não é
+    # necessário porque o terminal já inicia um shell.
+    script = 'cd %s && exec "${SHELL:-/bin/bash}"' % shlex.quote(folder)
+    return argv + _exec_args(descriptor["exec"], script)
 
 
 def _run_argv(descriptor, scripts, sudo=False):
@@ -627,7 +631,12 @@ def _run_argv(descriptor, scripts, sudo=False):
         text = " ".join(shlex.quote(part) for part in command)
         lines.append("cd %s && %s" % (shlex.quote(directory), text))
     script = _build_run_script(lines)
-    return argv + workdir + _exec_args(descriptor["exec"], _shell(), "-c", script)
+    if workdir:
+        return argv + workdir + _exec_args(descriptor["exec"], _shell(), "-c", script)
+    # Sem working directory, passar o script como único argumento. Terminais
+    # como ptyxis, xterm e st aceitam isso; o shell do terminal já executa
+    # o comando.
+    return argv + _exec_args(descriptor["exec"], script)
 
 
 def _spawn(argv):
@@ -824,7 +833,14 @@ def _follow_argv(descriptor, folder, token, script, python=None, debug=None):
     if descriptor["style"] == "line":
         line = " ".join(shlex.quote(part) for part in command)
         return argv + _exec_args(descriptor["exec"], line)
-    return argv + _exec_args(descriptor["exec"], *command)
+    # Para terminais que aceitam comandos via -e/--execute, usar -- para
+    # separar o comando do programa terminal, garantindo compatibilidade
+    # com ptyxis. O comando executado é o primeiro elemento de *command*.
+    if descriptor["exec"] is not None:
+        cmd_first = command[0] if command else ""
+        cmd_rest = command[1:] if len(command) > 1 else []
+        return argv + _exec_args(descriptor["exec"], cmd_first) + ["--"] + cmd_rest
+    return argv + list(command)
 
 
 def _launch_follow(folder, token):

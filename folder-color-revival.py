@@ -2008,6 +2008,21 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         log.debug(f"get_file_items: {len(items)} item(s), all_dirs={self.all_dirs}")
         return self._show_menu(items) or []
 
+    def get_background_items(self, folder):
+        """Menu de fundo da pasta (= mesma oferta do menu de pasta)."""
+        if not self._check_show_menu([folder]):
+            return []
+
+        # Rechargement du thème si changé depuis la dernière fois
+        current_theme = Gtk.Settings.get_default().get_property("gtk-icon-theme-name")
+        if self.theme != current_theme:
+            self.theme = current_theme
+            self.foldercolor.set_colors_theme()
+            self.foldercolor.set_emblems_theme()
+
+        log.debug(f"get_background_items")
+        return self._show_menu([folder]) or []
+
     def _check_show_menu(self, items):
         if not items:
             return False
