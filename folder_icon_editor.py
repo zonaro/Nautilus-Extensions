@@ -38,7 +38,7 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
 log = logging.getLogger("folder-color-revival.icon-editor")
 
 try:
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageEnhance, ImageChops
 
     _PIL_AVAILABLE = True
 except Exception as e:  # pragma: no cover - PIL is a hard dependency
@@ -75,6 +75,7 @@ _LAYER_FIELDS = (
     "color", "emblem", "emblem_uri", "opacity", "scale", "rotation",
     "offset_x", "offset_y", "hue", "saturation",
     "monochrome", "invert", "threshold", "mono_color",
+    "mask_mode", "mask_path",
 )
 
 # The fields that describe WHAT a layer shows (the transform fields below
@@ -83,6 +84,7 @@ _CONTENT_FIELDS = (
     "type", "path", "text", "font", "font_size", "bold", "italic", "color",
     "emblem", "emblem_uri",
     "monochrome", "invert", "threshold", "mono_color",
+    "mask_mode", "mask_path",
 )
 
 _DEFAULTS = {
@@ -110,6 +112,10 @@ _DEFAULTS = {
     "invert": False,
     "threshold": 128,
     "mono_color": "#ffffff",
+    # Mask mode (#33): "none" = no mask, "auto" = derive from base alpha so
+    # the overlay is clipped to the folder shape, "custom" = user PNG/SVG.
+    "mask_mode": "none",
+    "mask_path": "",
 }
 
 _RANGES = {
@@ -850,8 +856,64 @@ def _apply_monochrome(img, layer):
     return Image.merge("RGBA", (*tinted.split(), alpha))
 
 
+# ---------------------------------------------------------------------------
+# Masks (#33)
+# ---------------------------------------------------------------------------
+
+_MASK_CACHE_MAX = 16
+_MASK_CACHE = OrderedDict()
+
+
+def _load_mask_image(path, size):
+    """Load a mask image (PNG/SVG) -> grayscale ``L`` image sized to ``size``.
+
+    External masks are untrusted data: validate existence/format and return
+    ``None`` on any failure so the caller can fall back to the automatic
+    mask or skip masking entirely.
+    """
+    if not path or not os.path.exists(path):
+        return None
+    cached = _MASK_CACHE.get(path)
+    if cached is not None:
+        _MASK_CACHE.move_to_end(path)
+        return cached
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".svg":
+            img = _rasterize_svg(path, size[0])
+        else:
+            img = _open_image(path)
+        if img is None:
+            return None
+        img = img.convert("L")
+        if img.size != size:
+            img = img.resize(size, Image.Resampling.LANCZOS)
+        _MASK_CACHE[path] = img
+        while len(_MASK_CACHE) > _MASK_CACHE_MAX:
+            _MASK_CACHE.popitem(last=False)
+        return img
+    except Exception as e:
+        log.error(f"load mask {path}: {e}")
+        return None
+
+
+def _apply_mask(img, mask):
+    """Apply grayscale ``mask`` to ``img`` alpha channel (antialiased).
+
+    The mask multiplies the existing alpha, so transparent parts of the mask
+    make the layer transparent; opaque parts keep the layer's own alpha.
+    """
+    img = img.convert("RGBA").copy()
+    if mask.size != img.size:
+        mask = mask.resize(img.size, Image.Resampling.LANCZOS)
+    alpha = img.getchannel("A")
+    new_alpha = ImageChops.multiply(alpha, mask)
+    img.putalpha(new_alpha)
+    return img
+
+
 def _apply_transforms(img, layer):
-    """scale -> rotation -> monochrome -> hue -> saturation -> opacity."""
+    """scale -> rotation -> monochrome -> hue -> saturation -> opacity -> mask."""
     # The copy matters: the render cache hands out shared images.
     img = img.convert("RGBA").copy()
     scale = int(layer.get("scale", 100))
@@ -877,6 +939,12 @@ def _apply_transforms(img, layer):
         alpha = img.getchannel("A").point(
             lambda value: max(0, min(255, int(round(value * factor)))))
         img.putalpha(alpha)
+    # Custom mask (per-layer opt-in). Applied last so it clips the final
+    # transformed+opacitied layer, preserving antialiasing edges.
+    if layer.get("mask_mode") == "custom":
+        mask = _load_mask_image(layer.get("mask_path"), img.size)
+        if mask is not None:
+            img = _apply_mask(img, mask)
     return img
 
 
@@ -897,6 +965,13 @@ def compose_layers(base, layers):
             canvas = canvas.resize((CANVAS_SIZE, CANVAS_SIZE),
                                    Image.Resampling.LANCZOS)
         canvas = canvas.copy()
+        # Automatic mask derived from the base image alpha (folder shape).
+        # Used to clip overlays that overflow the folder silhouette (#33).
+        base_mask = None
+        try:
+            base_mask = canvas.getchannel("A")
+        except Exception:
+            base_mask = None
         for layer in reversed(normalize_layers(layers)):
             img = _render_cached(layer)
             if img is None:
@@ -907,6 +982,11 @@ def compose_layers(base, layers):
             pos_x = (CANVAS_SIZE - img.width) // 2 + int(layer["offset_x"])
             pos_y = (CANVAS_SIZE - img.height) // 2 + int(layer["offset_y"])
             scratch.paste(img, (pos_x, pos_y))
+            # "auto" mask: clip to the folder base shape. Only affects the
+            # layer that opted in (mask_mode == "auto"); text/emblem are not
+            # cut by default unless the user explicitly enables it.
+            if layer.get("mask_mode") == "auto" and base_mask is not None:
+                scratch = _apply_mask(scratch, base_mask)
             canvas = Image.alpha_composite(canvas, scratch)
         buffer = io.BytesIO()
         canvas.save(buffer, "PNG")
@@ -2704,6 +2784,109 @@ class _Editor:
         layer["threshold"] = int(round(scale.get_value()))
         self._refresh_preview()
 
+    # -- mask controls (#33) -----------------------------------------------
+    def _build_mask_controls(self, layer):
+        """Mask mode: none / auto (folder shape) / custom PNG/SVG (#33)."""
+        kind = layer.get("type", LAYER_IMAGE)
+        if kind not in (LAYER_IMAGE, LAYER_EMBLEM):
+            return
+        self.settings_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        mask_label = Gtk.Label(label=self.tr("Mask"))
+        mask_label.set_xalign(0)
+        mask_dropdown = Gtk.DropDown.new_from_strings([
+            self.tr("None"),
+            self.tr("Clip to folder shape (auto)"),
+            self.tr("Custom mask image…"),
+        ])
+        mode_map = {0: "none", 1: "auto", 2: "custom"}
+        mode = layer.get("mask_mode", "none")
+        selected = 0
+        for idx, m in mode_map.items():
+            if m == mode:
+                selected = idx
+                break
+        mask_dropdown.set_selected(selected)
+        mask_dropdown.connect("notify::selected", self._on_mask_mode_changed)
+        self.widgets["mask_mode"] = mask_dropdown
+        self.settings_box.append(
+            self._labelled_row(self.tr("Clip overlay to"), mask_dropdown))
+
+        # Custom mask path + pick button.
+        self.mask_path_button = Gtk.Button(label=self.tr("Pick mask image"))
+        self.mask_path_button.connect("clicked", self._on_pick_mask)
+        self.mask_path_button.set_sensitive(mode == "custom" and bool(
+            self.widgets.get("mask_mode")))
+        self.mask_path_label = Gtk.Label(label=str(layer.get("mask_path") or ""))
+        self.mask_path_label.set_xalign(0)
+        self.mask_path_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.mask_path_label.add_css_class("dim-label")
+        self.mask_path_label.set_sensitive(mode == "custom")
+        self.settings_box.append(
+            self._labelled_row(self.tr("Mask file"), self.mask_path_button))
+        self.settings_box.append(self.mask_path_label)
+        self._update_mask_controls_sensitivity(mode)
+
+    def _update_mask_controls_sensitivity(self, mode):
+        custom = mode == "custom"
+        btn = getattr(self, "mask_path_button", None)
+        lbl = getattr(self, "mask_path_label", None)
+        if btn is not None:
+            btn.set_sensitive(custom)
+        if lbl is not None:
+            lbl.set_sensitive(custom)
+
+    def _on_mask_mode_changed(self, dropdown):
+        layer = self.current_layer()
+        if layer is None:
+            return
+        mode_map = {0: "none", 1: "auto", 2: "custom"}
+        mode = mode_map.get(dropdown.get_selected(), "none")
+        layer["mask_mode"] = mode
+        if mode != "custom":
+            layer["mask_path"] = ""
+        self._update_mask_controls_sensitivity(mode)
+        self._refresh_preview()
+
+    def _on_pick_mask(self, _button):
+        layer = self.current_layer()
+        if layer is None or self.dialog is None:
+            return
+        dialog = Gtk.FileDialog(title=self.tr("Pick mask image"))
+        filt = _image_filter(self.tr("Mask images"))
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(filt)
+        dialog.set_filters(store)
+        dialog.set_default_filter(filt)
+        self.file_dialog = dialog
+        try:
+            dialog.open(self.dialog, None, self._on_mask_picked)
+        except Exception as e:
+            log.error(f"mask dialog: {e}")
+
+    def _on_mask_picked(self, dialog, result):
+        try:
+            gfile = dialog.open_finish(result)
+            path = gfile.get_path()
+        except Exception:
+            return
+        layer = self.current_layer()
+        if layer is None or not path:
+            return
+        # Validate the mask loads before storing.
+        try:
+            from PIL import Image
+            test = Image.open(path)
+            test.load()
+        except Exception as e:
+            log.error(f"invalid mask {path}: {e}")
+            self._show_alert(self.tr("Cannot open this mask image."))
+            return
+        layer["mask_path"] = path
+        label = getattr(self, "mask_path_label", None)
+        if label is not None:
+            label.set_text(path)
+        self._refresh_preview()
+
     # -- type specific controls -------------------------------------------
     def _build_text_controls(self, layer):
         entry = Gtk.Entry()
@@ -2805,6 +2988,7 @@ class _Editor:
         self.settings_box.append(
             self._labelled_row(self.tr("Select emblem"), dropdown))
         self._build_monochrome_controls(layer)
+        self._build_mask_controls(layer)
 
     def _build_image_controls(self, layer):
         button = Gtk.Button(label=self.tr("Pick image"))
@@ -2817,6 +3001,7 @@ class _Editor:
         path_label.add_css_class("dim-label")
         self.settings_box.append(path_label)
         self._build_monochrome_controls(layer)
+        self._build_mask_controls(layer)
         # “Restore default base” — remove the custom base image and go back to
         # the themed folder icon (#31). Only shown when a custom base is set.
         self.restore_base_button = Gtk.Button(
