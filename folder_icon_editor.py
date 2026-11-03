@@ -301,17 +301,19 @@ def normalize_spec(value):
     return ";".join(parts)
 
 
-def pack_state(spec, layers, theme=""):
+def pack_state(spec, layers, theme="", base_image=None):
     """Folder state written next to the cached icon (versioned, #29).
 
     Legacy readers only look at ``spec`` and ``layers``, so the new keys are
-    additive: an older extension can still open the file.
+    additive: an older extension can still open the file. ``base_image`` is
+    the path of a custom base image (#30).
     """
     return {
         "version": STATE_VERSION,
         "spec": normalize_spec(spec),
         "theme": str(theme or ""),
         "layers": normalize_layers(layers),
+        "base_image": str(base_image or ""),
     }
 
 
@@ -324,11 +326,13 @@ def normalize_state(raw):
     """
     state = raw if isinstance(raw, dict) else {}
     theme = state.get("theme")
+    base_image = state.get("base_image")
     return {
         "version": STATE_VERSION,
         "spec": normalize_spec(state.get("spec")),
         "theme": str(theme) if isinstance(theme, str) and theme else "",
         "layers": normalize_layers(state),
+        "base_image": str(base_image or ""),
     }
 
 
@@ -1539,6 +1543,10 @@ class _Editor:
         self.file_dialog = None
         self._preview_natural = None
         self.scope = SCOPE_FOLDER
+        # Custom base image (#30): when set, the preview and the apply use this
+        # image instead of the themed folder icon as the composition base.
+        self.base_image_path = None
+        self.base_image_pixbuf = None
         self.themes = []
         self.theme_names = [""]
         self.scopes = {}
@@ -1555,7 +1563,8 @@ class _Editor:
         """
         folder = {"hexes": self.hexes, "layers": self.layers,
                   "selected": self.selected, "theme": "",
-                  "follow_accent": False}
+                  "follow_accent": False,
+                  "base_image_path": None}
         self.scopes = {SCOPE_FOLDER: folder}
         if self.global_host is None:
             folder["initial"] = _scope_snapshot(folder)
@@ -1723,7 +1732,8 @@ class _Editor:
         """Show another scope; the widgets keep working on its own lists."""
         if scope == self.scope or scope not in self.scopes:
             return
-        self.scopes[self.scope]["selected"] = self.selected
+        # Persist the current scope's custom base image before switching.
+        self.scopes[self.scope]["base_image_path"] = self.base_image_path
         target = self.scopes[scope]
         self.switching = True
         try:
@@ -1736,6 +1746,16 @@ class _Editor:
         self.hexes = target["hexes"]
         self.layers = target["layers"]
         self.selected = target.get("selected", -1)
+        self.base_image_path = target.get("base_image_path")
+        self.base_image_pixbuf = None
+        if self.base_image_path:
+            try:
+                pb = GdkPixbuf.Pixbuf.new_from_file(self.base_image_path)
+                if pb is not None:
+                    self.base_image_pixbuf = pb
+            except Exception as e:
+                log.error(f"restore base image: {e}")
+                self.base_image_path = None
         self.base_cache.clear()
         self._sync_colour_rows()
         self._sync_scope_options()
@@ -2135,30 +2155,40 @@ class _Editor:
             add_row.set_selection_mode(Gtk.SelectionMode.NONE)
             add_row.set_row_spacing(6)
             add_row.set_column_spacing(6)
-            # max-children-per-line stays at the GTK default (7): the row
-            # never holds more than four buttons, so the limit never bites
-            # (set_max_children_per_line(0) is rejected by GTK4).
         except Exception as e:
             log.error(f"add row: {e}")
-        actions = [(self.tr("Add image…"), self._on_add_image)]
+        # "Add image" offers three explicit targets so the user never
+        # silently overwrites the wrong object (#30):
+        #   * Add as layer — new image layer on top of the stack (default)
+        #   * Replace selected layer — overwrite the current image layer
+        #   * Use as base image — custom background in place of the folder icon
+        popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                              spacing=6)
+        for label, action in (
+            (self.tr("Add as layer"), "layer"),
+            (self.tr("Replace selected layer"), "replace"),
+            (self.tr("Use as base image"), "base"),
+        ):
+            item = Gtk.Button(label=label)
+            item.set_hexpand(True)
+            item.connect("clicked", self._on_add_image_target, action)
+            popover_box.append(item)
+        self.add_image_popover = Gtk.Popover()
+        self.add_image_popover.set_child(popover_box)
+        self.add_image_button = Gtk.MenuButton(
+            label=self.tr("Add image…"), popover=self.add_image_popover)
+        self.add_image_button.set_tooltip_text(
+            self.tr("Choose where the image goes: new layer, selected layer "
+                    "or custom base image."))
+        add_row.append(self.add_image_button)
+
         # The "detect" button only makes sense for a real folder.
         if self.scan_dir:
-            actions.append((self.tr("Detect icon…"), self._on_detect_icon))
-        actions.append((self.tr("Add text…"), self._on_add_text))
-        actions.append((self.tr("Add emblem…"), self._on_add_emblem))
-        for label, handler in actions:
-            button = Gtk.Button(label=label)
-            button.connect("clicked", handler)
-            if handler.__func__ is self._on_detect_icon.__func__:
-                # It does not open a picker: it scans the folder itself.
-                button.set_tooltip_text(
-                    self.tr("Finds an icon file already inside the folder"))
-            add_row.append(button)
-            if handler.__func__ is self._on_add_emblem.__func__:
-                self.emblem_button = button
-        # No emblem in the theme -> nothing to add.
-        self.emblem_button.set_sensitive(bool(self.emblem_icons))
-        box.append(add_row)
+            detect_button = Gtk.Button(label=self.tr("Detect icon…"))
+            detect_button.connect("clicked", self._on_detect_icon)
+            detect_button.set_tooltip_text(
+                self.tr("Finds an icon file already inside the folder"))
+            add_row.append(detect_button)
 
         move_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.up_button = Gtk.Button(label=self.tr("Move up"))
@@ -2293,6 +2323,35 @@ class _Editor:
                 row.add_controller(file_target)
             except Exception as e:
                 log.debug(f"row drop target {value_type}: {e}")
+
+        # Right-click context menu: use the image as the custom base or
+        # remove the layer (#30).
+        ctx_menu = Gtk.Menu()
+        base_item = Gtk.MenuItem(label=self.tr("Use as base image"))
+        base_item.set_sensitive(layer.get("type") == LAYER_IMAGE and
+                                bool(layer.get("path")))
+        base_item.connect("activate", self._on_row_use_as_base, index)
+        ctx_menu.append(base_item)
+        remove_item = Gtk.MenuItem(label=self.tr("Remove layer"))
+        remove_item.connect("activate", self._on_row_remove, index)
+        ctx_menu.append(remove_item)
+        ctx_menu.show_all()
+
+        def _on_right_click(_gesture, n_press, x, y):
+            if n_press == 1:
+                # Right click only.
+                event = _gesture.get_current_event()
+                if event is not None and \
+                        event.get_button() == Gdk.BUTTON_SECONDARY:
+                    self.selected = index
+                    self.listbox.select_row(row)
+                    ctx_menu.popup_at_widget(row, 0, 0, None)
+
+        click = Gtk.GestureClick()
+        click.set_button(Gdk.BUTTON_SECONDARY)
+        click.connect("pressed", _on_right_click)
+        row.add_controller(click)
+        row._ctx_menu = ctx_menu  # keep a reference
         return row, name, detail
 
 
@@ -2681,9 +2740,25 @@ class _Editor:
             self._refresh_preview()
 
     # -- adding / removing / ordering -------------------------------------
-    def _on_add_image(self, _button):
+    def _on_add_image_target(self, _menu_item, action):
+        """User chose a target from the Add image menu (#30).
+
+        ``action`` is one of: "layer" (new layer), "replace" (selected layer)
+        or "base" (custom base image).
+        """
         if self.dialog is None:
             return
+        self._pending_image_target = action
+        self._open_image_picker()
+
+    def _open_image_picker(self):
+        """Open the file picker for image import.
+
+        The pending target (``_pending_image_target``) decides what happens
+        with the chosen images: add as layer, replace the selected image layer
+        or use as the custom base image.
+        """
+        action = getattr(self, "_pending_image_target", "layer")
         dialog = Gtk.FileDialog(title=self.tr("Pick image"))
         filt = _image_filter(self.tr("Images"))
         store = Gio.ListStore.new(Gtk.FileFilter)
@@ -2695,6 +2770,11 @@ class _Editor:
             dialog.open_multiple(self.dialog, None, self._on_images_picked)
         except Exception as e:
             log.error(f"file dialog: {e}")
+
+    def _on_add_image(self, _button):
+        """Add image… default action: add chosen images as new layers (#30)."""
+        self._pending_image_target = "layer"
+        self._open_image_picker()
 
     def _on_images_picked(self, dialog, result):
         if self.dialog is None:
@@ -2713,10 +2793,77 @@ class _Editor:
                 paths.append(path)
         if not paths:
             return
+        action = getattr(self, "_pending_image_target", "layer")
+        if action == "base":
+            # Single image becomes the custom base image. When several were
+            # picked, use the first and warn.
+            if len(paths) > 1:
+                self._show_alert(self.tr(
+                    "Using the first image as the base image; the others were "
+                    "ignored."))
+            self._set_base_image(paths[0])
+            self._rebuild_rows()
+            self._refresh_preview()
+            return
+        if action == "replace":
+            layer = self.current_layer()
+            if layer is None or layer.get("type") != LAYER_IMAGE:
+                self._show_alert(self.tr(
+                    "Select an image layer to replace."))
+                return
+            layer["path"] = paths[0]
+            layer["name"] = _derive_name(layer)
+            for extra in paths[1:]:
+                self.layers.insert(0, default_layer(LAYER_IMAGE, path=extra))
+            self.selected = 0 if len(paths) > 1 else self.selected
+            self._update_row_labels()
+            self._refresh_preview()
+            return
+        # Default: add every chosen image as a new layer on top of the stack.
         for offset, path in enumerate(paths):
             self.layers.insert(offset, default_layer(LAYER_IMAGE, path=path))
         self.selected = 0
         self._rebuild_rows()
+
+    def _set_base_image(self, path):
+        """Load ``path`` as the custom base image (#30).
+
+        Replaces the themed folder icon in the preview/composition. Passing
+        ``None`` or an empty string clears the custom base.
+        """
+        self.base_image_path = path or None
+        self.base_image_pixbuf = None
+        if path:
+            try:
+                pb = GdkPixbuf.Pixbuf.new_from_file(path)
+                if pb is not None:
+                    self.base_image_pixbuf = pb
+            except Exception as e:
+                log.error(f"load base image: {e}")
+                self.base_image_path = None
+                self.base_image_pixbuf = None
+                self._show_alert(self.tr("Cannot open this image."))
+
+    def _on_row_use_as_base(self, _menu_item, index):
+        """Use the image layer at ``index`` as the custom base image (#30)."""
+        if not (0 <= index < len(self.layers)):
+            return
+        layer = self.layers[index]
+        if layer.get("type") != LAYER_IMAGE or not layer.get("path"):
+            return
+        self._set_base_image(layer["path"])
+        self.selected = index
+        self._rebuild_rows()
+        self._refresh_preview()
+
+    def _on_row_remove(self, _menu_item, index):
+        """Remove the layer at ``index`` from the context menu (#30)."""
+        if not (0 <= index < len(self.layers)):
+            return
+        self.layers.pop(index)
+        self.selected = min(index, len(self.layers) - 1)
+        self._rebuild_rows()
+
 
     def _on_detect_icon(self, _button):
         """Look for an icon inside the folder and add the picked one."""
@@ -2895,10 +3042,18 @@ class _Editor:
     def _base_for(self, spec):
         """Base folder image for ``spec`` in the active scope's theme.
 
-        ``theme_builder(spec, theme)`` is preferred because it can render
-        another theme's folder shape (the global scope does exactly that);
-        without it the legacy single-argument builder is used.
+        When a custom base image was chosen (#30), it takes precedence over
+        the themed folder icon. ``theme_builder(spec, theme)`` is preferred
+        because it can render another theme's folder shape; without it the
+        legacy single-argument builder is used.
         """
+        if self.base_image_pixbuf is not None:
+            try:
+                data = _pixbuf_to_png(self.base_image_pixbuf)
+                if data:
+                    return _pil_from_png(data)
+            except Exception as e:
+                log.error(f"base image pixbuf: {e}")
         theme = self._active_theme()
         key = spec if not theme else spec + "|" + theme
         if key in self.base_cache:
@@ -3039,7 +3194,8 @@ class _Editor:
                 return False
         try:
             return self.on_apply(list(scope["hexes"]),
-                                 normalize_layers(scope["layers"]))
+                                 normalize_layers(scope["layers"]),
+                                 base_image=scope.get("base_image_path"))
         except Exception as e:
             log.error(f"apply failed: {e}")
             return False
@@ -3058,7 +3214,8 @@ class _Editor:
                 spec=spec,
                 layers=normalize_layers(scope["layers"]),
                 theme=str(scope.get("theme") or ""),
-                follow_accent=bool(scope.get("follow_accent")))
+                follow_accent=bool(scope.get("follow_accent")),
+                base_image=scope.get("base_image_path"))
         except Exception as e:
             log.error(f"apply global icon: {e}")
             return False

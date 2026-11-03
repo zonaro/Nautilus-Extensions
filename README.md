@@ -391,7 +391,7 @@ Read comic archives without unpacking anything by hand: right-click a `.cbz`, `.
 
 Right-click a folder → **Personalizar…** (*Customize…*) opens a layered editor for the folder icon. The icon is a stack of independent layers, composited live while you edit.
 
-- **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk, or drag from Nautilus / a browser onto the preview; **Ctrl+V** pastes an image from the clipboard (a copied file or a copied picture)
+- **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk, or drag from Nautilus / a browser onto the preview; **Ctrl+V** pastes an image from the clipboard (a copied file or a copied picture). The **Add image…** menu offers three explicit targets so nothing is silently overwritten: *Add as layer* (new image layer on top), *Replace selected layer* (overwrites the current image layer) and *Use as base image* (custom background in place of the themed folder icon — also available via right-click on any image layer row)
 - **Detect icon…** — a menu item under *Personalizar…* and a *Detect icon…* button inside the editor scan the folder (two levels down, hidden and build folders skipped) for image files whose names look like icons in seven languages (favicon, logo, brasão, escudo, …); one match goes straight onto the stack, several open a chooser with previews, none report "No icon found" — the chosen file lands as a badge-sized image layer (scale 70), ready to adjust
 - **Text layers** — any font installed on the machine, rendered to an image (size, bold, italic and text colour included)
 - **Emblem layers** — emblems from the current icon theme (the *Add emblem…* button is disabled when the theme has none)
@@ -399,6 +399,7 @@ Right-click a folder → **Personalizar…** (*Customize…*) opens a layered ed
 - **Per-layer controls** — hue, saturation and opacity work on image, text and emblem layers alike, plus scale, rotation and X/Y offset
 - **Live preview** — every change is rendered immediately; the composed icon is cached on disk and re-rendered only when the layers change
 - **Base colours** — the folder's base colours (one row per shape of the theme's folder icon) are edited in the same dialog
+- **Custom base image** — replace the themed folder icon with any image of your choice as the composition base; persists with the folder's custom icon state
 - **Folder theme** — apply another installed icon theme's folder shape to the selected folders only (materialised as a cached `metadata::custom-icon`, so the rest of the system keeps its theme)
 
 ### Folder and Global tabs
@@ -424,6 +425,7 @@ Inside the editor:
 | Ctrl + V | Paste an image from the clipboard |
 | Drop on the preview | Add the dropped images as layers |
 | Drop on a layer row | Replace that image layer |
+| Right-click a layer row | Use as base image / Remove layer |
 
 The extension ships translations for Portuguese (default), English, French, German and Spanish, and degrades gracefully: without the optional editor module the menu entry is simply not shown, without `folder_icon_theme.py` the Global tab is simply absent, and missing fonts or emblems never break the rest of the extension.
 
