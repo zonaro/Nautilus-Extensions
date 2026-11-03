@@ -431,6 +431,18 @@ def test_multi_scope_single_folder_runs_immediately():
     assert ran == [["/x/a"]]
 
 
+def test_advanced_mode_save_and_load(tmp_path, monkeypatch):
+    """Advanced mode persists across sessions (#38)."""
+    fie = pytest.importorskip("folder_icon_editor")
+    conf = tmp_path / "editor.conf"
+    monkeypatch.setattr(fie, "_advanced_mode_file", lambda: str(conf))
+    assert fie.load_advanced_mode() is False
+    fie.save_advanced_mode(True)
+    assert fie.load_advanced_mode() is True
+    fie.save_advanced_mode(False)
+    assert fie.load_advanced_mode() is False
+
+
 def test_the_host_offers_the_global_icon_host():
     """The Global tab driver exists and exposes the editor's contract."""
     host = fcr.GlobalIconHost(tr=lambda text: text)

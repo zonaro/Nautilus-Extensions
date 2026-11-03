@@ -423,9 +423,42 @@ Inside the editor:
 | Alt + Scroll | Opacity of the selected layer |
 | Ctrl + Scroll | Hue of the selected layer |
 | Ctrl + V | Paste an image from the clipboard |
+| Ctrl + O | Open a previously exported project PNG |
+| Ctrl + S | Export the current composition as PNG |
+| Ctrl + A | Toggle advanced mode (persisted across sessions) |
 | Drop on the preview | Add the dropped images as layers |
 | Drop on a layer row | Replace that image layer |
 | Right-click a layer row | Use as base image / Remove layer |
+
+### Icon gallery (#36)
+
+The **Icon gallery…** button opens a grid of previously generated icons
+(stored under XDG cache, deduplicated by content hash). Each card shows a
+thumbnail, name and date, with:
+
+- **Apply** — reapplies the icon to the current folder and restores the
+  editor state so you can keep editing
+- **Remove** — deletes the entry (blocked when a folder still uses it)
+
+Icons are saved to the gallery automatically whenever you apply one, and
+each entry remembers which folders use it.
+
+### Accent colour following (#35)
+
+With **Use the accent colour** on, every shape takes the GNOME accent
+hue and the icon keeps tracking `org.gnome.desktop.interface accent-color`
+as it changes. The watcher re-applies every folder that follows the accent
+automatically. Advanced mode (Ctrl+A) persists your preference across
+sessions.
+
+### Multi-selection (#37)
+
+When several folders are selected, **Personalizar…**, **Detectar ícone…**,
+**Reaplicar o último ícone** and **Restaurar** ask whether to apply to
+*all folders* or *only the first* — nothing is applied silently to the
+whole selection. Restore only clears customisation this extension owns
+(GIO metadata, overlay state, gallery markers) and leaves Dolphin's
+`.directory` and other extensions untouched.
 
 The extension ships translations for Portuguese (default), English, French, German and Spanish, and degrades gracefully: without the optional editor module the menu entry is simply not shown, without `folder_icon_theme.py` the Global tab is simply absent, and missing fonts or emblems never break the rest of the extension.
 

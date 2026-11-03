@@ -146,6 +146,53 @@ STATE_VERSION = 2
 MAX_IMAGE_BYTES = 32 * 1024 * 1024
 MAX_IMAGE_SIDE = 12000
 
+# ---------------------------------------------------------------------------
+# Editor preferences (#38 / Iconic 10)
+# ---------------------------------------------------------------------------
+
+_ADVANCED_MODE_FILE = None
+
+
+def _advanced_mode_file():
+    """XDG config file that persists the editor's advanced mode (#38)."""
+    global _ADVANCED_MODE_FILE
+    if _ADVANCED_MODE_FILE is None:
+        try:
+            base = os.environ.get(
+                "XDG_CONFIG_HOME") or os.path.join(
+                os.path.expanduser("~"), ".config")
+            dirpath = os.path.join(base, "nautilus-extensions")
+            os.makedirs(dirpath, exist_ok=True)
+            _ADVANCED_MODE_FILE = os.path.join(dirpath, "editor.conf")
+        except Exception:
+            _ADVANCED_MODE_FILE = ""
+    return _ADVANCED_MODE_FILE
+
+
+def load_advanced_mode():
+    """Return the persisted advanced mode (default False) (#38)."""
+    path = _advanced_mode_file()
+    if not path or not os.path.exists(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            value = f.read().strip().lower()
+        return value in ("1", "true", "yes", "on")
+    except Exception:
+        return False
+
+
+def save_advanced_mode(value):
+    """Persist the advanced mode setting (#38)."""
+    path = _advanced_mode_file()
+    if not path:
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("1\n" if value else "0\n")
+    except Exception as e:
+        log.debug(f"save advanced mode: {e}")
+
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp", ".gif",
                ".tif", ".tiff")
 
@@ -1996,6 +2043,17 @@ class _Editor:
             self.tr("Use the accent colour"), self.accent_switch)
         box.append(self.accent_row)
 
+        # Advanced mode (#38): shows/hides advanced controls; toggled with
+        # Ctrl+A and persisted across sessions.
+        self.advanced_switch = Gtk.Switch()
+        self.advanced_switch.set_halign(Gtk.Align.START)
+        self.advanced_switch.set_active(load_advanced_mode())
+        self.advanced_switch.connect("notify::active",
+                                     self._on_advanced_toggled)
+        self.advanced_row = self._labelled_row(
+            self.tr("Advanced mode"), self.advanced_switch)
+        box.append(self.advanced_row)
+
         self.restore_button = Gtk.Button(
             label=self.tr("Restore the default folder icon"))
         self.restore_button.add_css_class("destructive-action")
@@ -2078,6 +2136,19 @@ class _Editor:
         self.scopes[self.scope]["follow_accent"] = bool(switch.get_active())
         self._sync_colour_sensitivity()
         self.base_cache.clear()
+        self._refresh_preview()
+
+    def _toggle_advanced_mode(self):
+        """Toggle advanced mode (Ctrl+A) (#38)."""
+        new_value = not self.advanced_switch.get_active()
+        self.advanced_switch.set_active(new_value)
+        save_advanced_mode(new_value)
+        self._refresh_preview()
+
+    def _on_advanced_toggled(self, switch, _pspec):
+        if self.syncing:
+            return
+        save_advanced_mode(bool(switch.get_active()))
         self._refresh_preview()
 
     def _on_restore_global(self, _button):
@@ -2255,6 +2326,15 @@ class _Editor:
         control = bool(state & Gdk.ModifierType.CONTROL_MASK)
         if control and keyval in (Gdk.KEY_v, Gdk.KEY_V):
             self.paste_image()
+            return True
+        if control and keyval in (Gdk.KEY_o, Gdk.KEY_O):
+            self._on_open_project(None)
+            return True
+        if control and keyval in (Gdk.KEY_s, Gdk.KEY_S):
+            self._on_export_png(None)
+            return True
+        if control and keyval in (Gdk.KEY_a, Gdk.KEY_A):
+            self._toggle_advanced_mode()
             return True
         return False
 
