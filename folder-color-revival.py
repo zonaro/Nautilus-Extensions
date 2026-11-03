@@ -904,10 +904,32 @@ def _gallery_unmark_used(content_hash, folder_path):
         _gallery_save_index(index)
 
 
-def _gallery_apply_entry(host, content_hash, paths, on_apply):
-    """Apply a gallery entry to the given paths (#36).
+def _gallery_unmark_all_for_folder(folder_path):
+    """Remove ``folder_path`` from every gallery entry's ``used_by`` (#37)."""
+    index = _gallery_load_index()
+    changed = False
+    for entry in index.values():
+        used_by = entry.get("used_by") or []
+        if folder_path in used_by:
+            used_by.remove(folder_path)
+            entry["used_by"] = used_by
+            changed = True
+    if changed:
+        _gallery_save_index(index)
 
-    Returns the entry state dict so the editor can restore it, or None.
+
+def _gallery_latest():
+    """Most recently updated gallery entry (or None) — for "reapply" (#37)."""
+    entries = _gallery_list()
+    return entries[0] if entries else None
+
+
+def _gallery_apply_entry(foldercolor, content_hash, paths, initial_hexes):
+    """Apply a gallery entry to the given paths (#36/#37).
+
+    Applies the full entry state (colours, layers, theme, base image,
+    follow_accent) through the same pipeline as the editor. Returns the
+    entry state dict so the editor can restore it, or None on failure.
     """
     entry = _gallery_get(content_hash)
     if entry is None:
@@ -916,10 +938,14 @@ def _gallery_apply_entry(host, content_hash, paths, on_apply):
     layers = entry.get("layers") or []
     theme = str(entry.get("theme") or "")
     base_image = str(entry.get("base_image") or "") or None
+    follow_accent = bool(entry.get("follow_accent"))
     try:
-        ok = on_apply(hexes, layers)
+        ok = _apply_icon_state(
+            foldercolor, paths, hexes, layers, initial_hexes,
+            theme=theme, base_image=base_image,
+            follow_accent=follow_accent)
     except Exception as e:
-        log.error(f"gallery apply on_apply: {e}")
+        log.error(f"gallery apply: {e}")
         return None
     if not ok:
         return None
@@ -1594,6 +1620,15 @@ if _lang.startswith("fr"):
         "Cannot remove an icon in use.": "Impossible de supprimer une icône utilisée.",
         "Remove": "Supprimer",
         "Close": "Fermer",
+        "Apply to multiple folders?": "Appliquer à plusieurs dossiers ?",
+        "{n} folders are selected. Apply to all of them or only the first?": "{n} dossiers sont sélectionnés. Appliquer à tous ou seulement au premier ?",
+        "All folders": "Tous les dossiers",
+        "Only the first": "Seulement le premier",
+        "OK": "OK",
+        "The gallery is empty.": "La galerie est vide.",
+        "Could not apply the last icon.": "Impossible d'appliquer le dernier icône.",
+        "Reapply last icon": "Réappliquer le dernier icône",
+        "Could not restore {n} of {total} folder(s).": "Impossible de restaurer {n} sur {total} dossier(s).",
         Remove: Supprimer,
         "Monochrome": "Monochrome",
         "Monochrome on": "Monochrome activé",
@@ -1720,6 +1755,15 @@ elif _lang.startswith("de"):
         "Cannot remove an icon in use.": "Ein verwendetes Symbol kann nicht entfernt werden.",
         "Remove": "Entfernen",
         "Close": "Schließen",
+        "Apply to multiple folders?": "Auf mehrere Ordner anwenden?",
+        "{n} folders are selected. Apply to all of them or only the first?": "{n} Ordner sind ausgewählt. Auf alle oder nur den ersten anwenden?",
+        "All folders": "Alle Ordner",
+        "Only the first": "Nur den ersten",
+        "OK": "OK",
+        "The gallery is empty.": "Die Galerie ist leer.",
+        "Could not apply the last icon.": "Das letzte Symbol konnte nicht angewendet werden.",
+        "Reapply last icon": "Letztes Symbol erneut anwenden",
+        "Could not restore {n} of {total} folder(s).": "{n} von {total} Ordner(n) konnten nicht wiederhergestellt werden.",
         Remove: Entfernen,
         "Monochrome": "Monochrom",
         "Monochrome on": "Monochrom an",
@@ -1846,6 +1890,15 @@ elif _lang.startswith("es"):
         "Cannot remove an icon in use.": "No se puede eliminar un icono en uso.",
         "Remove": "Quitar",
         "Close": "Cerrar",
+        "Apply to multiple folders?": "¿Aplicar a varias carpetas?",
+        "{n} folders are selected. Apply to all of them or only the first?": "{n} carpetas están seleccionadas. ¿Aplicar a todas o solo a la primera?",
+        "All folders": "Todas las carpetas",
+        "Only the first": "Solo la primera",
+        "OK": "Aceptar",
+        "The gallery is empty.": "La galería está vacía.",
+        "Could not apply the last icon.": "No se pudo aplicar el último icono.",
+        "Reapply last icon": "Reaplicar el último icono",
+        "Could not restore {n} of {total} folder(s).": "No se pudieron restaurar {n} de {total} carpeta(s).",
         Remove: Quitar,
         "Monochrome": "Monocromo",
         "Monochrome on": "Monocromo activado",
@@ -1972,6 +2025,15 @@ elif _lang.startswith("pt"):
         "Cannot remove an icon in use.": "Não foi possível remover um ícone em uso.",
         "Remove": "Remover",
         "Close": "Fechar",
+        "Apply to multiple folders?": "Aplicar a várias pastas?",
+        "{n} folders are selected. Apply to all of them or only the first?": "{n} pastas estão selecionadas. Aplicar a todas ou apenas à primeira?",
+        "All folders": "Todas as pastas",
+        "Only the first": "Apenas a primeira",
+        "OK": "OK",
+        "The gallery is empty.": "A galeria está vazia.",
+        "Could not apply the last icon.": "Não foi possível aplicar o último ícone.",
+        "Reapply last icon": "Reaplicar o último ícone",
+        "Could not restore {n} of {total} folder(s).": "Não foi possível restaurar {n} de {total} pasta(s).",
         "Monochrome": "Monocromático",
         "Monochrome on": "Monocromático ligado",
         "Monochrome off": "Monocromático desligado",
@@ -2308,6 +2370,64 @@ def _nautilus_window():
     return windows[0] if windows else None
 
 
+def _show_host_alert(message):
+    """Show a simple alert from the host (no editor window) (#37)."""
+    try:
+        dialog = Gtk.AlertDialog()
+        dialog.set_message(str(message))
+        dialog.set_buttons([_("OK")])
+        dialog.set_default_button(0)
+        dialog.set_cancel_button(0)
+        dialog.show(_nautilus_window())
+    except Exception as e:
+        log.error(f"host alert: {e}")
+
+
+def _confirm_multi_scope(paths, action):
+    """Ask which folders to apply to when several are selected (#37).
+
+    ``action(paths)`` runs with all paths ("All folders"), only the first
+    ("Only the first"), or not at all on cancel. A single selection runs
+    ``action`` immediately without a dialog.
+    """
+    paths = [p for p in (paths or []) if p]
+    if not paths:
+        return
+    if len(paths) <= 1:
+        action(paths)
+        return
+    try:
+        dialog = Gtk.AlertDialog()
+        dialog.set_message(_("Apply to multiple folders?"))
+        dialog.set_detail(
+            _("{n} folders are selected. Apply to all of them or only the "
+              "first?").format(n=len(paths)))
+        dialog.set_buttons([_("All folders"), _("Only the first"),
+                            _("Cancel")])
+        dialog.set_default_button(0)
+        dialog.set_cancel_button(2)
+    except Exception as e:
+        log.error(f"scope dialog setup: {e}")
+        action(paths)
+        return
+
+    def on_done(dlg, result):
+        try:
+            index = dlg.choose_finish(result)
+        except Exception:
+            return
+        if index == 0:
+            action(paths)
+        elif index == 1:
+            action(paths[:1])
+
+    try:
+        dialog.choose(_nautilus_window(), None, on_done)
+    except Exception as e:
+        log.error(f"scope dialog: {e}")
+        action(paths)
+
+
 class GlobalIconHost:
     """Adapter between the editor's Global tab and the icon theme layer.
 
@@ -2577,6 +2697,19 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
                 item.connect("activate", self._menu_activate_detect_icon, items)
                 submenu.append_item(item)
 
+                # "Reapply last icon" (#37): fastest way to copy the most
+                # recently generated icon to another folder. Hidden when the
+                # gallery is empty so it never adds a dead entry.
+                if _gallery_latest() is not None:
+                    item = Nautilus.MenuItem(
+                        name="FolderColorMenu::reapply_last",
+                        label=_("Reapply last icon"),
+                        icon="edit-redo",
+                    )
+                    item.connect("activate",
+                                 self._menu_activate_reapply_last, items)
+                    submenu.append_item(item)
+
         # Emblèmes
         if emblems:
             if self.all_dirs and colors:
@@ -2636,9 +2769,12 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
     def _menu_activate_custom_color(self, menu, items):
         paths = [item.get_location().get_path()
                  for item in items if not item.is_gone()]
+        paths = [p for p in paths if p]
         if not paths:
             return
-        self._show_custom_color_dialog(paths)
+        # #37: with a multi-selection, confirm the scope before opening the
+        # editor so "all folders" is never assumed silently.
+        _confirm_multi_scope(paths, self._show_custom_color_dialog)
 
     def _menu_activate_detect_icon(self, menu, items):
         """Detect an icon inside the folder and add it to the editor."""
@@ -2648,20 +2784,43 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         if not paths:
             return
 
-        def on_chosen(path):
-            if not path:
-                return
-            self._show_custom_color_dialog(paths, extra_image=path)
+        def run(scope_paths):
+            def on_chosen(path):
+                if not path:
+                    return
+                self._show_custom_color_dialog(scope_paths, extra_image=path)
 
-        try:
-            # Every selected folder is scanned and their candidates are
-            # offered in one list; the chosen image becomes a layer of the
-            # state that is applied to the whole selection (the editor's
-            # model is one state for all selected folders).
-            detect_icon_for_folder(paths, tr=_, on_chosen=on_chosen,
-                                   parent=_nautilus_window())
-        except Exception as e:
-            log.error(f"detect icon: {e}")
+            try:
+                # Every selected folder is scanned and their candidates are
+                # offered in one list; the chosen image becomes a layer of the
+                # state that is applied to the whole selection (the editor's
+                # model is one state for all selected folders).
+                detect_icon_for_folder(scope_paths, tr=_, on_chosen=on_chosen,
+                                       parent=_nautilus_window())
+            except Exception as e:
+                log.error(f"detect icon: {e}")
+
+        _confirm_multi_scope(paths, run)
+
+    def _menu_activate_reapply_last(self, menu, items):
+        """Reapply the most recent gallery icon to the selection (#37)."""
+        paths = [item.get_location().get_path()
+                 for item in items if not item.is_gone()]
+        paths = [p for p in paths if p]
+        if not paths:
+            return
+        entry = _gallery_latest()
+        if entry is None:
+            _show_host_alert(_("The gallery is empty."))
+            return
+
+        def run(scope_paths):
+            applied = _gallery_apply_entry(
+                self.foldercolor, entry.get("hash"), scope_paths, [])
+            if applied is None:
+                _show_host_alert(_("Could not apply the last icon."))
+
+        _confirm_multi_scope(paths, run)
 
     @staticmethod
     def _rgba_to_hex(rgba):
@@ -2768,16 +2927,51 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             # Icon gallery (#36).
             on_gallery_list=_gallery_list,
             on_gallery_apply=lambda ch: _gallery_apply_entry(
-                self, ch, paths, on_apply),
+                self.foldercolor, ch, paths, hexes),
             on_gallery_remove=_gallery_remove,
             # Iconic 08: restore the folder's follow_accent state.
             follow_accent=chosen["follow_accent"],
         )
 
     def _menu_activate_restore(self, menu, items):
+        paths = [item.get_location().get_path()
+                 for item in items if not item.is_gone()]
+        paths = [p for p in paths if p]
+        if not paths:
+            return
+        _confirm_multi_scope(paths, self._restore_paths)
+
+    def _restore_paths(self, paths):
+        """Restore native appearance of the given folders (#37).
+
+        Only clears customisation this extension owns: GIO metadata
+        (``custom-icon``/``custom-icon-name``/``emblems``), the overlay
+        state file and the gallery "used by" marker. External data such as
+        Dolphin's ``.directory`` or icons set by other extensions are never
+        touched. Errors are isolated per folder.
+        """
         manager = _dolphin_manager()
-        for item in items:
-            if not item.is_gone():
-                path = item.get_location().get_path()
+        failed = []
+        for path in paths:
+            try:
                 self.foldercolor.set_restore(path)
+            except Exception as e:
+                log.error(f"restore {path}: {e}")
+                failed.append(path)
+                continue
+            try:
+                _clear_overlay_state(path)
+            except Exception as e:
+                log.debug(f"restore state {path}: {e}")
+            try:
+                _gallery_unmark_all_for_folder(path)
+            except Exception as e:
+                log.debug(f"restore gallery {path}: {e}")
+            try:
                 manager.block(path)
+            except Exception as e:
+                log.debug(f"restore dolphin {path}: {e}")
+        if failed:
+            _show_host_alert(
+                _("Could not restore {n} of {total} folder(s).").format(
+                    n=len(failed), total=len(paths)))
