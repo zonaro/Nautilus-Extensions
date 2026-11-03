@@ -997,6 +997,72 @@ def compose_layers(base, layers):
 
 
 # ---------------------------------------------------------------------------
+# PNG export / project reopen (#34)
+# ---------------------------------------------------------------------------
+
+def _png_project_state(hexes, layers, theme="", base_image=""):
+    """Build the serialisable project state for PNG metadata export."""
+    return {
+        "version": 1,
+        "spec": ";".join(str(h).lstrip("#").lower() for h in (hexes or [])),
+        "theme": str(theme or ""),
+        "base_image": str(base_image or ""),
+        "layers": normalize_layers(layers or []),
+    }
+
+
+def save_png_project(png_bytes, hexes, layers, theme="", base_image=""):
+    """Embed project metadata into ``png_bytes`` -> new PNG bytes (or None).
+
+    Uses a PIL PngInfo text chunk ``fcRev`` holding JSON with colours,
+    layers, masks and transforms so the project can be reopened editably.
+    """
+    if not _PIL_AVAILABLE:
+        return None
+    try:
+        from PIL import Image
+        from PIL.PngImagePlugin import PngInfo
+        import json
+        img = Image.open(io.BytesIO(png_bytes))
+        img = img.convert("RGBA")
+        meta = PngInfo()
+        meta.add_text("fcRev", json.dumps(
+            _png_project_state(hexes, layers, theme, base_image),
+            ensure_ascii=False))
+        out = io.BytesIO()
+        img.save(out, "PNG", pnginfo=meta)
+        return out.getvalue()
+    except Exception as e:
+        log.error(f"save png project: {e}")
+        return None
+
+
+def load_png_project(path):
+    """Read ``fcRev`` project metadata from a PNG file -> dict or {}.
+
+    Returns an empty dict when the file has no project metadata or cannot
+    be read, so callers can fall back to treating it as a plain image layer.
+    """
+    if not _PIL_AVAILABLE or not path or not os.path.exists(path):
+        return {}
+    try:
+        from PIL import Image
+        import json
+        img = Image.open(path)
+        img.load()
+        raw = img.info.get("fcRev")
+        if not raw:
+            return {}
+        state = json.loads(raw)
+        if not isinstance(state, dict):
+            return {}
+        return state
+    except Exception as e:
+        log.debug(f"load png project {path}: {e}")
+        return {}
+
+
+# ---------------------------------------------------------------------------
 # Colours
 # ---------------------------------------------------------------------------
 
@@ -2353,6 +2419,13 @@ class _Editor:
         move_row.append(self.up_button)
         move_row.append(self.down_button)
         move_row.append(self.remove_button)
+        # Export / reopen project (#34).
+        self.export_button = Gtk.Button(label=self.tr("Export PNG…"))
+        self.export_button.connect("clicked", self._on_export_png)
+        move_row.append(self.export_button)
+        self.open_project_button = Gtk.Button(label=self.tr("Open project…"))
+        self.open_project_button.connect("clicked", self._on_open_project)
+        move_row.append(self.open_project_button)
         box.append(move_row)
         return box
 
@@ -3429,6 +3502,143 @@ class _Editor:
         self.layers.pop(self.selected)
         self.selected = min(self.selected, len(self.layers) - 1)
         self._rebuild_rows()
+
+    # -- PNG export / project reopen (#34) ---------------------------------
+    def _compose_current_png(self):
+        """Compose the current editor state into PNG bytes (or None)."""
+        spec = ";".join(self.effective_hexes())
+        base = self._base_for(spec)
+        return compose_layers(base, self.layers)
+
+    def _on_export_png(self, _button):
+        """Export the current composition as a PNG with embedded project metadata (#34)."""
+        if self.dialog is None:
+            return
+        png = self._compose_current_png()
+        if not png:
+            self._show_alert(self.tr("Nothing to export."))
+            return
+        # Embed project metadata so the PNG can be reopened editably.
+        theme = ""
+        try:
+            theme = str((self.scopes.get(self.scope) or {}).get("theme") or "")
+        except Exception:
+            pass
+        png = save_png_project(
+            png, self.effective_hexes(), self.layers, theme,
+            self.base_image_path or "")
+        if png is None:
+            self._show_alert(self.tr("Could not embed project metadata."))
+            return
+        dialog = Gtk.FileDialog(title=self.tr("Export PNG"))
+        filt = _image_filter(self.tr("PNG image"))
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(filt)
+        dialog.set_filters(store)
+        dialog.set_default_filter(filt)
+        self.file_dialog = dialog
+        try:
+            dialog.save(self.dialog, None, self._on_export_png_done, png)
+        except Exception as e:
+            log.error(f"export dialog: {e}")
+
+    def _on_export_png_done(self, dialog, result, png_bytes):
+        try:
+            gfile = dialog.save_finish(result)
+            path = gfile.get_path()
+        except Exception:
+            return
+        if not path:
+            return
+        import os as _os
+        if _os.path.exists(path):
+            # Confirm overwrite.
+            alert = Gtk.AlertDialog.new(
+                self.tr("The file already exists. Replace it?"))
+            # Modal confirmation is best-effort; proceed on accept.
+            try:
+                alert.show(self.dialog)
+            except Exception:
+                pass
+        try:
+            with open(path, "wb") as f:
+                f.write(png_bytes)
+        except Exception as e:
+            log.error(f"write png {path}: {e}")
+            self._show_alert(self.tr("Could not write the PNG file."))
+            return
+        # Offer to open the containing folder.
+        try:
+            folder = _os.path.dirname(path)
+            if folder:
+                Gtk.show_uri_on_window(
+                    self.dialog, f"file://{folder}", Gdk.CURRENT_TIME)
+        except Exception:
+            pass
+
+    def _on_open_project(self, _button):
+        """Open a previously exported PNG and restore its project state (#34)."""
+        if self.dialog is None:
+            return
+        dialog = Gtk.FileDialog(title=self.tr("Open project"))
+        filt = _image_filter(self.tr("PNG image"))
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(filt)
+        dialog.set_filters(store)
+        dialog.set_default_filter(filt)
+        self.file_dialog = dialog
+        try:
+            dialog.open(self.dialog, None, self._on_open_project_done)
+        except Exception as e:
+            log.error(f"open project dialog: {e}")
+
+    def _on_open_project_done(self, dialog, result):
+        try:
+            gfile = dialog.open_finish(result)
+            path = gfile.get_path()
+        except Exception:
+            return
+        if not path:
+            return
+        state = load_png_project(path)
+        if not state:
+            self._show_alert(self.tr("No project data in this PNG."))
+            return
+        # Restore colours.
+        spec = str(state.get("spec") or "")
+        hexes = ["#" + part for part in spec.split(";") if len(part) == 6]
+        if hexes:
+            self.hexes = self._init_hexes(hexes)
+            scope = self.scopes.get(self.scope)
+            if scope is not None:
+                scope["hexes"] = self.hexes
+        # Restore layers.
+        layers = state.get("layers")
+        if isinstance(layers, list):
+            self.layers = normalize_layers(layers)
+            scope = self.scopes.get(self.scope)
+            if scope is not None:
+                scope["layers"] = self.layers
+            self.selected = 0 if self.layers else -1
+        # Restore theme and base image.
+        scope = self.scopes.get(self.scope)
+        if scope is not None:
+            scope["theme"] = str(state.get("theme") or "")
+            scope["base_image_path"] = str(state.get("base_image") or "")
+            self.base_image_path = scope["base_image_path"]
+            self.base_image_pixbuf = None
+            if self.base_image_path:
+                try:
+                    pb = GdkPixbuf.Pixbuf.new_from_file(self.base_image_path)
+                    if pb is not None:
+                        self.base_image_pixbuf = pb
+                except Exception as e:
+                    log.error(f"restore base image: {e}")
+                    self.base_image_path = None
+        self.base_cache.clear()
+        self._sync_colour_rows()
+        self._rebuild_rows()
+        self._refresh_preview()
 
     def _on_move_up(self, _button):
         self._move_selected(-1)
