@@ -749,6 +749,190 @@ def _clear_overlay_state(path):
 
 
 # ---------------------------------------------------------------------------
+# Managed icon gallery (#36 / Iconic 07)
+#
+# A user-controlled gallery of generated folder icons, stored under the XDG
+# cache dir with a content-addressed index. Icons are deduplicated by
+# content hash so the same composition is never stored twice. Each entry
+# keeps the full project state so it can be reopened editably and reapplied
+# to any folder.
+# ---------------------------------------------------------------------------
+
+_GALLERY_SUBDIR = "gallery"
+
+
+def _gallery_dir():
+    try:
+        base = GLib.get_user_cache_dir()
+    except Exception:
+        base = os.path.join(str(Path.home()), ".cache")
+    path = os.path.join(base, _CUSTOM_CACHE_SUBDIR, _GALLERY_SUBDIR)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception as e:
+        log.error(f"gallery dir: {e}")
+    return path
+
+
+def _gallery_index_path():
+    return os.path.join(_gallery_dir(), "index.json")
+
+
+def _gallery_load_index():
+    try:
+        with open(_gallery_index_path(), "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _gallery_save_index(index):
+    try:
+        with open(_gallery_index_path(), "w", encoding="utf-8") as f:
+            json.dump(index, f, indent=2, sort_keys=True)
+    except Exception as e:
+        log.error(f"gallery save index: {e}")
+
+
+def _gallery_content_hash(png_bytes):
+    return hashlib.sha256(png_bytes).hexdigest()[:16]
+
+
+def _gallery_entry(content_hash, png_bytes, state):
+    """Save a composed icon to the gallery, deduplicated by content hash.
+
+    Returns the content hash (existing or new). ``state`` is the full
+    project state (colours, layers, masks, theme, base image, …) so the
+    entry can be reopened editably.
+    """
+    index = _gallery_load_index()
+    if content_hash in index:
+        # Already stored — just refresh usage metadata.
+        entry = index[content_hash]
+        entry["updated"] = _iso_now()
+        entry["use_count"] = int(entry.get("use_count", 0)) + 1
+        _gallery_save_index(index)
+        return content_hash
+    # Store the PNG next to the index.
+    png_path = os.path.join(_gallery_dir(), f"{content_hash}.png")
+    try:
+        with open(png_path, "wb") as f:
+            f.write(png_bytes)
+    except Exception as e:
+        log.error(f"gallery write png: {e}")
+        return content_hash
+    entry = {
+        "hash": content_hash,
+        "png": png_path,
+        "name": str(state.get("name") or ""),
+        "spec": str(state.get("spec") or ""),
+        "theme": str(state.get("theme") or ""),
+        "base_image": str(state.get("base_image") or ""),
+        "layers": state.get("layers") or [],
+        "hexes": state.get("hexes") or [],
+        "created": _iso_now(),
+        "updated": _iso_now(),
+        "use_count": 1,
+        "used_by": [],
+    }
+    index[content_hash] = entry
+    _gallery_save_index(index)
+    return content_hash
+
+
+def _gallery_list():
+    """Return all gallery entries sorted by most recently updated."""
+    index = _gallery_load_index()
+    entries = sorted(
+        index.values(),
+        key=lambda e: str(e.get("updated") or ""), reverse=True)
+    return entries
+
+
+def _gallery_get(content_hash):
+    index = _gallery_load_index()
+    return index.get(content_hash)
+
+
+def _gallery_remove(content_hash):
+    """Remove a gallery entry and its PNG. Returns False if in use."""
+    index = _gallery_load_index()
+    entry = index.get(content_hash)
+    if entry is None:
+        return False
+    used_by = entry.get("used_by") or []
+    if used_by:
+        return False  # In use — caller must confirm removal from folders first.
+    try:
+        png = entry.get("png")
+        if png and os.path.exists(png):
+            os.unlink(png)
+    except OSError:
+        pass
+    del index[content_hash]
+    _gallery_save_index(index)
+    return True
+
+
+def _gallery_mark_used(content_hash, folder_path):
+    """Record that ``folder_path`` uses this gallery entry."""
+    index = _gallery_load_index()
+    entry = index.get(content_hash)
+    if entry is None:
+        return
+    used_by = entry.get("used_by") or []
+    if folder_path not in used_by:
+        used_by.append(folder_path)
+        entry["used_by"] = used_by
+        entry["updated"] = _iso_now()
+        _gallery_save_index(index)
+
+
+def _gallery_unmark_used(content_hash, folder_path):
+    index = _gallery_load_index()
+    entry = index.get(content_hash)
+    if entry is None:
+        return
+    used_by = entry.get("used_by") or []
+    if folder_path in used_by:
+        used_by.remove(folder_path)
+        entry["used_by"] = used_by
+        entry["updated"] = _iso_now()
+        _gallery_save_index(index)
+
+
+def _gallery_apply_entry(host, content_hash, paths, on_apply):
+    """Apply a gallery entry to the given paths (#36).
+
+    Returns the entry state dict so the editor can restore it, or None.
+    """
+    entry = _gallery_get(content_hash)
+    if entry is None:
+        return None
+    hexes = entry.get("hexes") or []
+    layers = entry.get("layers") or []
+    theme = str(entry.get("theme") or "")
+    base_image = str(entry.get("base_image") or "") or None
+    try:
+        ok = on_apply(hexes, layers)
+    except Exception as e:
+        log.error(f"gallery apply on_apply: {e}")
+        return None
+    if not ok:
+        return None
+    # Mark as used by each affected folder.
+    for path in paths:
+        _gallery_mark_used(content_hash, path)
+    return entry
+
+
+def _iso_now():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
 # Current colour of a folder — the editor must open with the colour the
 # folder actually has, otherwise applying it back would repaint the folder
 # with the grey default and lose the user's colour.
@@ -908,6 +1092,19 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
                                    base_image=base_image)
                 if foldercolor.set_custom_overlay_color(path, spec, state):
                     _save_overlay_state(path, state)
+                    # Save to the managed gallery (#36): deduplicated by
+                    # content hash, reopenable and re-applicable to any folder.
+                    try:
+                        composed = _compose_final(spec, state)
+                        if composed:
+                            ch = _gallery_content_hash(composed)
+                            gallery_state = dict(state)
+                            gallery_state["name"] = ""
+                            gallery_state["hexes"] = list(hexes or [])
+                            _gallery_entry(ch, composed, gallery_state)
+                            _gallery_mark_used(ch, path)
+                    except Exception as e:
+                        log.debug(f"gallery save: {e}")
                 else:
                     log.error(f"overlay color not applied: {path}")
                     ok = False
@@ -919,7 +1116,19 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
                 else:
                     # Remember the colour spec so the editor opens with the
                     # right colours next time (no layers -> plain colour icon).
-                    _save_overlay_state(path, pack_state(spec, [], ""))
+                    state = pack_state(spec, [], "")
+                    _save_overlay_state(path, state)
+                    try:
+                        composed = _compose_final(spec, state)
+                        if composed:
+                            ch = _gallery_content_hash(composed)
+                            gallery_state = dict(state)
+                            gallery_state["name"] = ""
+                            gallery_state["hexes"] = list(hexes or [])
+                            _gallery_entry(ch, composed, gallery_state)
+                            _gallery_mark_used(ch, path)
+                    except Exception as e:
+                        log.debug(f"gallery save: {e}")
         except Exception as e:
             log.error(f"apply icon state {path}: {e}")
             ok = False
@@ -1257,6 +1466,17 @@ if _lang.startswith("fr"):
         "PNG image": "Image PNG",
         "Export PNG": "Exporter PNG",
         "Open project": "Ouvrir un projet",
+        "Icon gallery…": "Galerie d'icônes…",
+        "Icon gallery": "Galerie d'icônes",
+        "Gallery is not available.": "La galerie n'est pas disponible.",
+        "Could not list the gallery.": "Impossible de lister la galerie.",
+        "Could not apply the gallery icon.": "Impossible d'appliquer l'icône de la galerie.",
+        "Untitled": "Sans titre",
+        "In use by {n} folder(s)": "Utilisé par {n} dossier(s)",
+        "Cannot remove an icon in use.": "Impossible de supprimer une icône utilisée.",
+        "Remove": "Supprimer",
+        "Close": "Fermer",
+        Remove: Supprimer,
         "Monochrome": "Monochrome",
         "Monochrome on": "Monochrome activé",
         "Monochrome off": "Monochrome désactivé",
@@ -1372,6 +1592,17 @@ elif _lang.startswith("de"):
         "PNG image": "PNG-Bild",
         "Export PNG": "PNG exportieren",
         "Open project": "Projekt öffnen",
+        "Icon gallery…": "Symbolgalerie…",
+        "Icon gallery": "Symbolgalerie",
+        "Gallery is not available.": "Die Galerie ist nicht verfügbar.",
+        "Could not list the gallery.": "Die Galerie konnte nicht gelistet werden.",
+        "Could not apply the gallery icon.": "Das Symbol aus der Galerie konnte nicht angewendet werden.",
+        "Untitled": "Ohne Titel",
+        "In use by {n} folder(s)": "Wird von {n} Ordner(n) verwendet",
+        "Cannot remove an icon in use.": "Ein verwendetes Symbol kann nicht entfernt werden.",
+        "Remove": "Entfernen",
+        "Close": "Schließen",
+        Remove: Entfernen,
         "Monochrome": "Monochrom",
         "Monochrome on": "Monochrom an",
         "Monochrome off": "Monochrom aus",
@@ -1487,6 +1718,17 @@ elif _lang.startswith("es"):
         "PNG image": "Imagen PNG",
         "Export PNG": "Exportar PNG",
         "Open project": "Abrir proyecto",
+        "Icon gallery…": "Galería de iconos…",
+        "Icon gallery": "Galería de iconos",
+        "Gallery is not available.": "La galería no está disponible.",
+        "Could not list the gallery.": "No se pudo listar la galería.",
+        "Could not apply the gallery icon.": "No se pudo aplicar el icono de la galería.",
+        "Untitled": "Sin título",
+        "In use by {n} folder(s)": "En uso por {n} carpeta(s)",
+        "Cannot remove an icon in use.": "No se puede eliminar un icono en uso.",
+        "Remove": "Quitar",
+        "Close": "Cerrar",
+        Remove: Quitar,
         "Monochrome": "Monocromo",
         "Monochrome on": "Monocromo activado",
         "Monochrome off": "Monocromo desactivado",
@@ -1602,6 +1844,16 @@ elif _lang.startswith("pt"):
         "PNG image": "Imagem PNG",
         "Export PNG": "Exportar PNG",
         "Open project": "Abrir projeto",
+        "Icon gallery…": "Galeria de ícones…",
+        "Icon gallery": "Galeria de ícones",
+        "Gallery is not available.": "A galeria não está disponível.",
+        "Could not list the gallery.": "Não foi possível listar a galeria.",
+        "Could not apply the gallery icon.": "Não foi possível aplicar o ícone da galeria.",
+        "Untitled": "Sem título",
+        "In use by {n} folder(s)": "Em uso por {n} pasta(s)",
+        "Cannot remove an icon in use.": "Não foi possível remover um ícone em uso.",
+        "Remove": "Remover",
+        "Close": "Fechar",
         "Monochrome": "Monocromático",
         "Monochrome on": "Monocromático ligado",
         "Monochrome off": "Monocromático desligado",
@@ -2382,6 +2634,11 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             on_apply_theme=on_apply_theme,
             theme_builder=_base_pil_image,
             global_host=global_host,
+            # Icon gallery (#36).
+            on_gallery_list=_gallery_list,
+            on_gallery_apply=lambda ch: _gallery_apply_entry(
+                self, ch, paths, on_apply),
+            on_gallery_remove=_gallery_remove,
         )
 
     def _menu_activate_restore(self, menu, items):
