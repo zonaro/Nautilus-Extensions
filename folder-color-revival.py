@@ -721,6 +721,8 @@ def _overlay_state_path(path):
 
 def _save_overlay_state(path, state):
     try:
+        state = dict(state)
+        state["_path"] = str(path)
         with open(_overlay_state_path(path), "w", encoding="utf-8") as f:
             json.dump(state, f)
     except Exception as e:
@@ -933,6 +935,114 @@ def _iso_now():
 
 
 # ---------------------------------------------------------------------------
+# Accent colour watcher (#35 / Iconic 08)
+# ---------------------------------------------------------------------------
+
+_ACCENT_SCHEMA = "org.gnome.desktop.interface"
+_ACCENT_KEY = "accent-color"
+
+
+def _resolve_accent_hex():
+    """Current GNOME accent colour as '#rrggbb' (best effort)."""
+    try:
+        from gi.repository import Gio
+        settings = Gio.Settings.new(_ACCENT_SCHEMA)
+        raw = str(settings.get_string(_ACCENT_KEY))
+    except Exception:
+        return "#3584e4"
+    raw = raw.strip()
+    if raw.startswith("#") and len(raw) == 7:
+        return raw.lower()
+    return "#3584e4"
+
+
+class AccentWatcher:
+    """Watches org.gnome.desktop.interface accent-color and regenerates
+    folders whose icon recipe has follow_accent=True (#35).
+
+    The watcher is best-effort: if GSettings is unavailable it silently
+    stays idle. Callbacks are invoked on the GLib main loop thread.
+    """
+
+    def __init__(self, foldercolor, on_accent_changed=None):
+        self.foldercolor = foldercolor
+        self.on_accent_changed = on_accent_changed
+        self._settings = None
+        self._id = 0
+        self._start()
+
+    def _start(self):
+        try:
+            from gi.repository import Gio
+            self._settings = Gio.Settings.new(_ACCENT_SCHEMA)
+            self._id = self._settings.connect(
+                "changed::" + _ACCENT_KEY, self._on_changed)
+        except Exception as e:
+            log.debug(f"accent watcher unavailable: {e}")
+
+    def _on_changed(self, _settings, _key):
+        try:
+            self.regenerate_all(self.foldercolor)
+        except Exception as e:
+            log.error(f"accent regenerate: {e}")
+        if self.on_accent_changed is not None:
+            try:
+                self.on_accent_changed()
+            except Exception as e:
+                log.debug(f"accent callback: {e}")
+
+    def regenerate_all(self, foldercolor=None):
+        """Re-apply every folder icon that follows the accent colour (#35).
+
+        ``foldercolor`` is needed to re-apply icons; when None the watcher
+        only counts and notifies via callback.
+        """
+        accent = _resolve_accent_hex()
+        log.info(f"accent changed to {accent} — regenerating follow-accent icons")
+        from glob import glob
+        cache_dir = _custom_cache_dir()
+        count = 0
+        applied = 0
+        for state_path in glob(os.path.join(cache_dir, "state-*.json")):
+            try:
+                with open(state_path, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            except Exception:
+                continue
+            if not isinstance(state, dict) or not state.get("follow_accent"):
+                continue
+            count += 1
+            folder_path = state.get("_path") or ""
+            if foldercolor and folder_path:
+                try:
+                    hexes = [h for h in str(state.get("spec") or "").split(";")
+                             if len(h) == 6]
+                    layers = state.get("layers") or []
+                    theme = str(state.get("theme") or "")
+                    base_image = str(state.get("base_image") or "") or None
+                    if foldercolor.set_custom_overlay_color(
+                            folder_path, ";".join(hexes), state):
+                        _save_overlay_state(folder_path, state)
+                        applied += 1
+                except Exception as e:
+                    log.error(f"re-apply {folder_path}: {e}")
+        if self.on_accent_changed is not None:
+            try:
+                self.on_accent_changed(accent, count, applied)
+            except Exception as e:
+                log.debug(f"accent callback: {e}")
+        return count, applied
+
+    def stop(self):
+        if self._settings is not None and self._id:
+            try:
+                self._settings.disconnect(self._id)
+            except Exception:
+                pass
+            self._settings = None
+
+
+# ---------------------------------------------------------------------------
 # Current colour of a folder — the editor must open with the colour the
 # folder actually has, otherwise applying it back would repaint the folder
 # with the grey default and lose the user's colour.
@@ -1053,12 +1163,14 @@ def _current_color_specs(path, colors=None):
 
 
 def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
-                      theme="", base_image=None):
+                      theme="", base_image=None, follow_accent=False):
     """Apply the editor result to the folders.
 
     ``theme`` is the folder-icon theme picked in the editor ('' = the
     current one). ``base_image`` is the path of a custom base image (#30);
     when set it replaces the themed folder icon as the composition base.
+    ``follow_accent`` (#35) makes every colour take the system accent hue,
+    so the icon tracks the GNOME accent colour.
     Returns True when everything was applied (or there was nothing to change).
     """
     paths = [p for p in (paths or []) if p]
@@ -1068,6 +1180,11 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
     spec = ";".join(str(h).lstrip("#").lower() for h in (hexes or []))
     initial_spec = ";".join(str(h).lstrip("#").lower()
                              for h in (initial_hexes or []))
+    if follow_accent:
+        # The accent owns the colour: every shape takes the accent hue.
+        accent = _resolve_accent_hex()
+        parts = [accent.lstrip("#")] * max(1, len(_split_color_spec(spec)))
+        spec = ";".join(parts)
     use_overlay = bool(layers) or bool(theme) or bool(base_image)
 
     if not use_overlay:
@@ -1089,7 +1206,8 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
                 # composed icon is cached by its digest, so a change
                 # repaints it.
                 state = pack_state(spec, layers, theme,
-                                   base_image=base_image)
+                                   base_image=base_image,
+                                   follow_accent=follow_accent)
                 if foldercolor.set_custom_overlay_color(path, spec, state):
                     _save_overlay_state(path, state)
                     # Save to the managed gallery (#36): deduplicated by
@@ -2365,6 +2483,14 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         self.foldercolor = FolderColor()
         self.theme       = ""
         # Ne pas appeler _load_theme() ici — déjà différé dans FolderColor.__init__
+        # Accent watcher (#35): regenerates follow-accent folder icons when the
+        # GNOME accent colour changes.
+        self.accent_watcher = AccentWatcher(self.foldercolor,
+                                            on_accent_changed=self._on_accent_changed)
+
+    def _on_accent_changed(self, accent, count, applied):
+        """Notification when the accent watcher regenerates icons (#35)."""
+        log.info(f"accent {accent}: {count} follow-accent icons, {applied} reapplied")
 
     def get_file_items(self, items):
         if not self._check_show_menu(items):
@@ -2596,6 +2722,8 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         layers = normalize_layers(saved)
         # The folder theme picked last time ('' = the current theme).
         chosen = {"theme": str(saved.get("theme") or "")}
+        # Restore follow_accent so the accent switch opens in the right state.
+        chosen["follow_accent"] = bool(saved.get("follow_accent"))
         if extra_image:
             # scale 70 mirrors folder_icon_editor._DETECTED_SCALE, which is
             # private to that module (not exported), so the literal is kept
@@ -2603,11 +2731,14 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             layers = normalize_layers(
                 [default_layer("image", path=extra_image, scale=70)] + layers)
 
-        def on_apply(new_hexes, new_layers):
+        def on_apply(new_hexes, new_layers, base_image=None,
+                     follow_accent=False):
             try:
                 return _apply_icon_state(self.foldercolor, paths, new_hexes,
                                          new_layers, hexes,
-                                         theme=chosen["theme"])
+                                         theme=chosen["theme"],
+                                         base_image=base_image,
+                                         follow_accent=follow_accent)
             except Exception as e:
                 log.error(f"apply icon state: {e}")
                 return False
@@ -2639,6 +2770,8 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             on_gallery_apply=lambda ch: _gallery_apply_entry(
                 self, ch, paths, on_apply),
             on_gallery_remove=_gallery_remove,
+            # Iconic 08: restore the folder's follow_accent state.
+            follow_accent=chosen["follow_accent"],
         )
 
     def _menu_activate_restore(self, menu, items):
