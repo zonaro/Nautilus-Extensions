@@ -2190,6 +2190,17 @@ class _Editor:
                 self.tr("Finds an icon file already inside the folder"))
             add_row.append(detect_button)
 
+        actions = [(self.tr("Add text…"), self._on_add_text),
+                   (self.tr("Add emblem…"), self._on_add_emblem)]
+        for label, handler in actions:
+            button = Gtk.Button(label=label)
+            button.connect("clicked", handler)
+            add_row.append(button)
+            if handler.__func__ is self._on_add_emblem.__func__:
+                self.emblem_button = button
+        # No emblem in the theme -> nothing to add.
+        self.emblem_button.set_sensitive(bool(self.emblem_icons))
+
         move_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.up_button = Gtk.Button(label=self.tr("Move up"))
         self.up_button.connect("clicked", self._on_move_up)
