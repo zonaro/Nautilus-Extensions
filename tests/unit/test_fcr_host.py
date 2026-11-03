@@ -332,6 +332,105 @@ def test_open_editor_signature_matches_the_contract():
     assert signature.parameters["follow_accent"].default is False
 
 
+def test_gallery_unmark_all_for_folder_removes_from_every_entry(tmp_path):
+    """Restoring a folder removes it from all gallery ``used_by`` lists (#37)."""
+    fcr._gallery_dir = lambda: str(tmp_path / "gallery")
+    fcr._gallery_index_path = lambda: str(tmp_path / "gallery" / "index.json")
+
+    import json, os
+    os.makedirs(fcr._gallery_dir(), exist_ok=True)
+    index_path = fcr._gallery_index_path()
+    index = {
+        "a": {"hash": "a", "used_by": ["/x/a", "/x/b"]},
+        "b": {"hash": "b", "used_by": ["/x/a"]},
+        "c": {"hash": "c", "used_by": []},
+    }
+    with open(index_path, "w") as fh:
+        json.dump(index, fh)
+
+    fcr._gallery_unmark_all_for_folder("/x/a")
+    with open(index_path) as fh:
+        saved = json.load(fh)
+    assert saved["a"]["used_by"] == ["/x/b"]
+    assert saved["b"]["used_by"] == []
+    assert saved["c"]["used_by"] == []
+
+
+def test_gallery_latest_returns_most_recent_entry(tmp_path):
+    """The gallery latest entry is the most recently updated one (#37)."""
+    fcr._gallery_dir = lambda: str(tmp_path / "gallery")
+    fcr._gallery_index_path = lambda: str(tmp_path / "gallery" / "index.json")
+
+    import json, os
+    os.makedirs(fcr._gallery_dir(), exist_ok=True)
+    index_path = fcr._gallery_index_path()
+    index = {
+        "a": {"hash": "a", "name": "A", "updated": "2026-01-01"},
+        "b": {"hash": "b", "name": "B", "updated": "2026-02-01"},
+    }
+    with open(index_path, "w") as fh:
+        json.dump(index, fh)
+
+    latest = fcr._gallery_latest()
+    assert latest is not None
+    assert latest["hash"] == "b"
+
+
+def test_gallery_apply_entry_applies_full_state(tmp_path, monkeypatch):
+    """Applying a gallery entry writes colours, layers, theme (#36/#37)."""
+    applied = {}
+    calls = []
+
+    class FakeFolderColor:
+        def set_custom_overlay_color(self, item, spec, state):
+            calls.append((item, spec))
+            return True
+
+    def fake_apply_icon_state(foldercolor, paths, hexes, layers,
+                              initial_hexes, theme="", base_image=None,
+                              follow_accent=False):
+        applied["paths"] = paths
+        applied["hexes"] = hexes
+        applied["layers"] = layers
+        applied["theme"] = theme
+        applied["follow_accent"] = follow_accent
+        return True
+
+    monkeypatch.setattr(fcr, "_gallery_get",
+                        lambda ch: {"hash": ch, "hexes": ["#ff0000"],
+                                    "layers": [{"type": "text"}],
+                                    "theme": "Smoke",
+                                    "base_image": "/x/base.png",
+                                    "follow_accent": True})
+    monkeypatch.setattr(fcr, "_apply_icon_state", fake_apply_icon_state)
+    monkeypatch.setattr(fcr, "_gallery_mark_used",
+                        lambda ch, path: None)
+
+    result = fcr._gallery_apply_entry(FakeFolderColor(), "ab", ["/x/a", "/x/b"],
+                                      [])
+    assert result is not None
+    assert applied["paths"] == ["/x/a", "/x/b"]
+    assert applied["hexes"] == ["#ff0000"]
+    assert applied["theme"] == "Smoke"
+    assert applied["follow_accent"] is True
+
+
+def test_open_editor_exposes_gallery_callbacks():
+    """The editor call contract includes the three gallery callbacks (#36)."""
+    editor = pytest.importorskip("folder_icon_editor")
+    params = inspect.signature(editor.open_editor).parameters
+    assert params["on_gallery_list"].default is None
+    assert params["on_gallery_apply"].default is None
+    assert params["on_gallery_remove"].default is None
+
+
+def test_multi_scope_single_folder_runs_immediately():
+    """One folder: no dialog, action runs straight away (#37)."""
+    ran = []
+    fcr._confirm_multi_scope(["/x/a"], ran.append)
+    assert ran == [["/x/a"]]
+
+
 def test_the_host_offers_the_global_icon_host():
     """The Global tab driver exists and exposes the editor's contract."""
     host = fcr.GlobalIconHost(tr=lambda text: text)
