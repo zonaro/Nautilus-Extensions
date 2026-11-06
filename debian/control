@@ -124,9 +124,11 @@ Package: zonaro-nautilus-folder-color-revival
 Architecture: all
 Depends: ${misc:Depends}, python3, python3-nautilus, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-nautilus-4.0, zonaro-nautilus-common, python3-pil, python3-cairo, gir1.2-pangocairo-1.0
 Description: folder color and emblem tagging for Nautilus
- Revives folder colourisation on modern Nautilus, with custom colours, emblem
- tagging and automatic import of Dolphin (KDE) folder colours. Ships its
- name_to_color helper and colour database.
+ Revives folder colourisation on modern Nautilus with a layered icon editor,
+ custom colours, text, emblems, masks and an offline monochrome symbol catalog.
+ Includes portable editable SVG projects, PNG export, folder/global scope and
+ automatic import of Dolphin (KDE) folder colours. Ships the editor helpers,
+ symbol assets and their licenses.
 
 Package: zonaro-nautilus-hidden-dim-all
 Architecture: all

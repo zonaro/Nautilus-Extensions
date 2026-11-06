@@ -122,7 +122,7 @@ slug_desc() {
 slug_files() {
   case "$1" in
     edit-with)            echo "nautilus_edit_ext.py";;
-    folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py folder_icon_theme.py name_to_color.py color_database.json";;
+    folder-color-revival) echo "folder-color-revival.py folder_icon_editor.py folder_icon_theme.py folder_icon_project.py folder_icon_catalog.py name_to_color.py color_database.json";;
     audio-tools|video-tools|media-converter)
                           echo "$1.py media_dialogs.py";;
     terminal-tools)       echo "terminal-tools.py follow-shell.py";;
@@ -636,6 +636,13 @@ done
 
 if [ -f "$SCRIPT_DIR/nautilus_i18n.py" ]; then
   cp "$SCRIPT_DIR/nautilus_i18n.py" "$EXT_DIR"/
+fi
+
+if printf '%s\n' "${SELECTED[@]}" | grep -qx folder-color-revival; then
+  # Symbol assets and their license must travel with the editor, including
+  # selective installations. Runtime lookup is relative to the helper module.
+  mkdir -p "$EXT_DIR/assets"
+  cp -R "$SCRIPT_DIR/assets/folder-icons" "$EXT_DIR/assets/"
 fi
 
 if [ "$NEED_MEDIA_CORE" -eq 1 ] && [ -d "$SCRIPT_DIR/$MEDIA_CORE_DIR" ]; then

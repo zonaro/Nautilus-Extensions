@@ -24,6 +24,7 @@ import math
 import os
 import re
 import sys
+import time
 import unicodedata
 from collections import OrderedDict
 
@@ -52,13 +53,15 @@ PREVIEW_SIZE = 128
 LAYER_IMAGE = "image"
 LAYER_TEXT = "text"
 LAYER_EMBLEM = "emblem"
+LAYER_SYMBOL = "symbol"
 
-_LAYER_TYPES = (LAYER_IMAGE, LAYER_TEXT, LAYER_EMBLEM)
+_LAYER_TYPES = (LAYER_IMAGE, LAYER_TEXT, LAYER_EMBLEM, LAYER_SYMBOL)
 
 _TYPE_ICONS = {
     LAYER_IMAGE: "image-x-generic-symbolic",
     LAYER_TEXT: "text-x-generic-symbolic",
     LAYER_EMBLEM: "emblem-symbolic-link",
+    LAYER_SYMBOL: "emblem-symbolic-link",
 }
 
 _DRAG_ICON = "list-drag-handle-symbolic"
@@ -67,13 +70,14 @@ _TYPE_LABELS = {
     LAYER_IMAGE: "Image",
     LAYER_TEXT: "Text",
     LAYER_EMBLEM: "Emblem",
+    LAYER_SYMBOL: "Symbol",
 }
 
 # Every layer always carries exactly these keys.
 _LAYER_FIELDS = (
-    "type", "name", "path", "text", "font", "font_size", "bold", "italic",
-    "color", "emblem", "emblem_uri", "opacity", "scale", "rotation",
-    "offset_x", "offset_y", "hue", "saturation",
+    "type", "name", "path", "symbol_id", "text", "font", "font_size",
+    "bold", "italic", "color", "emblem", "emblem_uri", "opacity", "scale",
+    "rotation", "offset_x", "offset_y", "hue", "saturation",
     "monochrome", "invert", "threshold", "mono_color",
     "mask_mode", "mask_path",
 )
@@ -81,8 +85,8 @@ _LAYER_FIELDS = (
 # The fields that describe WHAT a layer shows (the transform fields below
 # are applied afterwards and must not take part in the render cache key).
 _CONTENT_FIELDS = (
-    "type", "path", "text", "font", "font_size", "bold", "italic", "color",
-    "emblem", "emblem_uri",
+    "type", "symbol_id", "path", "text", "font", "font_size", "bold",
+    "italic", "color", "emblem", "emblem_uri",
     "monochrome", "invert", "threshold", "mono_color",
     "mask_mode", "mask_path",
 )
@@ -116,6 +120,8 @@ _DEFAULTS = {
     # the overlay is clipped to the folder shape, "custom" = user PNG/SVG.
     "mask_mode": "none",
     "mask_path": "",
+    # Symbol id (from the symbol gallery) for symbol layers.
+    "symbol_id": "",
 }
 
 _RANGES = {
@@ -129,6 +135,22 @@ _RANGES = {
     "threshold": (0, 255),
     "font_size": (8, 256),
 }
+
+# Transform sliders shown always ("basic") versus only in advanced mode.
+# Titles are translated through self.tr() at build time; the keys match the
+# layer schema and the _RANGES bounds above.
+_TRANSFORM_TITLES = {
+    "opacity": "Opacity",
+    "scale": "Scale",
+    "rotation": "Rotation",
+    "offset_x": "X offset",
+    "offset_y": "Y offset",
+    "hue": "Hue",
+    "saturation": "Saturation",
+}
+_BASIC_TRANSFORM_KEYS = ("opacity", "scale")
+_ADVANCED_TRANSFORM_KEYS = ("hue", "saturation", "rotation",
+                            "offset_x", "offset_y")
 
 _HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
 
@@ -171,27 +193,98 @@ def _advanced_mode_file():
 
 def load_advanced_mode():
     """Return the persisted advanced mode (default False) (#38)."""
-    path = _advanced_mode_file()
-    if not path or not os.path.exists(path):
-        return False
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            value = f.read().strip().lower()
-        return value in ("1", "true", "yes", "on")
-    except Exception:
-        return False
+    value = get_preference("advanced_mode", "0")
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 def save_advanced_mode(value):
     """Persist the advanced mode setting (#38)."""
+    set_preference("advanced_mode", "1" if value else "0")
+
+
+# Named editor preferences persisted in editor.conf (#35/#38). Values are
+# written as ``key=value`` lines; unknown/missing keys fall back to defaults.
+# The legacy single-line format ("1"/"0") still loads as advanced_mode so an
+# existing config is upgraded in place, never discarded.
+_PREFERENCE_DEFAULTS = {
+    "advanced_mode": "0",
+    "default_drop_behavior": "add",   # "add" | "replace"
+    "default_clip": "none",           # "none" | "auto"
+}
+
+
+def _read_preference_lines():
+    """Parsed ``key=value`` lines of editor.conf ('' when unavailable)."""
+    path = _advanced_mode_file()
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read()
+    except Exception as e:
+        log.debug(f"read preferences: {e}")
+        return {}
+    result = {}
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if key:
+            result[key] = value.strip()
+    return result
+
+
+def _legacy_advanced_value(raw_lines):
+    """True when editor.conf was the legacy single-line advanced flag."""
+    path = _advanced_mode_file()
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read().strip().lower()
+    except Exception:
+        return None
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return None
+
+
+def get_preference(key, default=None):
+    """Return one persisted preference value (raw string or ``default``)."""
+    lines = _read_preference_lines()
+    if key in lines:
+        return lines[key]
+    if key == "advanced_mode":
+        legacy = _legacy_advanced_value(lines)
+        if legacy is not None:
+            return "1" if legacy else "0"
+    if default is not None:
+        return default
+    return _PREFERENCE_DEFAULTS.get(key)
+
+
+def set_preference(key, value):
+    """Persist one preference value, preserving the other keys (#35/#38)."""
     path = _advanced_mode_file()
     if not path:
         return
+    lines = _read_preference_lines()
+    # Upgrade a legacy single-value file: seed advanced_mode from it first.
+    if not lines:
+        legacy = _legacy_advanced_value({})
+        if legacy is not None:
+            lines["advanced_mode"] = "1" if legacy else "0"
+    lines[str(key)] = str(value)
     try:
         with open(path, "w", encoding="utf-8") as f:
-            f.write("1\n" if value else "0\n")
+            for name, val in lines.items():
+                f.write(f"{name}={val}\n")
     except Exception as e:
-        log.debug(f"save advanced mode: {e}")
+        log.debug(f"save preference {key}: {e}")
 
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".svg", ".bmp", ".gif",
                ".tif", ".tiff")
@@ -226,6 +319,137 @@ _EMBLEM_PIXBUF_MAX = 32
 
 _GENERATE_COLOR = None
 _GENERATE_COLOR_LOOKED_UP = False
+
+# ---------------------------------------------------------------------------
+# Optional backend providers (wired automatically from the pure modules
+# folder_icon_project.py and folder_icon_catalog.py).
+#
+# Pure modules never import this editor, so there is no circular dependency:
+# the editor imports them here and adapts each module's real API to the hooks
+# below. ``open_editor()``'s signature stays stable regardless. When a module
+# is absent the editor degrades with a friendly message instead of failing.
+# ---------------------------------------------------------------------------
+_SYMBOL_LIST = None      # query (str) -> list[{id, label, preview_png, ...}]
+_SYMBOL_APPLY = None     # symbol_id -> layer dict (or None)
+_SYMBOL_PREVIEW_DIR = None  # temp dir for symbol preview PNG files
+
+# Layered SVG project save/load is imported directly from folder_icon_project
+# (no provider shim — the module is a hard dependency for SVG project features).
+try:
+    import folder_icon_project as _project_module  # noqa: F401
+    _HAS_PROJECT_MODULE = True
+except Exception:
+    _project_module = None
+    _HAS_PROJECT_MODULE = False
+
+
+def register_symbol_provider(list_fn, apply_fn):
+    """Wire the monochrome symbol gallery (folder_icon_catalog.py).
+
+    ``list_fn(query)`` returns symbol entries (each with ``id`` and ``label``);
+    ``apply_fn(symbol_id)`` returns a layer dict ready to insert, or None.
+    Both are optional. The editor adapter (see ``_wire_available_providers``)
+    uses the catalog contract:
+
+        catalog.list_icons(query='', limit=120, offset=0) -> list[{id, label}]
+        catalog.materialize_icon(id, color='#ffffff', cache_dir=None)
+                                          -> absolute cached SVG path
+        catalog.icon_svg(id, color='#ffffff') -> SVG bytes
+
+    A symbol layer is created as::
+
+        default_layer(LAYER_SYMBOL, symbol_id=id,
+                      path=materialize_icon(id), color='#ffffff')
+    """
+    global _SYMBOL_LIST, _SYMBOL_APPLY
+    _SYMBOL_LIST = list_fn if callable(list_fn) else None
+    _SYMBOL_APPLY = apply_fn if callable(apply_fn) else None
+
+
+def _symbol_preview_dir():
+    """A per-process temp dir for symbol preview PNG thumbnails."""
+    global _SYMBOL_PREVIEW_DIR
+    if _SYMBOL_PREVIEW_DIR is None:
+        import tempfile
+        _SYMBOL_PREVIEW_DIR = tempfile.mkdtemp(
+            prefix="folder-icon-symbols-")
+    return _SYMBOL_PREVIEW_DIR
+
+
+def _symbol_preview_png(symbol_id, materialize_fn):
+    """Render a 96×96 preview PNG for a symbol, cached in the preview dir.
+
+    Returns the file path (or None when the symbol cannot be previewed).
+    """
+    path = os.path.join(_symbol_preview_dir(), f"{symbol_id}.png")
+    if os.path.exists(path):
+        return path
+    try:
+        svg_path = materialize_fn(symbol_id, color="#ffffff", cache_dir=None)
+        if not svg_path or not os.path.exists(svg_path):
+            return None
+        img = _rasterize_svg(svg_path, 96)
+        if img is None:
+            return None
+        img.save(path, "PNG")
+        return path
+    except Exception as e:
+        log.debug(f"symbol preview ({symbol_id}): {e}")
+        return None
+
+
+def _wire_available_providers():
+    """Import available pure modules and wire adapters automatically.
+
+    Runs once at import time. Pure modules never import this editor, so this
+    cannot create a circular dependency.
+    """
+    global _SYMBOL_LIST, _SYMBOL_APPLY
+    # --- symbol catalog (new contract: list_icons / materialize_icon) ---
+    try:
+        import folder_icon_catalog as _catalog  # noqa: F401
+    except Exception:
+        _catalog = None
+    if _catalog is not None:
+        list_fn = getattr(_catalog, "list_icons", None)
+        materialize_fn = getattr(_catalog, "materialize_icon", None)
+        if callable(list_fn) and callable(materialize_fn):
+            def _list_adapter(query=""):
+                """Paginated symbol list with preview PNG thumbnails."""
+                try:
+                    entries = list_fn(query, limit=120, offset=0) or []
+                except Exception as e:
+                    log.error(f"symbol list ({query!r}): {e}")
+                    return []
+                result = []
+                for entry in entries:
+                    e = dict(entry) if isinstance(entry, dict) else {}
+                    sid = str(e.get("id") or "")
+                    if sid:
+                        prev = _symbol_preview_png(sid, materialize_fn)
+                        if prev:
+                            e["preview_png"] = prev
+                    result.append(e)
+                return result
+
+            def _apply_adapter(symbol_id):
+                """Materialize a symbol into a LAYER_SYMBOL layer dict."""
+                try:
+                    svg_path = materialize_fn(
+                        symbol_id, color="#ffffff", cache_dir=None)
+                    if not svg_path:
+                        return None
+                    return default_layer(
+                        LAYER_SYMBOL, symbol_id=symbol_id,
+                        path=svg_path, color="#ffffff")
+                except Exception as e:
+                    log.error(f"symbol apply ({symbol_id}): {e}")
+                    return None
+
+            register_symbol_provider(_list_adapter, _apply_adapter)
+
+
+_wire_available_providers()
 
 
 # ---------------------------------------------------------------------------
@@ -262,8 +486,11 @@ def _normalize_hex(value):
 
 def _derive_name(layer):
     """Human readable name of a layer (may be empty)."""
-    if layer.get("type") == LAYER_EMBLEM:
+    kind = layer.get("type")
+    if kind == LAYER_EMBLEM:
         return str(layer.get("emblem") or "")
+    if kind == LAYER_SYMBOL:
+        return str(layer.get("symbol_id") or layer.get("name") or "")
     return ""
 
 
@@ -274,8 +501,9 @@ def default_layer(kind, **overrides):
     layer["type"] = kind
     if kind == LAYER_TEXT:
         layer["text"] = "Text"
-    elif kind == LAYER_EMBLEM:
-        # Emblems are badge-sized by default (25% of the 256px canvas).
+    elif kind in (LAYER_EMBLEM, LAYER_SYMBOL):
+        # Emblems and symbols are badge-sized by default (25% of the 256px
+        # canvas).
         layer["scale"] = 25
     for key, value in overrides.items():
         if key in _DEFAULTS:
@@ -461,9 +689,16 @@ def _rasterize_svg(path, size=None):
 
 
 def _open_image(path, size=None):
-    """PNG/JPEG/WebP/SVG file -> PIL RGBA image."""
+    """PNG/JPEG/WebP/SVG file -> PIL RGBA image.
+
+    SVG content is validated through folder_icon_project.load_svg_project
+    *before* any decoding, regardless of file extension. A gzip/SVGZ or unsafe
+    SVG disguised as .png must not reach GdkPixbuf/PIL.
+    """
     if not path or not os.path.isfile(path):
         log.error(f"image not found: {path}")
+        return None
+    if not _validate_image_content(path):
         return None
     if os.path.splitext(path)[1].lower() == ".svg":
         return _rasterize_svg(path, size)
@@ -477,6 +712,41 @@ def _open_image(path, size=None):
     if size:
         img = _fit_square(img, size)
     return img
+
+
+def _validate_image_content(path):
+    """Return True when ``path`` is safe to load as an image/mask.
+
+    Uses content-based detection (not extension): if the file looks like SVG
+    or gzip, it is run through ``folder_icon_project.load_svg_project`` which
+    returns None for safe plain SVG/raster or raises ProjectError for
+    gzip/unknown/UTF-16/unsafe content. Anything reaching GdkPixbuf/PIL has
+    passed this validation.
+    """
+    if not _HAS_PROJECT_MODULE:
+        return True
+    # Quick magic-bytes pre-check: avoid the full validation read for plain
+    # rasters. Only SVG-ish or gzip content needs the project reader.
+    try:
+        with open(path, "rb") as _f:
+            head = _f.read(64)
+    except Exception:
+        return False
+    head_low = head.lower()
+    is_svg = b"<?xml" in head_low or b"<svg" in head_low
+    is_gzip = head[:2] == b"\x1f\x8b"
+    if not (is_svg or is_gzip):
+        return True
+    try:
+        _project_module.load_svg_project(path)
+        # None (safe plain SVG / raster legacy) or dict (project) → safe.
+        return True
+    except _project_module.ProjectError as e:
+        log.error(f"unsafe image rejected ({path}): {e}")
+        return False
+    except Exception:
+        # Not an SVG project at all → proceed as raster.
+        return True
 
 
 def _fit_square(img, size=CANVAS_SIZE):
@@ -683,6 +953,8 @@ def _emblem_pixbuf(layer):
     path = _resolve_emblem_path(layer)
     if not path:
         return None
+    if not _validate_image_content(path):
+        return None
     cached = _EMBLEM_PIXBUFS.get(path)
     if cached is not None:
         _EMBLEM_PIXBUFS.move_to_end(path)
@@ -708,6 +980,8 @@ def _render_emblem(layer):
     path = _resolve_emblem_path(layer)
     if not path:
         log.error(f"emblem not found: {layer.get('emblem')}")
+        return None
+    if not _validate_image_content(path):
         return None
     if os.path.splitext(path)[1].lower() == ".svg":
         img = _rasterize_svg(path, CANVAS_SIZE)
@@ -810,10 +1084,39 @@ def render_layer(layer):
             return _render_text(layer)
         if kind == LAYER_EMBLEM:
             return _render_emblem(layer)
+        if kind == LAYER_SYMBOL:
+            img = _open_image(str(layer.get("path") or ""))
+            if img is None:
+                return None
+            return _tint_symbol_to_color(img, layer)
         return _open_image(str(layer.get("path") or ""))
     except Exception as e:
         log.error(f"layer render failed ({kind}): {e}")
         return None
+
+
+def _tint_symbol_to_color(img, layer):
+    """Recolor a monochrome symbol to the layer's color, preserving alpha.
+
+    Symbols are single-colour glyphs on a transparent canvas; this replaces
+    every opaque pixel's RGB with ``color`` while keeping the original alpha,
+    so a symbol layer can be tinted like any other colour input.
+    """
+    hexa = _normalize_hex(layer.get("color", "#ffffff")) or "#ffffff"
+    rgba = Gdk.RGBA()
+    if not rgba.parse(hexa):
+        rgba.parse("#ffffff")
+    r = int(round(rgba.red * 255))
+    g = int(round(rgba.green * 255))
+    b = int(round(rgba.blue * 255))
+    img = img.convert("RGBA").copy()
+    alpha = img.getchannel("A")
+    tinted = Image.merge("RGB", (
+        Image.eval(alpha, lambda v: r if v > 0 else 0),
+        Image.eval(alpha, lambda v: g if v > 0 else 0),
+        Image.eval(alpha, lambda v: b if v > 0 else 0),
+    ))
+    return Image.merge("RGBA", (*tinted.split(), alpha))
 
 
 def _content_key(layer):
@@ -920,32 +1223,43 @@ def _load_mask_image(path, size):
 
     External masks are untrusted data: validate existence/format and return
     ``None`` on any failure so the caller can fall back to the automatic
-    mask or skip masking entirely.
+    mask or skip masking entirely. The native image is cached by path and
+    resized to ``size`` on every call so a mask is never returned at the
+    wrong resolution.
+
+    When the source mask carries its own alpha channel, that alpha is folded
+    into the luminance so transparent mask regions clear the layer instead of
+    keeping it opaque (a bright-but-transparent pixel must not paint).
     """
     if not path or not os.path.exists(path):
         return None
-    cached = _MASK_CACHE.get(path)
-    if cached is not None:
-        _MASK_CACHE.move_to_end(path)
-        return cached
-    try:
-        ext = os.path.splitext(path)[1].lower()
-        if ext == ".svg":
-            img = _rasterize_svg(path, size[0])
-        else:
-            img = _open_image(path)
-        if img is None:
-            return None
-        img = img.convert("L")
-        if img.size != size:
-            img = img.resize(size, Image.Resampling.LANCZOS)
-        _MASK_CACHE[path] = img
-        while len(_MASK_CACHE) > _MASK_CACHE_MAX:
-            _MASK_CACHE.popitem(last=False)
-        return img
-    except Exception as e:
-        log.error(f"load mask {path}: {e}")
+    # Validate SVG/mask content before decoding, regardless of extension.
+    if not _validate_image_content(path):
         return None
+    cached = _MASK_CACHE.get(path)
+    if cached is None:
+        try:
+            ext = os.path.splitext(path)[1].lower()
+            if ext == ".svg":
+                img = _rasterize_svg(path, size[0])
+            else:
+                img = _open_image(path)
+            if img is None:
+                return None
+            img = img.convert("RGBA")
+            luma = img.convert("L")
+            alpha = img.getchannel("A")
+            # Fold alpha into luminance: a transparent mask region clears.
+            cached = ImageChops.multiply(luma, alpha)
+            _MASK_CACHE[path] = cached
+            while len(_MASK_CACHE) > _MASK_CACHE_MAX:
+                _MASK_CACHE.popitem(last=False)
+        except Exception as e:
+            log.error(f"load mask {path}: {e}")
+            return None
+    if cached.size != size:
+        cached = cached.resize(size, Image.Resampling.LANCZOS)
+    return cached
 
 
 def _apply_mask(img, mask):
@@ -999,16 +1313,26 @@ def _apply_transforms(img, layer):
     return img
 
 
-def compose_layers(base, layers):
-    """Compose the base image with the layer stack -> PNG bytes (or None).
+def compose_with_snapshots(base, layers):
+    """Single source of truth for preview, PNG export and project save.
 
-    ``layers`` is top-first: index 0 is the visually topmost layer, so the
-    stack is painted in reverse order.
+    ``layers`` is top-first (index 0 = visually topmost). Every returned layer
+    PNG is exactly ``CANVAS_SIZE x CANVAS_SIZE`` and fully transformed
+    (scale/rotation/monochrome/hue/saturation/opacity/mask/position). The
+    composed preview PNG is also returned.
+
+    Returns:
+        {
+          "png": composed PNG bytes (or None),
+          "layer_pngs": [full-canvas transformed PNG, BOTTOM->top order],
+          "source_pngs": [full-canvas untransformed PNG, TOP-first order],
+          "base_png": base PNG bytes (or None),
+        }
     """
-    if base is None:
-        return None
     if not _PIL_AVAILABLE:
         log.error("PIL unavailable — cannot compose icon")
+        return None
+    if base is None:
         return None
     try:
         canvas = base.convert("RGBA")
@@ -1016,35 +1340,88 @@ def compose_layers(base, layers):
             canvas = canvas.resize((CANVAS_SIZE, CANVAS_SIZE),
                                    Image.Resampling.LANCZOS)
         canvas = canvas.copy()
-        # Automatic mask derived from the base image alpha (folder shape).
-        # Used to clip overlays that overflow the folder silhouette (#33).
-        base_mask = None
-        try:
-            base_mask = canvas.getchannel("A")
-        except Exception:
-            base_mask = None
-        for layer in reversed(normalize_layers(layers)):
-            img = _render_cached(layer)
-            if img is None:
-                continue
-            img = _apply_transforms(img, layer)
-            scratch = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE),
-                                (0, 0, 0, 0))
-            pos_x = (CANVAS_SIZE - img.width) // 2 + int(layer["offset_x"])
-            pos_y = (CANVAS_SIZE - img.height) // 2 + int(layer["offset_y"])
-            scratch.paste(img, (pos_x, pos_y))
-            # "auto" mask: clip to the folder base shape. Only affects the
-            # layer that opted in (mask_mode == "auto"); text/emblem are not
-            # cut by default unless the user explicitly enables it.
-            if layer.get("mask_mode") == "auto" and base_mask is not None:
-                scratch = _apply_mask(scratch, base_mask)
-            canvas = Image.alpha_composite(canvas, scratch)
-        buffer = io.BytesIO()
-        canvas.save(buffer, "PNG")
-        return buffer.getvalue()
+        buf = io.BytesIO()
+        canvas.save(buf, "PNG")
+        base_png = buf.getvalue()
     except Exception as e:
-        log.error(f"compose layers: {e}")
+        log.error(f"compose base png: {e}")
         return None
+
+    # Automatic mask derived from the base image alpha (folder shape).
+    # Clips overlays that overflow the folder silhouette (#33).
+    base_mask = None
+    try:
+        base_mask = canvas.getchannel("A")
+    except Exception:
+        base_mask = None
+
+    norm_layers = normalize_layers(layers)
+
+    # Source PNGs: untransformed pre-render content, full canvas, TOP-first.
+    # Kept so a reopen shows the original font look even when transforms are
+    # later edited; only the transform fields change, not the source.
+    source_pngs_top_first = []
+    for layer in norm_layers:
+        source_img = _render_cached(layer)
+        if source_img is None:
+            source_img = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE),
+                                   (0, 0, 0, 0))
+        scratch = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE),
+                            (0, 0, 0, 0))
+        scratch.paste(source_img, (0, 0))
+        sbuf = io.BytesIO()
+        scratch.save(sbuf, "PNG")
+        source_pngs_top_first.append(sbuf.getvalue())
+
+    # Layer snapshots: fully transformed, full canvas, BOTTOM->top order.
+    # Painted bottom->top so each layer composites over the previous one.
+    layer_pngs_bottom_top = []
+    for layer in reversed(norm_layers):
+        source_img = _render_cached(layer)
+        if source_img is None:
+            source_img = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE),
+                                   (0, 0, 0, 0))
+        img = _apply_transforms(source_img.copy(), layer)
+        scratch = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE),
+                            (0, 0, 0, 0))
+        pos_x = (CANVAS_SIZE - img.width) // 2 + int(layer.get("offset_x", 0))
+        pos_y = (CANVAS_SIZE - img.height) // 2 + int(layer.get("offset_y", 0))
+        scratch.paste(img, (pos_x, pos_y))
+        # "auto" mask: clip to the folder base shape.
+        if layer.get("mask_mode") == "auto" and base_mask is not None:
+            scratch = _apply_mask(scratch, base_mask)
+        sbuf = io.BytesIO()
+        scratch.save(sbuf, "PNG")
+        layer_pngs_bottom_top.append(sbuf.getvalue())
+        canvas = Image.alpha_composite(canvas, scratch)
+
+    try:
+        pbuf = io.BytesIO()
+        canvas.save(pbuf, "PNG")
+        png = pbuf.getvalue()
+    except Exception as e:
+        log.error(f"compose final png: {e}")
+        return None
+
+    return {
+        "png": png,
+        "layer_pngs": layer_pngs_bottom_top,
+        "source_pngs": source_pngs_top_first,
+        "base_png": base_png,
+    }
+
+
+def compose_layers(base, layers):
+    """Compose the base image with the layer stack -> PNG bytes (or None).
+
+    Thin wrapper around :func:`compose_with_snapshots` so callers that only
+    need the composed preview don't have to unpack the result dict.
+
+    ``layers`` is top-first: index 0 is the visually topmost layer, so the
+    stack is painted in reverse order.
+    """
+    result = compose_with_snapshots(base, layers)
+    return result["png"] if result else None
 
 
 # ---------------------------------------------------------------------------
@@ -1086,6 +1463,23 @@ def save_png_project(png_bytes, hexes, layers, theme="", base_image=""):
     except Exception as e:
         log.error(f"save png project: {e}")
         return None
+
+
+def _write_file_atomic(path, data):
+    """Write ``data`` to ``path`` atomically (temp file + os.replace)."""
+    import os as _os
+    directory = _os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with _os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        _os.replace(tmp, path)
+    except Exception:
+        try:
+            _os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def load_png_project(path):
@@ -1768,7 +2162,6 @@ def _scope_snapshot(scope):
     }
 
 
-
 class _Editor:
     """The layer editor window."""
 
@@ -1797,6 +2190,8 @@ class _Editor:
         self.syncing = False
         self.rebuilding = False
         self.switching = False
+        self._responsive_pending = False
+        self._last_allocated_width = None
         self.drag_active = False
         self.drag_base = (0, 0)
         self.sliders = {}
@@ -1805,7 +2200,28 @@ class _Editor:
         self.base_cache = OrderedDict()
         self.font_families = None
         self.file_dialog = None
+        # Temp PNG files produced by the preview drag-export (#34). Kept until
+        # the dialog is destroyed so the dragged file stays valid for the
+        # drop target; cleaned up on destroy.
+        self._export_temp_files = []
+        # Preferences: default behaviour for dropped images (#34/#35/#38).
+        # ``default_drop_behavior``: "add" inserts new layer(s), "replace"
+        # overwrites the selected image layer. ``default_clip``: "none" leaves
+        # the overlay unmasked, "auto" clips new image layers to the folder
+        # shape. Both default to the historic behaviour so existing projects
+        # are unchanged.
+        self.default_drop_behavior = str(
+            get_preference("default_drop_behavior", "add") or "add")
+        if self.default_drop_behavior not in ("add", "replace"):
+            self.default_drop_behavior = "add"
+        self.default_clip = str(get_preference("default_clip", "none") or "none")
+        if self.default_clip not in ("none", "auto"):
+            self.default_clip = "none"
+        self.regen_job = None  # active regenerate_folders job, or None
         self._preview_natural = None
+        # Unique CSS id for this editor instance: scopes palette swatch names so
+        # multiple dialogs never overwrite each other's swatch colours.
+        self._css_id = "editor-%d" % id(self)
         self.scope = SCOPE_FOLDER
         # Custom base image (#30): when set, the preview and the apply use this
         # image instead of the themed folder icon as the composition base.
@@ -1919,6 +2335,7 @@ class _Editor:
         except Exception:
             pass
         self.dialog = dialog
+        dialog.connect("destroy", self._on_dialog_destroy)
 
         self._apply_css()
 
@@ -1934,9 +2351,12 @@ class _Editor:
         # window (natural size preserved) reveals it via a scrollbar instead.
         scroller = Gtk.ScrolledWindow()
         try:
+            # AUTOMATIC/AUTOMATIC with propagate_natural_width=False lets the
+            # scroller constrain children to the allocated width so content
+            # reflows instead of being masked by overflow (responsiveness).
             scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
             scroller.set_propagate_natural_height(True)
-            scroller.set_propagate_natural_width(True)
+            scroller.set_propagate_natural_width(False)
             scroller.set_vexpand(True)
         except Exception as e:
             log.debug(f"dialog scroller: {e}")
@@ -1944,16 +2364,44 @@ class _Editor:
         dialog.get_content_area().append(scroller)
 
         upper = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        upper.set_hexpand(True)
+        upper.set_halign(Gtk.Align.FILL)
+        self.upper = upper
         if self.global_host is not None:
             root.append(self._build_scope_tabs())
         root.append(upper)
-        upper.append(self._build_preview_column())
-        upper.append(self._build_layers_column())
+        preview_column = self._build_preview_column()
+        # The preview keeps its natural size and never steals space from the
+        # layers column; on very narrow screens the whole upper area stacks
+        # vertically via _apply_responsive_layout().
+        preview_column.set_hexpand(False)
+        preview_column.set_halign(Gtk.Align.CENTER)
+        upper.append(preview_column)
+        self.preview_column = preview_column
+        layers_column = self._build_layers_column()
+        layers_column.set_hexpand(True)
+        upper.append(layers_column)
+        self.layers_column = layers_column
+        # Responsive layout: stack the preview above the layers on narrow
+        # screens so nothing is hidden behind a scrollbar. Seeded from the
+        # screen size and kept in sync via a frame-clock tick callback with
+        # clean lifecycle (armed on map, disarmed on unmap/destroy,
+        # self-removes after 3 stable frames — never a busy idle spin).
+        self._apply_responsive_layout(_screen_available_size()[0])
+        self._install_resize_controller(dialog)
 
         root.append(Gtk.Separator())
         root.append(self._build_colour_rows())
-        if self.global_host is not None:
-            root.append(self._build_scope_options())
+        # Advanced mode toggle: always available and persisted across sessions,
+        # independently of the Global tab (#38).
+        root.append(self._build_advanced_toggle())
+        # Folder theme / accent follow are always available (Folder scope);
+        # the Global tab (theme list, restore) is added when a host exists.
+        root.append(self._build_scope_options())
+        # Editor preferences: default drop behaviour + default clip (#35/#38).
+        # Real settings that change what happens to imported images, persisted
+        # in editor.conf, never a decorative switch.
+        root.append(self._build_preferences())
         root.append(Gtk.Separator())
         root.append(self._bold_label(self.tr("Layer settings")))
         self.settings_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
@@ -1964,6 +2412,117 @@ class _Editor:
         self._install_paste_shortcut(dialog)
         self._sync_scope_options()
         self._rebuild_rows()
+
+    # -- responsive layout --------------------------------------------------
+    _RESPONSIVE_THRESHOLD = 720  # below this, preview stacks above layers
+
+    def _apply_responsive_layout(self, width):
+        """Stack preview above layers on narrow screens; side-by-side above.
+
+        Safe to call from tests with an arbitrary width.
+        """
+        try:
+            width = int(width)
+        except Exception:
+            width = self._RESPONSIVE_THRESHOLD
+        narrow = width < self._RESPONSIVE_THRESHOLD
+        if narrow:
+            self.upper.set_orientation(Gtk.Orientation.VERTICAL)
+            self.upper.set_spacing(8)
+            for column in (self.preview_column, self.layers_column):
+                column.set_hexpand(True)
+                column.set_halign(Gtk.Align.FILL)
+        else:
+            self.upper.set_orientation(Gtk.Orientation.HORIZONTAL)
+            self.upper.set_spacing(12)
+            self.preview_column.set_hexpand(False)
+            self.preview_column.set_halign(Gtk.Align.CENTER)
+            self.layers_column.set_hexpand(True)
+            self.layers_column.set_halign(Gtk.Align.FILL)
+        try:
+            self.upper.queue_resize()
+        except Exception:
+            pass
+
+    def _install_resize_controller(self, dialog):
+        """Responsive layout follows the dialog's real allocated width.
+
+        Uses a Gtk frame-clock tick callback instead of a permanent idle
+        source: armed on map, disarmed on unmap/destroy, re-armed when
+        default-width changes (programmatic set_default_size or WM resize),
+        and self-removes after 3 consecutive stable frames. Never spins.
+        """
+        self._responsive_tick_id = None
+        self._responsive_stable_frames = 0
+        self._last_allocated_width = None
+        dialog.connect("map", self._on_responsive_map)
+        dialog.connect("unmap", self._on_responsive_unmap)
+        dialog.connect("notify::default-width",
+                       self._on_responsive_default_width)
+
+    def _on_responsive_map(self, dialog, *args):
+        self._start_responsive_tick(dialog)
+
+    def _on_responsive_unmap(self, dialog, *args):
+        self._stop_responsive_tick()
+
+    def _on_responsive_default_width(self, dialog, *pspec):
+        # User or code resized the window: re-arm the tick so the new
+        # allocated width is detected and the layout reflows.
+        self._stop_responsive_tick()
+        self._start_responsive_tick(dialog)
+
+    def _start_responsive_tick(self, dialog):
+        if self._responsive_tick_id is not None:
+            return
+        self._responsive_stable_frames = 0
+        try:
+            self._responsive_tick_id = dialog.add_tick_callback(
+                self._responsive_tick)
+        except Exception:
+            self._responsive_tick_id = None
+
+    def _stop_responsive_tick(self):
+        if self._responsive_tick_id is not None:
+            try:
+                if self.dialog is not None:
+                    self.dialog.remove_tick_callback(
+                        self._responsive_tick_id)
+            except Exception:
+                pass
+            self._responsive_tick_id = None
+
+    def _responsive_tick(self, widget, clock):
+        """Frame-clock tick: reflow when allocated width changes;
+        self-removes after 3 consecutive unchanged frames so it never spins."""
+        self._responsive_check()
+        # Keep ticking while mapped; self-removes when width is stable.
+        if self._responsive_stable_frames >= 3:
+            self._stop_responsive_tick()
+            return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
+
+    def _responsive_check(self):
+        """Check the dialog's allocated width and reflow if changed.
+
+        Called by the frame-clock tick; also exposed for tests that drive
+        size_allocate directly without a real frame clock.
+        """
+        dialog = self.dialog
+        if dialog is None or self.upper is None:
+            return
+        try:
+            width = dialog.get_allocated_width()
+        except Exception:
+            return
+        if width <= 0:
+            return
+        if width == self._last_allocated_width:
+            self._responsive_stable_frames += 1
+            return
+        self._last_allocated_width = width
+        self._responsive_stable_frames = 0
+        self._apply_responsive_layout(width)
 
     # -- scope tabs -------------------------------------------------------
     def _build_scope_tabs(self):
@@ -2026,12 +2585,16 @@ class _Editor:
         self._rebuild_rows()
 
     def _build_scope_options(self):
-        """Theme selector (both scopes) + accent switch and restore (global)."""
+        """Theme selector + accent follow (always available). With a global
+        host the theme list comes from the host; without it only the current
+        theme ('') and the default accent are offered (Folder scope only).
+        """
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         labels = [self.tr("Theme (current)")] + \
             [item["label"] for item in self.themes]
         self.theme_dropdown = Gtk.DropDown.new_from_strings(labels)
         self.theme_dropdown.set_hexpand(True)
+        self.theme_dropdown.set_sensitive(self.global_host is not None)
         self.theme_dropdown.connect("notify::selected", self._on_theme_selected)
         box.append(self._labelled_row(self.tr("Folder theme"),
                                      self.theme_dropdown))
@@ -2043,31 +2606,95 @@ class _Editor:
             self.tr("Use the accent colour"), self.accent_switch)
         box.append(self.accent_row)
 
-        # Advanced mode (#38): shows/hides advanced controls; toggled with
-        # Ctrl+A and persisted across sessions.
-        self.advanced_switch = Gtk.Switch()
-        self.advanced_switch.set_halign(Gtk.Align.START)
-        self.advanced_switch.set_active(load_advanced_mode())
-        self.advanced_switch.connect("notify::active",
-                                     self._on_advanced_toggled)
-        self.advanced_row = self._labelled_row(
-            self.tr("Advanced mode"), self.advanced_switch)
-        box.append(self.advanced_row)
-
+        # Restore is a Global-only action; shown only when a host exists.
         self.restore_button = Gtk.Button(
             label=self.tr("Restore the default folder icon"))
         self.restore_button.add_css_class("destructive-action")
         self.restore_button.connect("clicked", self._on_restore_global)
+        self.restore_button.set_sensitive(self.global_host is not None)
         self.restore_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
                                    spacing=6)
         self.restore_row.append(self.restore_button)
         box.append(self.restore_row)
+
+        # Regenerate folders: manual accent regeneration for follow-accent
+        # folders (#35/#38). Only meaningful with a global host.
+        self.regen_button = Gtk.Button(label=self.tr("Regenerate folders"))
+        self.regen_button.add_css_class("suggested-action")
+        self.regen_button.connect("clicked", self._on_regenerate_folders)
+        self.regen_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                                 spacing=6)
+        self.regen_row.append(self.regen_button)
+        box.append(self.regen_row)
         return box
+
+    def _build_preferences(self):
+        """Editor preferences that change real behaviour (#35/#38).
+
+        - Default drop behaviour: add dropped images as new layers, or replace
+          the selected image layer.
+        - Default clip: none, or clip newly dropped/imported images to the
+          folder shape automatically.
+
+        Both persist in editor.conf and apply to future drops/imports; they
+        never retroactively clip existing layers.
+        """
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.append(self._bold_label(self.tr("Preferences")))
+
+        # Reuse existing translated keys (Add as layer / Replace selected
+        # layer / None / Clip to folder shape) so these settings need no new
+        # translation strings beyond the two row labels.
+        self.drop_behavior_dropdown = Gtk.DropDown.new_from_strings([
+            self.tr("Add as layer"),
+            self.tr("Replace selected layer"),
+        ])
+        self.drop_behavior_dropdown.set_hexpand(True)
+        self.drop_behavior_dropdown.set_selected(
+            1 if self.default_drop_behavior == "replace" else 0)
+        self.drop_behavior_dropdown.connect(
+            "notify::selected", self._on_drop_behavior_changed)
+        box.append(self._labelled_row(self.tr("When an image is dropped"),
+                                      self.drop_behavior_dropdown))
+
+        self.default_clip_dropdown = Gtk.DropDown.new_from_strings([
+            self.tr("None"),
+            self.tr("Clip to folder shape (auto)"),
+        ])
+        self.default_clip_dropdown.set_hexpand(True)
+        self.default_clip_dropdown.set_selected(
+            1 if self.default_clip == "auto" else 0)
+        self.default_clip_dropdown.connect(
+            "notify::selected", self._on_default_clip_changed)
+        box.append(self._labelled_row(self.tr("New image layers"),
+                                      self.default_clip_dropdown))
+
+        self.cleanup_button = Gtk.Button(
+            label=self.tr("Clean up unused cache"))
+        self.cleanup_button.connect("clicked", self._on_cleanup_cache)
+        box.append(self.cleanup_button)
+        return box
+
+    def _on_drop_behavior_changed(self, dropdown, _pspec):
+        if self.syncing:
+            return
+        value = "replace" if dropdown.get_selected() == 1 else "add"
+        self.default_drop_behavior = value
+        set_preference("default_drop_behavior", value)
+
+    def _on_default_clip_changed(self, dropdown, _pspec):
+        if self.syncing:
+            return
+        value = "auto" if dropdown.get_selected() == 1 else "none"
+        self.default_clip = value
+        set_preference("default_clip", value)
+
+    def _on_cleanup_cache(self, _button):
+        self._cleanup_unused_cache()
+        self._show_alert(self.tr("Unused cache cleaned up."))
 
     def _sync_scope_options(self):
         """Push the active scope's theme/accent state into the widgets."""
-        if self.global_host is None:
-            return
         scope = self.scopes[self.scope]
         theme = scope.get("theme") or ""
         index = self.theme_names.index(theme) if theme in self.theme_names else 0
@@ -2078,16 +2705,29 @@ class _Editor:
         finally:
             self.syncing = False
         is_global = self.scope == SCOPE_GLOBAL
-        for widget in (self.accent_row, self.restore_row):
+        for widget in (self.accent_row, self.restore_row, self.regen_row):
             widget.set_visible(is_global or widget is self.accent_row)
-        if is_global:
+        if is_global and self.global_host is not None:
             try:
                 active = bool(self.global_host.is_active())
             except Exception as e:
                 log.error(f"global active state: {e}")
                 active = False
             self.restore_button.set_sensitive(active)
+            self.regen_button.set_sensitive(active)
         self._sync_colour_sensitivity()
+
+    def _build_advanced_toggle(self):
+        """Advanced mode toggle (always visible; persisted across sessions)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.advanced_switch = Gtk.Switch()
+        self.advanced_switch.set_halign(Gtk.Align.START)
+        self.advanced_switch.set_active(load_advanced_mode())
+        self.advanced_switch.connect("notify::active",
+                                     self._on_advanced_toggled)
+        box.append(self._labelled_row(
+            self.tr("Advanced mode"), self.advanced_switch))
+        return box
 
     def _sync_colour_sensitivity(self):
         """Colours are the accent's when the global scope follows it."""
@@ -2098,8 +2738,9 @@ class _Editor:
             picker.set_sensitive(not locked)
 
     def _accent_locked(self):
-        return (self.scope == SCOPE_GLOBAL
-                and bool(self.scopes[SCOPE_GLOBAL].get("follow_accent")))
+        """Colours are locked to the accent when follow_accent is on, in
+        both the Folder and the Global scope."""
+        return bool(self.scopes[self.scope].get("follow_accent"))
 
     def _accent_hex(self):
         getter = getattr(self.global_host, "accent_hex", None)
@@ -2135,6 +2776,7 @@ class _Editor:
             return
         self.scopes[self.scope]["follow_accent"] = bool(switch.get_active())
         self._sync_colour_sensitivity()
+        self._sync_colour_rows()
         self.base_cache.clear()
         self._refresh_preview()
 
@@ -2143,12 +2785,14 @@ class _Editor:
         new_value = not self.advanced_switch.get_active()
         self.advanced_switch.set_active(new_value)
         save_advanced_mode(new_value)
+        self._apply_advanced_visibility()
         self._refresh_preview()
 
     def _on_advanced_toggled(self, switch, _pspec):
         if self.syncing:
             return
         save_advanced_mode(bool(switch.get_active()))
+        self._apply_advanced_visibility()
         self._refresh_preview()
 
     def _on_restore_global(self, _button):
@@ -2177,19 +2821,126 @@ class _Editor:
             self._rebuild_rows()
         self._sync_scope_options()
 
-    def _apply_css(self):
-        """Small, dialog-scoped polish: framed canvas + bordered swatches."""
-        global _CSS_APPLIED
-        if _CSS_APPLIED:
-            return
-        _CSS_APPLIED = True
-        css = b"""
-        .preview-frame { border: 1px solid alpha(#999999, 0.5); border-radius: 6px; }
-        .color-button { border: 1px solid alpha(#999999, 0.7); border-radius: 4px; padding: 2px; }
-        /* The theme pads every flowbox child by 3px; the action row must
-           keep the tight 6px spacing of a plain box. */
-        .add-flow flowboxchild { padding: 0; }
+    def _on_regenerate_folders(self, _button):
+        """Manual accent regeneration for follow-accent folders (#35/#38).
+
+        Opens a progress dialog and calls ``global_host.regenerate_folders``,
+        which returns a cancelable ``RegenJob``. The dialog shows done/total,
+        the current folder path and status, and a Cancel button. On completion
+        an alert summarises applied/skipped/failed/cancelled counts.
         """
+        if self.global_host is None or self.regen_job is not None:
+            return
+        # Progress dialog.
+        dlg = Gtk.Dialog(title=self.tr("Regenerating folders…"),
+                         transient_for=self.dialog, modal=True)
+        dlg.add_button(self.tr("Cancel"), Gtk.ResponseType.CANCEL)
+        dlg.set_default_size(420, 180)
+        vbox = dlg.get_content_area()
+        vbox.set_spacing(12)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        self._regen_done_label = Gtk.Label(label="")
+        self._regen_done_label.set_xalign(0)
+        vbox.append(self._regen_done_label)
+        self._regen_path_label = Gtk.Label(label="")
+        self._regen_path_label.set_xalign(0)
+        self._regen_path_label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self._regen_path_label.set_max_width_chars(60)
+        vbox.append(self._regen_path_label)
+        self._regen_bar = Gtk.ProgressBar()
+        self._regen_bar.set_hexpand(True)
+        self._regen_bar.set_show_text(True)
+        vbox.append(self._regen_bar)
+
+        cancelled = {"flag": False}
+
+        def on_progress(done, total, path, status):
+            """Update the progress UI. The job ignores the return value; a
+            cancel is requested through ``job.cancel()`` instead."""
+            try:
+                self._regen_done_label.set_label(
+                    self.tr("Regenerating folders… ({done}/{total})")
+                    .replace("{done}", str(done))
+                    .replace("{total}", str(total)))
+                self._regen_path_label.set_label(path or "")
+                if total:
+                    self._regen_bar.set_fraction(done / total)
+                    self._regen_bar.set_text(f"{done} / {total}")
+            except Exception:
+                pass
+            return True
+
+        def on_done(applied, skipped, failed, was_cancelled):
+            self.regen_job = None
+            try:
+                dlg.destroy()
+            except Exception:
+                pass
+            if was_cancelled or cancelled["flag"]:
+                self._show_alert(self.tr("Regeneration cancelled."))
+                return
+            self._show_alert(
+                self.tr("Regeneration complete: {applied} applied, "
+                        "{skipped} skipped, {failed} failed.")
+                .replace("{applied}", str(applied))
+                .replace("{skipped}", str(skipped))
+                .replace("{failed}", str(failed)))
+            # Refresh the preview if we're in the global scope.
+            if self.scope == SCOPE_GLOBAL:
+                self._refresh_preview()
+
+        try:
+            self.regen_job = self.global_host.regenerate_folders(
+                on_progress=on_progress, on_done=on_done)
+        except Exception as e:
+            log.error(f"regenerate folders: {e}")
+            self.regen_job = None
+            self._show_alert(self.tr("Could not regenerate folders."))
+            return
+        if self.regen_job is None:
+            self._show_alert(self.tr("Could not regenerate folders."))
+            return
+
+        def on_cancel(_dlg, _response):
+            cancelled["flag"] = True
+            try:
+                job = self.regen_job
+                if job is not None and hasattr(job, "cancel"):
+                    job.cancel()
+            except Exception:
+                pass
+
+        dlg.connect("response", on_cancel)
+        dlg.show()
+
+    def _apply_css(self):
+        """Small, dialog-scoped polish: framed canvas + bordered swatches.
+
+        All palette swatches are painted in ONE provider (each swatch uses its
+        own widget name ``#<css-id>-palette-<name>``). The CSS id is unique per
+        editor instance so multiple dialogs never overwrite each other's
+        swatch colours. The provider is attached to this dialog's display but
+        scoped by the unique id prefix, so peers are unaffected.
+        """
+        rules = [
+            ".preview-frame { border: 1px solid alpha(#999999, 0.5); border-radius: 6px; }",
+            ".color-button { border: 1px solid alpha(#999999, 0.7); border-radius: 4px; padding: 2px; }",
+            # The theme pads every flowbox child by 3px; action rows must keep
+            # the tight spacing of a plain box.
+            ".add-flow flowboxchild { padding: 0; }",
+            ".wrap-flow flowboxchild { margin: 0; padding: 0; }",
+        ]
+        for name, hex_color in PALETTE_COLORS:
+            swatch_name = "%s-palette-%s" % (self._css_id, name)
+            rules.append(
+                "#%s { background-color: %s; border: 1px solid "
+                "rgba(0,0,0,0.35); border-radius: 6px; min-width: 22px; "
+                "min-height: 22px; }" % (swatch_name, hex_color))
+        css = "\n".join(rules).encode("utf-8")
         try:
             provider = Gtk.CssProvider()
             provider.load_from_data(css)
@@ -2226,10 +2977,9 @@ class _Editor:
         except Exception:
             pass
         frame.set_child(self.preview)
-        try:
-            frame.set_size_request(PREVIEW_SIZE + 24, PREVIEW_SIZE + 24)
-        except Exception:
-            pass
+        # No fixed size request: the frame must be able to shrink on narrow
+        # screens. The Picture keeps its natural (PREVIEW_SIZE) size via its
+        # own paintable; the frame only adds a boundary.
         box.append(frame)
 
         # Compact the shortcut legend into a single wrapped line instead of
@@ -2265,7 +3015,76 @@ class _Editor:
         drag.connect("drag-end", self._on_drag_end)
         self.preview.add_controller(drag)
         self._install_drop_targets(frame)
+
+        # Separate drag-handle button for exporting the current composition as
+        # a PNG. It offers a ``Gdk.FileList`` drag source (a temp managed
+        # export) so file managers can drop the icon elsewhere. Preview
+        # dragging (GestureDrag above) still moves the layer; the two are
+        # independent controllers.
+        self._export_drag_handle = Gtk.Button()
+        self._export_drag_handle.add_css_class("flat")
+        self._export_drag_handle.set_tooltip_text(self.tr("Drag to export PNG"))
+        self._export_drag_handle.set_valign(Gtk.Align.CENTER)
+        self._export_drag_handle.set_halign(Gtk.Align.CENTER)
+        try:
+            self._export_drag_handle.set_child(
+                Gtk.Image.new_from_icon_name("document-save-symbolic"))
+        except Exception:
+            self._export_drag_handle.set_label(self.tr("Export PNG"))
+        export_source = Gtk.DragSource()
+        export_source.set_actions(Gdk.DragAction.COPY)
+        export_source.connect("prepare", self._on_export_drag_prepare)
+        self._export_drag_handle.add_controller(export_source)
+        frame.set_child(self.preview)
+        box.append(frame)
+        box.append(self._export_drag_handle)
         return box
+
+    def _on_export_drag_prepare(self, _source, _x, _y):
+        """Export the current composition to a temp PNG and offer it as a
+        ``Gdk.FileList`` drag source. Returns None when there is nothing to
+        export (no drag starts)."""
+        if self.dialog is None:
+            return None
+        fc = self._compose_with_snapshots()
+        if fc is None or not fc["png"]:
+            return None
+        try:
+            handle, path = tempfile.mkstemp(suffix=".png",
+                                            prefix="folder-icon-export-")
+            with os.fdopen(handle, "wb") as f:
+                f.write(fc["png"])
+        except Exception as e:
+            log.error(f"export drag temp file: {e}")
+            return None
+        self._export_temp_files.append(path)
+        try:
+            files = [Gio.File.new_for_path(path)]
+            file_list = Gdk.FileList.new(files)
+            return Gdk.ContentProvider.new_for_value(Gdk.FileList, file_list)
+        except Exception as e:
+            log.error(f"export drag provider: {e}")
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+            if path in self._export_temp_files:
+                self._export_temp_files.remove(path)
+            return None
+
+    def _cleanup_export_temp_files(self):
+        """Remove temp PNG files produced by preview drag-export."""
+        for path in list(self._export_temp_files):
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+        self._export_temp_files.clear()
+
+    def _on_dialog_destroy(self, _dialog):
+        """Clean up temp export files when the editor dialog is destroyed."""
+        self.regen_job = None
+        self._cleanup_unused_cache()
 
     # -- image import (#30) -----------------------------------------------
     def _install_drop_targets(self, widget):
@@ -2288,6 +3107,16 @@ class _Editor:
         if not paths:
             self._show_alert(self.tr("Cannot open this image."))
             return False
+        if self.default_drop_behavior == "replace":
+            layer = self.current_layer()
+            if layer is not None and layer.get("type") == LAYER_IMAGE:
+                layer["path"] = paths[0]
+                layer["mask_mode"] = self.default_clip
+                layer["mask_path"] = ""
+                self.selected = self.layers.index(layer)
+                self._rebuild_rows()
+                self._refresh_preview()
+                return True
         self._add_image_paths(paths)
         return True
 
@@ -2301,8 +3130,12 @@ class _Editor:
             return False
         layer["path"] = paths[0]
         layer["name"] = _derive_name(layer)
+        layer["mask_mode"] = self.default_clip
+        layer["mask_path"] = ""
         for extra in paths[1:]:
-            self.layers.insert(0, default_layer(LAYER_IMAGE, path=extra))
+            extra_layer = default_layer(LAYER_IMAGE, path=extra)
+            extra_layer["mask_mode"] = self.default_clip
+            self.layers.insert(0, extra_layer)
         self.selected = 0 if len(paths) > 1 else index
         # The rows must not be destroyed while the drop is still running.
         GLib.idle_add(self._deferred_rebuild)
@@ -2312,7 +3145,9 @@ class _Editor:
         if not paths:
             return False
         for offset, path in enumerate(paths):
-            self.layers.insert(offset, default_layer(LAYER_IMAGE, path=path))
+            layer = default_layer(LAYER_IMAGE, path=path)
+            layer["mask_mode"] = self.default_clip
+            self.layers.insert(offset, layer)
         self.selected = 0
         self._rebuild_rows()
         return True
@@ -2324,6 +3159,7 @@ class _Editor:
 
     def _on_key_pressed(self, _controller, keyval, _keycode, state):
         control = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
         if control and keyval in (Gdk.KEY_v, Gdk.KEY_V):
             self.paste_image()
             return True
@@ -2331,12 +3167,29 @@ class _Editor:
             self._on_open_project(None)
             return True
         if control and keyval in (Gdk.KEY_s, Gdk.KEY_S):
-            self._on_export_png(None)
+            # Ctrl+Shift+S exports the rendered PNG; Ctrl+S saves the
+            # editable SVG project (matches the documented shortcuts).
+            # Discriminate on the shift mask, not the keyval case, so it
+            # behaves the same across keyboard layouts.
+            if shift:
+                self._on_export_png(None)
+            else:
+                self._on_save_project(None)
             return True
         if control and keyval in (Gdk.KEY_a, Gdk.KEY_A):
-            self._toggle_advanced_mode()
-            return True
+            # Ctrl+A is select-all inside text inputs: only toggle advanced
+            # mode when the focus is not on an editable entry. Ctrl+Shift+A
+            # is the non-conflicting alias that always toggles advanced mode.
+            if shift or not self._focus_is_text_input():
+                self._toggle_advanced_mode()
+                return True
+            return False  # let the text input handle select-all
         return False
+
+    def _focus_is_text_input(self):
+        """True when the focus sits on an editable text entry/spin button."""
+        focus = self.dialog.get_focus() if self.dialog is not None else None
+        return focus is not None and isinstance(focus, Gtk.Entry)
 
     def paste_image(self):
         """Ctrl+V: a copied texture, or a copied file's URI list."""
@@ -2448,6 +3301,7 @@ class _Editor:
         # Box would clip the last button instead.
         add_row = Gtk.FlowBox()
         add_row.add_css_class("add-flow")
+        add_row.set_hexpand(True)
         try:
             add_row.set_selection_mode(Gtk.SelectionMode.NONE)
             add_row.set_row_spacing(6)
@@ -2487,18 +3341,24 @@ class _Editor:
                 self.tr("Finds an icon file already inside the folder"))
             add_row.append(detect_button)
 
-        actions = [(self.tr("Add text…"), self._on_add_text),
-                   (self.tr("Add emblem…"), self._on_add_emblem)]
-        for label, handler in actions:
+        # Each add button keeps a public attribute so layout tests can assert
+        # it is really laid out (a button that exists but was never appended
+        # is invisible to the user, which is how Add text went missing once).
+        actions = [
+            ("add_text_button", self.tr("Add text…"), self._on_add_text),
+            ("emblem_button", self.tr("Add emblem…"), self._on_add_emblem),
+            ("symbol_button", self.tr("Add symbol…"), self._on_add_symbol),
+        ]
+        for attr, label, handler in actions:
             button = Gtk.Button(label=label)
             button.connect("clicked", handler)
             add_row.append(button)
-            if handler.__func__ is self._on_add_emblem.__func__:
-                self.emblem_button = button
+            setattr(self, attr, button)
         # No emblem in the theme -> nothing to add.
         self.emblem_button.set_sensitive(bool(self.emblem_icons))
+        box.append(add_row)
 
-        move_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        # Action buttons (created here so the wrapping FlowBox can hold them).
         self.up_button = Gtk.Button(label=self.tr("Move up"))
         self.up_button.connect("clicked", self._on_move_up)
         self.down_button = Gtk.Button(label=self.tr("Move down"))
@@ -2506,20 +3366,42 @@ class _Editor:
         self.remove_button = Gtk.Button(label=self.tr("Remove layer"))
         self.remove_button.add_css_class("destructive-action")
         self.remove_button.connect("clicked", self._on_remove_layer)
-        move_row.append(self.up_button)
-        move_row.append(self.down_button)
-        move_row.append(self.remove_button)
-        # Export / reopen project (#34).
+        # Export / reopen project (#34). PNG export stays; layered SVG
+        # project save/open are wired to folder_icon_project.py when available.
         self.export_button = Gtk.Button(label=self.tr("Export PNG…"))
         self.export_button.connect("clicked", self._on_export_png)
-        move_row.append(self.export_button)
+        self.save_project_button = Gtk.Button(label=self.tr("Save project…"))
+        self.save_project_button.connect("clicked", self._on_save_project)
         self.open_project_button = Gtk.Button(label=self.tr("Open project…"))
         self.open_project_button.connect("clicked", self._on_open_project)
-        move_row.append(self.open_project_button)
-        # Icon gallery (#36).
-        self.gallery_button = Gtk.Button(label=self.tr("Icon gallery…"))
+        # Saved compositions (#36): icons generated so far, kept as reusable
+        # history. Deliberately NOT called a gallery — the gallery name belongs
+        # to the symbol library, which supplies ready-made monochrome layers.
+        self.gallery_button = Gtk.Button(
+            label=self.tr("Saved compositions…"))
         self.gallery_button.connect("clicked", self._on_open_gallery)
-        move_row.append(self.gallery_button)
+
+        # Action toolbar: a wrapping FlowBox so buttons reflow (never clip)
+        # when the dialog is narrowed; vertical scroll keeps them reachable.
+        move_row = Gtk.FlowBox()
+        move_row.add_css_class("wrap-flow")
+        try:
+            move_row.set_selection_mode(Gtk.SelectionMode.NONE)
+            move_row.set_row_spacing(6)
+            move_row.set_column_spacing(6)
+            move_row.set_homogeneous(False)
+        except Exception as e:
+            log.error(f"move row: {e}")
+        for button in (
+            self.up_button,
+            self.down_button,
+            self.remove_button,
+            self.export_button,
+            self.save_project_button,
+            self.open_project_button,
+            self.gallery_button,
+        ):
+            move_row.append(button)
         box.append(move_row)
         return box
 
@@ -2549,26 +3431,18 @@ class _Editor:
         for name, hex_color in PALETTE_COLORS:
             swatch = Gtk.Button()
             swatch.set_tooltip_text(f"{name} — {hex_color}")
-            swatch.set_size_request(24, 24)
             swatch.add_css_class("color-button")
-            # Paint the swatch with its colour via inline style.
+            # The colour is painted by the CSS provider via the widget name
+            # #<css-id>-palette-<name> (see _apply_css). One provider for all
+            # swatches keeps every colour distinct; no fixed size request so
+            # CSS min-width/min-height (22px) controls the size cleanly.
             try:
-                swatch.set_css_modules(None)
                 swatch.set_valign(Gtk.Align.CENTER)
                 swatch.set_halign(Gtk.Align.CENTER)
                 swatch.set_can_focus(False)
             except Exception:
                 pass
-            provider = Gtk.CssProvider()
-            provider.load_from_data(
-                f".palette-swatch {{ background-color: {hex_color}; "
-                "border: 1px solid rgba(0,0,0,0.35); border-radius: 6px; "
-                "min-width: 24px; min-height: 24px; }}\n".encode("utf-8"))
-            Gtk.StyleContext.add_provider_for_display(
-                Gdk.Display.get_default(), provider,
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-            swatch.add_css_class("palette-swatch")
-            swatch.set_name(f"palette-{name}")
+            swatch.set_name("%s-palette-%s" % (self._css_id, name))
             swatch.connect("clicked", self._on_palette_color, hex_color)
             palette_flow.append(swatch)
         custom_button = Gtk.Button(label=self.tr("Custom colour…"))
@@ -2614,16 +3488,23 @@ class _Editor:
         return box
 
     def _sync_colour_rows(self):
-        """Load the active scope's hexes into the existing colour widgets."""
+        """Load the active scope's hexes into the existing colour widgets.
+
+        When follow_accent locks the colours (in both scopes) the rows show
+        the effective accent colour and are insensitive.
+        """
         if not getattr(self, "entries", None):
             return
+        locked = self._accent_locked()
+        value = self._accent_hex() if locked else None
         self.syncing = True
         try:
             for index, entry in enumerate(self.entries):
-                value = self.hexes[index] if index < len(self.hexes) \
-                    else "#808080"
-                entry.set_text(value)
-                rgba = _rgba_from_hex(value)
+                row_value = value if locked else (
+                    self.hexes[index] if index < len(self.hexes)
+                    else "#808080")
+                entry.set_text(row_value)
+                rgba = _rgba_from_hex(row_value)
                 if rgba is not None:
                     self.pickers[index].set_rgba(rgba)
         finally:
@@ -2701,27 +3582,35 @@ class _Editor:
                 log.debug(f"row drop target {value_type}: {e}")
 
         # Right-click context menu: use the image as the custom base or
-        # remove the layer (#30).
-        ctx_menu = Gtk.Menu()
-        base_item = Gtk.MenuItem(label=self.tr("Use as base image"))
+        # remove the layer (#30). GTK4 has no Gtk.Menu/Gtk.MenuItem, so a
+        # Popover with buttons is used instead.
+        ctx_menu = Gtk.Popover()
+        ctx_menu.set_has_arrow(True)
+        menu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        base_item = Gtk.Button(label=self.tr("Use as base image"))
+        base_item.set_hexpand(True)
         base_item.set_sensitive(layer.get("type") == LAYER_IMAGE and
                                 bool(layer.get("path")))
-        base_item.connect("activate", self._on_row_use_as_base, index)
-        ctx_menu.append(base_item)
-        remove_item = Gtk.MenuItem(label=self.tr("Remove layer"))
-        remove_item.connect("activate", self._on_row_remove, index)
-        ctx_menu.append(remove_item)
-        ctx_menu.show_all()
+        base_item.connect(
+            "clicked", lambda _b: self._on_row_use_as_base(None, index))
+        menu_box.append(base_item)
+        remove_item = Gtk.Button(label=self.tr("Remove layer"))
+        remove_item.set_hexpand(True)
+        remove_item.connect(
+            "clicked", lambda _b: self._on_row_remove(None, index))
+        menu_box.append(remove_item)
+        ctx_menu.set_child(menu_box)
 
         def _on_right_click(_gesture, n_press, x, y):
             if n_press == 1:
-                # Right click only.
                 event = _gesture.get_current_event()
                 if event is not None and \
                         event.get_button() == Gdk.BUTTON_SECONDARY:
                     self.selected = index
                     self.listbox.select_row(row)
-                    ctx_menu.popup_at_widget(row, 0, 0, None)
+                    ctx_menu.set_parent(row)
+                    ctx_menu.set_pointing_to(row, 0, 0)
+                    ctx_menu.popup()
 
         click = Gtk.GestureClick()
         click.set_button(Gdk.BUTTON_SECONDARY)
@@ -2777,6 +3666,7 @@ class _Editor:
         _clear_container(self.settings_box)
         self.sliders = {}
         self.widgets = {}
+        self.advanced_box = None
         layer = self.current_layer()
         if layer is None:
             label = Gtk.Label(label=self.tr("No layer selected"))
@@ -2787,28 +3677,43 @@ class _Editor:
         kind = layer["type"]
         if kind == LAYER_TEXT:
             self._build_text_controls(layer)
+        elif kind == LAYER_SYMBOL:
+            self._build_symbol_controls(layer)
         elif kind == LAYER_EMBLEM:
             self._build_emblem_controls(layer)
         else:
             self._build_image_controls(layer)
-        # The transform sliders live in a compact 2-column grid instead of a
-        # long single column — that is the biggest vertical saving.
-        self.settings_box.append(self._build_transform_grid(layer))
+        # Basic transforms: always visible (opacity and scale are the most
+        # used). Everything else lives in the advanced box below.
+        self.settings_box.append(
+            self._build_transform_grid(layer, _BASIC_TRANSFORM_KEYS))
+        # Advanced box: hue/saturation/rotation/offsets + monochrome + mask.
+        # Hidden when advanced mode is off; the layer state is never lost.
+        self.advanced_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                    spacing=6)
+        self.settings_box.append(self.advanced_box)
+        self.advanced_box.append(
+            self._build_transform_grid(layer, _ADVANCED_TRANSFORM_KEYS))
+        self._build_monochrome_controls(layer, self.advanced_box)
+        self._build_mask_controls(layer, self.advanced_box)
+        self._apply_advanced_visibility()
 
-    def _build_transform_grid(self, layer):
-        """Opacity / Hue / Saturation / Scale / Rotation / X / Y in 2 columns."""
+    def _apply_advanced_visibility(self):
+        """Show/hide the advanced controls without discarding layer state."""
+        advanced = bool(self.advanced_switch.get_active()) \
+            if getattr(self, "advanced_switch", None) is not None \
+            else load_advanced_mode()
+        if self.advanced_box is not None:
+            self.advanced_box.set_visible(advanced)
+
+    def _build_transform_grid(self, layer, keys):
+        """Build a 2-column transform grid for ``keys`` (transform key names)."""
         grid = Gtk.Grid()
         grid.set_column_spacing(12)
         grid.set_row_spacing(6)
         grid.set_hexpand(True)
-        keys = [("opacity", self.tr("Opacity")),
-                ("hue", self.tr("Hue")),
-                ("saturation", self.tr("Saturation")),
-                ("scale", self.tr("Scale")),
-                ("rotation", self.tr("Rotation")),
-                ("offset_x", self.tr("X offset")),
-                ("offset_y", self.tr("Y offset"))]
-        for i, (key, title) in enumerate(keys):
+        for i, key in enumerate(keys):
+            title = self.tr(_TRANSFORM_TITLES.get(key, key))
             row = i // 2
             col = (i % 2) * 2
             label = Gtk.Label(label=title)
@@ -2890,16 +3795,18 @@ class _Editor:
         if layer is None or self.dialog is None:
             return
         dialog = Gtk.ColorDialog()
+        dialog.set_modal(True)
+        dialog.set_with_alpha(True)
         rgba = _rgba_from_hex(layer.get("mono_color", "#ffffff"))
         if rgba is None:
             rgba = Gdk.RGBA()
             rgba.parse("#ffffff")
-        dialog.set_rgba(rgba)
-        dialog.open(self.dialog, None, self._on_mono_color_done)
+        dialog.choose_rgba(
+            self.dialog, rgba, None, self._on_mono_color_done)
 
     def _on_mono_color_done(self, dialog, result):
         try:
-            rgba = dialog.open_finish(result)
+            rgba = dialog.choose_rgba_finish(result)
         except Exception:
             return
         hexa = _rgba_to_hex(rgba)
@@ -2952,12 +3859,18 @@ class _Editor:
         self._refresh_preview()
 
     # -- mask controls (#33) -----------------------------------------------
-    def _build_mask_controls(self, layer):
-        """Mask mode: none / auto (folder shape) / custom PNG/SVG (#33)."""
+    def _build_mask_controls(self, layer, container=None):
+        """Mask mode: none / auto (folder shape) / custom PNG/SVG (#33).
+
+        Text layers can opt into masking too; the default for every kind is
+        ``none`` so nothing is clipped unless the user explicitly enables it.
+        """
+        if container is None:
+            container = self.settings_box
         kind = layer.get("type", LAYER_IMAGE)
-        if kind not in (LAYER_IMAGE, LAYER_EMBLEM):
+        if kind not in (LAYER_IMAGE, LAYER_EMBLEM, LAYER_TEXT):
             return
-        self.settings_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        container.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         mask_label = Gtk.Label(label=self.tr("Mask"))
         mask_label.set_xalign(0)
         mask_dropdown = Gtk.DropDown.new_from_strings([
@@ -2975,7 +3888,7 @@ class _Editor:
         mask_dropdown.set_selected(selected)
         mask_dropdown.connect("notify::selected", self._on_mask_mode_changed)
         self.widgets["mask_mode"] = mask_dropdown
-        self.settings_box.append(
+        container.append(
             self._labelled_row(self.tr("Clip overlay to"), mask_dropdown))
 
         # Custom mask path + pick button.
@@ -2988,9 +3901,9 @@ class _Editor:
         self.mask_path_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.mask_path_label.add_css_class("dim-label")
         self.mask_path_label.set_sensitive(mode == "custom")
-        self.settings_box.append(
+        container.append(
             self._labelled_row(self.tr("Mask file"), self.mask_path_button))
-        self.settings_box.append(self.mask_path_label)
+        container.append(self.mask_path_label)
         self._update_mask_controls_sensitivity(mode)
 
     def _update_mask_controls_sensitivity(self, mode):
@@ -3154,8 +4067,6 @@ class _Editor:
         self.widgets["emblem_uris"] = uris
         self.settings_box.append(
             self._labelled_row(self.tr("Select emblem"), dropdown))
-        self._build_monochrome_controls(layer)
-        self._build_mask_controls(layer)
 
     def _build_image_controls(self, layer):
         button = Gtk.Button(label=self.tr("Pick image"))
@@ -3167,8 +4078,6 @@ class _Editor:
         path_label.set_ellipsize(Pango.EllipsizeMode.END)
         path_label.add_css_class("dim-label")
         self.settings_box.append(path_label)
-        self._build_monochrome_controls(layer)
-        self._build_mask_controls(layer)
         # “Restore default base” — remove the custom base image and go back to
         # the themed folder icon (#31). Only shown when a custom base is set.
         self.restore_base_button = Gtk.Button(
@@ -3179,12 +4088,52 @@ class _Editor:
         self.settings_box.append(
             self._labelled_row(self.tr("Base image"), self.restore_base_button))
 
-    def _build_monochrome_controls(self, layer):
-        """Monochrome toggle + color / invert / threshold (#32)."""
+    def _build_symbol_controls(self, layer):
+        """Symbol layer: an image source recolored by the layer color."""
+        button = Gtk.Button(label=self.tr("Pick image"))
+        button.connect("clicked", self._on_pick_image)
+        self.settings_box.append(
+            self._labelled_row(self.tr("Symbol"), button))
+        path_label = Gtk.Label(label=str(layer.get("path") or ""))
+        path_label.set_xalign(0)
+        path_label.set_ellipsize(Pango.EllipsizeMode.END)
+        path_label.add_css_class("dim-label")
+        self.settings_box.append(path_label)
+        colour = Gtk.ColorButton()
+        colour.add_css_class("color-button")
+        rgba = _rgba_from_hex(layer.get("color"))
+        if rgba is not None:
+            self.syncing = True
+            colour.set_rgba(rgba)
+            self.syncing = False
+        colour.connect("color-set", self._on_symbol_colour_set)
+        self.widgets["color"] = colour
+        self.settings_box.append(
+            self._labelled_row(self.tr("Tint color"), colour))
+
+    def _on_symbol_colour_set(self, button):
+        if self.syncing:
+            return
+        layer = self.current_layer()
+        if layer is None:
+            return
+        hexa = _rgba_to_hex(button.get_rgba())
+        if hexa:
+            layer["color"] = hexa
+            self._refresh_preview()
+
+    def _build_monochrome_controls(self, layer, container=None):
+        """Monochrome toggle + color / invert / threshold (#32).
+
+        ``container`` defaults to ``settings_box``; advanced mode passes
+        ``advanced_box`` so these controls can be hidden wholesale.
+        """
+        if container is None:
+            container = self.settings_box
         kind = layer.get("type", LAYER_IMAGE)
         if kind not in (LAYER_IMAGE, LAYER_EMBLEM):
             return
-        self.settings_box.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        container.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         mono_label = Gtk.Label(label=self.tr("Monochrome"))
         mono_label.set_xalign(0)
         mono_button = Gtk.ToggleButton(
@@ -3195,7 +4144,7 @@ class _Editor:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         row.append(mono_label)
         row.append(mono_button)
-        self.settings_box.append(row)
+        container.append(row)
 
         # Tint color.
         color_button = Gtk.Button()
@@ -3213,7 +4162,7 @@ class _Editor:
         color_button.set_name("mono-swatch")
         color_button.set_tooltip_text(layer.get("mono_color", "#ffffff"))
         color_button.connect("clicked", self._on_mono_color_picked)
-        self.settings_box.append(
+        container.append(
             self._labelled_row(self.tr("Tint color"), color_button))
 
         # Invert toggle.
@@ -3223,7 +4172,7 @@ class _Editor:
         invert_button.set_active(bool(layer.get("invert")))
         invert_button.set_sensitive(bool(layer.get("monochrome")))
         invert_button.connect("toggled", self._on_invert_toggled)
-        self.settings_box.append(
+        container.append(
             self._labelled_row(self.tr("Invert threshold"), invert_button))
 
         # Threshold slider.
@@ -3234,7 +4183,7 @@ class _Editor:
         scale.set_value(float(layer.get("threshold", 128)))
         scale.set_sensitive(bool(layer.get("monochrome")))
         scale.connect("value-changed", self._on_threshold_changed)
-        self.settings_box.append(
+        container.append(
             self._labelled_row(self.tr("Threshold"), scale))
 
     def _font_family_names(self):
@@ -3554,6 +4503,127 @@ class _Editor:
         self.selected = 0
         self._rebuild_rows()
 
+    def _on_add_symbol(self, _button):
+        """Add a monochrome symbol layer from the symbol gallery."""
+        if self.dialog is None:
+            return
+        if _SYMBOL_LIST is None or _SYMBOL_APPLY is None:
+            self._show_alert(self.tr(
+                "Symbol gallery requires the icon catalog module."))
+            return
+        self._open_symbol_gallery()
+
+    def _open_symbol_gallery(self):
+        """Browser for monochrome symbols; picking one adds a symbol layer."""
+        win = Gtk.Window(title=self.tr("Symbol gallery"))
+        win.set_transient_for(self.dialog)
+        win.set_modal(True)
+        win.set_default_size(700, 520)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        search = Gtk.SearchEntry()
+        search.set_hexpand(True)
+        search.set_placeholder_text(self.tr("Search symbols…"))
+        vbox.append(search)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        scrolled.set_hexpand(True)
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
+        flow = Gtk.FlowBox()
+        flow.set_valign(Gtk.Align.START)
+        flow.set_max_children_per_line(5)
+        flow.set_column_spacing(12)
+        flow.set_row_spacing(12)
+        flow.set_homogeneous(True)
+
+        def rebuild(query=""):
+            _clear_container(flow)
+            try:
+                entries = _SYMBOL_LIST(query) or []
+            except Exception as e:
+                log.error(f"symbol list: {e}")
+                entries = []
+            for entry in entries:
+                card = self._symbol_card(entry)
+                flow.append(card)
+
+        def on_search_changed(entry):
+            rebuild(entry.get_text() or "")
+
+        search.connect("search-changed", on_search_changed)
+        rebuild()
+
+        scrolled.set_child(flow)
+        vbox.append(scrolled)
+
+        close_btn = Gtk.Button(label=self.tr("Close"))
+        close_btn.set_halign(Gtk.Align.END)
+        close_btn.connect("clicked", lambda _b: win.close())
+        vbox.append(close_btn)
+
+        win.set_child(vbox)
+        win.show()
+
+    def _symbol_card(self, entry):
+        symbol_id = str(entry.get("id") or "")
+        label = str(entry.get("label") or symbol_id or self.tr("Symbol"))
+        preview = str(entry.get("preview_png") or "")
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_hexpand(True)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        box.set_margin_start(6)
+        box.set_margin_end(6)
+
+        picture = Gtk.Picture()
+        try:
+            picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+            picture.set_halign(Gtk.Align.CENTER)
+            picture.set_valign(Gtk.Align.CENTER)
+        except Exception:
+            pass
+        texture = _pixbuf_to_texture(
+            GdkPixbuf.Pixbuf.new_from_file_at_size(preview, 96, 96)
+            if preview and os.path.exists(preview) else None)
+        if texture is not None:
+            picture.set_paintable(texture)
+        box.append(picture)
+
+        name_label = Gtk.Label(label=label)
+        name_label.set_xalign(0.5)
+        name_label.set_wrap(True)
+        name_label.set_max_width_chars(16)
+        box.append(name_label)
+
+        apply_btn = Gtk.Button(label=self.tr("Add as layer"))
+        apply_btn.connect("clicked", self._on_symbol_apply_card, symbol_id)
+        box.append(apply_btn)
+        return box
+
+    def _on_symbol_apply_card(self, _button, symbol_id):
+        if _SYMBOL_APPLY is None:
+            return
+        try:
+            layer = _SYMBOL_APPLY(symbol_id)
+        except Exception as e:
+            log.error(f"symbol apply: {e}")
+            self._show_alert(self.tr("Could not add the symbol."))
+            return
+        if layer is None:
+            return
+        self.layers.insert(0, normalize_layers([layer])[0])
+        self.selected = 0
+        self._rebuild_rows()
+        self._refresh_preview()
+
     def _on_pick_image(self, _button):
         layer = self.current_layer()
         if layer is None or self.dialog is None:
@@ -3604,12 +4674,24 @@ class _Editor:
         base = self._base_for(spec)
         return compose_layers(base, self.layers)
 
+    def _compose_with_snapshots(self):
+        """Compose current editor state into preview + layer snapshots.
+
+        Wrapper around module-level ``compose_with_snapshots`` that supplies
+        the base image from the active scope's spec/theme and the current
+        layer stack. Used by both PNG export and SVG project save so they
+        can never drift.
+        """
+        spec = ";".join(self.effective_hexes())
+        base = self._base_for(spec)
+        return compose_with_snapshots(base, self.layers)
+
     def _on_export_png(self, _button):
         """Export the current composition as a PNG with embedded project metadata (#34)."""
         if self.dialog is None:
             return
-        png = self._compose_current_png()
-        if not png:
+        fc = self._compose_with_snapshots()
+        if fc is None or not fc["png"]:
             self._show_alert(self.tr("Nothing to export."))
             return
         # Embed project metadata so the PNG can be reopened editably.
@@ -3619,13 +4701,16 @@ class _Editor:
         except Exception:
             pass
         png = save_png_project(
-            png, self.effective_hexes(), self.layers, theme,
+            fc["png"], self.effective_hexes(), self.layers, theme,
             self.base_image_path or "")
         if png is None:
             self._show_alert(self.tr("Could not embed project metadata."))
             return
+        filt = Gtk.FileFilter()
+        filt.set_name(self.tr("PNG image"))
+        filt.add_mime_type("image/png")
         dialog = Gtk.FileDialog(title=self.tr("Export PNG"))
-        filt = _image_filter(self.tr("PNG image"))
+        dialog.set_initial_name("folder.png")
         store = Gio.ListStore.new(Gtk.FileFilter)
         store.append(filt)
         dialog.set_filters(store)
@@ -3639,43 +4724,172 @@ class _Editor:
     def _on_export_png_done(self, dialog, result, png_bytes):
         try:
             gfile = dialog.save_finish(result)
-            path = gfile.get_path()
         except Exception:
             return
+        if gfile is None:
+            return  # cancelled
+        path = gfile.get_path()
         if not path:
             return
-        import os as _os
-        if _os.path.exists(path):
-            # Confirm overwrite.
-            alert = Gtk.AlertDialog.new(
-                self.tr("The file already exists. Replace it?"))
-            # Modal confirmation is best-effort; proceed on accept.
-            try:
-                alert.show(self.dialog)
-            except Exception:
-                pass
+        # Native FileDialog already confirms overwrite; we only write when a
+        # target was chosen, atomically (temp + replace), so cancel/failure
+        # never writes.
         try:
-            with open(path, "wb") as f:
-                f.write(png_bytes)
+            _write_file_atomic(path, png_bytes)
         except Exception as e:
             log.error(f"write png {path}: {e}")
             self._show_alert(self.tr("Could not write the PNG file."))
             return
-        # Offer to open the containing folder.
+
+    def _on_save_project(self, _button):
+        """Save the current project as a layered SVG (via folder_icon_project.py).
+
+        Builds the base PNG + per-layer full-canvas transformed snapshots plus
+        the untransformed source PNGs, builds serialisable state, and asks
+        folder_icon_project for SVG bytes, then writes them atomically to the
+        chosen path.
+        """
+        if self.dialog is None:
+            return
+        if not _HAS_PROJECT_MODULE:
+            self._show_alert(self.tr(
+                "Layered SVG project save requires the project module."))
+            return
+        fc = self._compose_with_snapshots()
+        if fc is None or not fc["png"]:
+            self._show_alert(self.tr("Nothing to save."))
+            return
+        # Preserve the colours the user actually selected (self.hexes),
+        # separately from the accent override (follow_accent) so a reopen
+        # restores the original manual choices even when the accent locked
+        # the preview while editing.
+        state = self._build_project_state()
+        dialog = Gtk.FileDialog(title=self.tr("Save project"))
+        filt = Gtk.FileFilter()
+        filt.set_name(self.tr("SVG project"))
+        filt.add_mime_type("image/svg+xml")
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(filt)
+        dialog.set_filters(store)
+        dialog.set_default_filter(filt)
+        dialog.set_initial_name("project.svg")
+        self.file_dialog = dialog
+
+        def done(dialog_, result):
+            self._on_save_project_done(dialog_, result,
+                                       (fc["base_png"], fc["layer_pngs"],
+                                        fc["source_pngs"], state))
         try:
-            folder = _os.path.dirname(path)
-            if folder:
-                Gtk.show_uri_on_window(
-                    self.dialog, f"file://{folder}", Gdk.CURRENT_TIME)
+            dialog.save(self.dialog, None, done)
+        except Exception as e:
+            log.error(f"save project dialog: {e}")
+
+    def _build_project_state(self):
+        """Build serialisable project state that round-trips through
+        folder_icon_project.save_svg_project / load_svg_project.
+
+        Contains both scopes (folder + global) so nothing is silently dropped,
+        manual hexes preserved separately from follow_accent, and only the
+        fields in _LAYER_FIELDS per layer (no Gtk objects, no "initial"
+        snapshots, no "_svg_project" transients).
+        """
+        scope = self.scopes.get(self.scope) or {}
+        manual_hexes = list(self.hexes)
+        spec = ";".join(h.lstrip("#").lower() for h in manual_hexes)
+        theme = ""
+        try:
+            theme = str(scope.get("theme") or "")
         except Exception:
             pass
+        # Sanitise each layer to exactly _LAYER_FIELDS so nothing internal
+        # can leak into the SVG.
+        clean_layers = []
+        for layer in self.layers:
+            clean = {field: layer.get(field) for field in _LAYER_FIELDS}
+            # Resolve named emblems to emblem_uri before saving so the
+            # project module's allowlist is satisfied — including layers in
+            # the inactive scope, because _asset_fields walks every block.
+            if clean.get("type") == LAYER_EMBLEM and clean.get("emblem"):
+                uri = _resolve_emblem_path(clean)
+                if uri:
+                    clean["emblem_uri"] = uri
+            clean_layers.append(clean)
+        state = {
+            "spec": spec,
+            "hexes": manual_hexes,
+            "layers": clean_layers,
+            "theme": theme,
+            "base_image": self.base_image_path or "",
+            "follow_accent": bool(scope.get("follow_accent")),
+            # Both scopes survive the round trip; the inactive scope's layers
+            # and colours are not lost when the user switches back.
+            "scopes": {
+                SCOPE_FOLDER: {
+                    "hexes": list(self.scopes.get(SCOPE_FOLDER, {}).get("hexes", [])),
+                    "layers": [
+                        {field: l.get(field) for field in _LAYER_FIELDS}
+                        for l in self.scopes.get(SCOPE_FOLDER, {}).get("layers", [])
+                    ],
+                    "theme": str(self.scopes.get(SCOPE_FOLDER, {}).get("theme") or ""),
+                    "base_image_path": str(self.scopes.get(SCOPE_FOLDER, {}).get("base_image_path") or ""),
+                    "follow_accent": bool(self.scopes.get(SCOPE_FOLDER, {}).get("follow_accent")),
+                },
+                SCOPE_GLOBAL: {
+                    "hexes": list(self.scopes.get(SCOPE_GLOBAL, {}).get("hexes", [])),
+                    "layers": [
+                        {field: l.get(field) for field in _LAYER_FIELDS}
+                        for l in self.scopes.get(SCOPE_GLOBAL, {}).get("layers", [])
+                    ],
+                    "theme": str(self.scopes.get(SCOPE_GLOBAL, {}).get("theme") or ""),
+                    "base_image_path": str(self.scopes.get(SCOPE_GLOBAL, {}).get("base_image_path") or ""),
+                    "follow_accent": bool(self.scopes.get(SCOPE_GLOBAL, {}).get("follow_accent")),
+                },
+            },
+        }
+        return state
+
+    def _on_save_project_done(self, dialog, result, payload):
+        try:
+            gfile = dialog.save_finish(result)
+        except Exception:
+            return
+        if gfile is None:
+            return  # cancelled
+        path = gfile.get_path()
+        if not path:
+            return
+        base_png, layer_pngs, source_pngs, state = payload
+        try:
+            svg_bytes = _project_module.save_svg_project(
+                base_png, layer_pngs, state, source_pngs=source_pngs)
+        except _project_module.ProjectError as e:
+            # Malformed/unsafe/unsupported state is terminal: show the error,
+            # write nothing, no fallback image.
+            log.error(f"save svg project ({path}): {e}")
+            self._show_alert(str(e))
+            return
+        except Exception as e:
+            log.error(f"save svg project ({path}): {e}")
+            self._show_alert(self.tr("Could not save the project."))
+            return
+        if not svg_bytes:
+            self._show_alert(self.tr("Could not save the project."))
+            return
+        try:
+            _project_module.write_svg_project(path, svg_bytes)
+        except Exception as e:
+            log.error(f"write svg project ({path}): {e}")
+            self._show_alert(self.tr("Could not write the project file."))
 
     def _on_open_project(self, _button):
-        """Open a previously exported PNG and restore its project state (#34)."""
+        """Open a layered SVG project (or a legacy PNG with metadata)."""
         if self.dialog is None:
             return
         dialog = Gtk.FileDialog(title=self.tr("Open project"))
-        filt = _image_filter(self.tr("PNG image"))
+        filt = Gtk.FileFilter()
+        filt.set_name(self.tr("Project (SVG/PNG)"))
+        filt.add_mime_type("image/svg+xml")
+        filt.add_mime_type("image/png")
         store = Gio.ListStore.new(Gtk.FileFilter)
         store.append(filt)
         dialog.set_filters(store)
@@ -3694,9 +4908,27 @@ class _Editor:
             return
         if not path:
             return
-        state = load_png_project(path)
+        # Prefer the layered SVG project reader. ProjectError (malformed,
+        # unsafe, unsupported) is terminal: show the error, no PNG fallback,
+        # no silently wrong image.
+        state = {}
+        if _HAS_PROJECT_MODULE:
+            try:
+                state = _project_module.load_svg_project(path) or {}
+            except _project_module.UnsupportedProjectError as e:
+                self._show_alert(str(e))
+                return
+            except _project_module.ProjectError as e:
+                self._show_alert(str(e))
+                return
+            except Exception as e:
+                log.error(f"load svg project ({path}): {e}")
+                self._show_alert(self.tr("Could not open the project."))
+                return
         if not state:
-            self._show_alert(self.tr("No project data in this PNG."))
+            state = load_png_project(path)
+        if not state:
+            self._show_alert(self.tr("No project data in this file."))
             return
         # Restore colours.
         spec = str(state.get("spec") or "")
@@ -3706,7 +4938,7 @@ class _Editor:
             scope = self.scopes.get(self.scope)
             if scope is not None:
                 scope["hexes"] = self.hexes
-        # Restore layers.
+        # Restore layers (top-first).
         layers = state.get("layers")
         if isinstance(layers, list):
             self.layers = normalize_layers(layers)
@@ -3714,11 +4946,12 @@ class _Editor:
             if scope is not None:
                 scope["layers"] = self.layers
             self.selected = 0 if self.layers else -1
-        # Restore theme and base image.
+        # Restore theme, base image, follow_accent for the active scope.
         scope = self.scopes.get(self.scope)
         if scope is not None:
             scope["theme"] = str(state.get("theme") or "")
             scope["base_image_path"] = str(state.get("base_image") or "")
+            scope["follow_accent"] = bool(state.get("follow_accent"))
             self.base_image_path = scope["base_image_path"]
             self.base_image_pixbuf = None
             if self.base_image_path:
@@ -3729,27 +4962,50 @@ class _Editor:
                 except Exception as e:
                     log.error(f"restore base image: {e}")
                     self.base_image_path = None
+        # Restore both scopes from the SVG state so nothing is silently lost.
+        scopes = state.get("scopes")
+        if isinstance(scopes, dict):
+            for scope_name in (SCOPE_FOLDER, SCOPE_GLOBAL):
+                s = scopes.get(scope_name)
+                if isinstance(s, dict):
+                    current = self.scopes.get(scope_name)
+                    if current is not None:
+                        current["hexes"] = list(s.get("hexes", current.get("hexes", [])))
+                        current["layers"] = normalize_layers(s.get("layers"))
+                        current["theme"] = str(s.get("theme") or "")
+                        current["base_image_path"] = str(s.get("base_image_path") or "")
+                        current["follow_accent"] = bool(s.get("follow_accent"))
+        # Frozen render from the SVG: adopt base_png so the preview matches
+        # pixel-for-pixel without re-transforming. Keep layer_states as the
+        # baseline for "unchanged layer -> frozen snapshot" comparisons.
+        svg_project = state.get("_svg_project")
+        if isinstance(svg_project, dict):
+            frozen_base = svg_project.get("base_png")
+            if frozen_base:
+                self.base_image_path = frozen_base
+            # Note: layer_states is retained internally but never re-serialised.
         self.base_cache.clear()
         self._sync_colour_rows()
+        self._sync_scope_options()
         self._rebuild_rows()
         self._refresh_preview()
 
     # -- icon gallery (#36) -------------------------------------------------
     def _on_open_gallery(self, _button):
-        """Open the managed icon gallery (#36)."""
+        """Open the saved compositions: the icons generated so far (#36)."""
         if self.dialog is None:
             return
         if self.on_gallery_list is None:
-            self._show_alert(self.tr("Gallery is not available."))
+            self._show_alert(self.tr("Saved compositions are not available."))
             return
         try:
             entries = self.on_gallery_list() or []
         except Exception as e:
-            log.error(f"gallery list: {e}")
-            self._show_alert(self.tr("Could not list the gallery."))
+            log.error(f"saved compositions list: {e}")
+            self._show_alert(self.tr("Could not list the saved compositions."))
             return
 
-        win = Gtk.Window(title=self.tr("Icon gallery"))
+        win = Gtk.Window(title=self.tr("Saved compositions"))
         win.set_transient_for(self.dialog)
         win.set_modal(True)
         win.set_default_size(700, 500)
@@ -4026,21 +5282,29 @@ class _Editor:
         self._refresh_preview()
 
     def _on_custom_colour(self, _button):
-        """Open a colour picker and apply the chosen colour to all rows (#31)."""
+        """Open a colour picker and apply the chosen colour to all rows (#31).
+
+        GTK4's ``Gtk.ColorDialog`` uses ``choose_rgba`` (not ``open`` / not
+        ``set_rgba``); the previous code called a non-existent method, so the
+        picker never appeared.
+        """
         try:
             dialog = Gtk.ColorDialog()
+            dialog.set_modal(True)
+            dialog.set_with_alpha(True)
             rgba = _rgba_from_hex(self.hexes[0] if self.hexes else "#808080")
             if rgba is None:
                 rgba = Gdk.RGBA()
                 rgba.parse("#808080")
-            dialog.set_rgba(rgba)
-            dialog.open(self.dialog, None, self._on_custom_colour_done)
+            dialog.choose_rgba(
+                self.dialog, rgba, None, self._on_custom_colour_done)
         except Exception as e:
             log.error(f"custom colour dialog: {e}")
+            self._show_alert(self.tr("Could not open the colour picker."))
 
     def _on_custom_colour_done(self, dialog, result):
         try:
-            rgba = dialog.open_finish(result)
+            rgba = dialog.choose_rgba_finish(result)
         except Exception as e:
             log.debug(f"custom colour cancelled: {e}")
             return
@@ -4095,6 +5359,78 @@ class _Editor:
         while len(self.base_cache) > 3:
             self.base_cache.popitem(last=False)
         return image
+
+    def _cleanup_unused_cache(self):
+        """Safe cleanup of unused pasted-image cache entries (#35/#38).
+
+        Two safeguards make this genuinely safe:
+        - a file is only removed when NO open editor references it (any layer
+          ``path``/``mask_path`` in any scope) and the saved global state does
+          not reference it either;
+        - files newer than ``_CACHE_MIN_AGE`` seconds are kept, so a paste
+          from a just-finished clipboard operation is never yanked out from
+          under its layer.
+
+        Only files this app created (``paste-*`` under the app's own cache
+        directory) are ever considered. Temp export PNGs are cleared via the
+        existing tracked cleanup.
+        """
+        # Trim the in-memory base cache (bounded in _base_for too).
+        while len(self.base_cache) > 3:
+            self.base_cache.popitem(last=False)
+        referenced = self._referenced_cache_paths()
+        base = os.path.join(GLib.get_user_cache_dir(), "folder-color", "pasted")
+        removed = 0
+        if os.path.isdir(base):
+            now = time.time()
+            for name in os.listdir(base):
+                if not (name.startswith("paste-") and
+                        name.endswith((".png", ".jpg", ".jpeg", ".webp"))):
+                    continue
+                path = os.path.join(base, name)
+                if os.path.abspath(path) in referenced:
+                    continue
+                try:
+                    if now - os.path.getmtime(path) < self._CACHE_MIN_AGE:
+                        continue
+                    os.unlink(path)
+                    removed += 1
+                except Exception:
+                    pass
+        self._cleanup_export_temp_files()
+        return removed
+
+    # 24h: a pasted image older than this is very likely no longer needed,
+    # while a fresh paste is always kept regardless of references.
+    _CACHE_MIN_AGE = 24 * 60 * 60
+
+    def _referenced_cache_paths(self):
+        """Absolute paths of pasted images referenced by open editors/state."""
+        referenced = set()
+
+        def collect_layers(layers):
+            for layer in layers or []:
+                for key in ("path", "mask_path"):
+                    value = str(layer.get(key) or "")
+                    if value:
+                        referenced.add(os.path.abspath(value))
+
+        # Every open editor (this one may not be the only window).
+        for editor in list(_OPEN_EDITORS) + [self]:
+            try:
+                for scope in (getattr(editor, "scopes", None) or {}).values():
+                    collect_layers(scope.get("layers"))
+                collect_layers(getattr(editor, "layers", None))
+            except Exception:
+                pass
+        # The saved global state also references pasted images.
+        if self.global_host is not None:
+            try:
+                state = self.global_host.state() or {}
+                collect_layers(state.get("layers"))
+            except Exception:
+                pass
+        return referenced
 
     def _refresh_preview(self):
         spec = ";".join(self.effective_hexes())
@@ -4291,6 +5627,15 @@ def open_editor(*, title, row_count, hexes, layers, base_builder, on_apply,
     ``on_gallery_list()`` -> list of gallery entries; ``on_gallery_apply(hash)``
     -> entry state (or None); ``on_gallery_remove(hash)`` -> bool (#36).
     ``follow_accent`` seeds the folder scope's ``follow_accent`` flag (#35).
+
+    Layer types: ``image``, ``text``, ``emblem`` and ``symbol``. A symbol layer
+    is a monochrome glyph from the symbol gallery, recolored by the layer's
+    color. The symbol gallery and layered SVG project save/load are wired
+    through the module-level providers ``register_symbol_provider`` and
+    ``register_project_io`` (folder_icon_catalog.py / folder_icon_project.py);
+    when those providers are not registered the editor degrades with a
+    friendly message instead of failing. ``open_editor()``'s signature is
+    intentionally unchanged so the host contract stays stable.
     """
     try:
         editor = _Editor(title=title, row_count=row_count, hexes=hexes,

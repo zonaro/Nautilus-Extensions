@@ -191,6 +191,7 @@ def test_state_round_trip(home):
         "layers": [{"type": "text", "text": "Hi"}],
         "theme": "Adwaita",
         "base_theme": "AdwaitaLegacy",
+        "base_image": "/home/u/Pictures/base.png",
         "follow_accent": True,
         "derived_theme": fit.DERIVED_PREFIX + "abc123",
         "row_count": 2,
@@ -202,6 +203,7 @@ def test_state_round_trip(home):
     assert loaded["layers"] == [{"type": "text", "text": "Hi"}]
     assert loaded["theme"] == "Adwaita"
     assert loaded["base_theme"] == "AdwaitaLegacy"
+    assert loaded["base_image"] == "/home/u/Pictures/base.png"
     assert loaded["follow_accent"] is True
     assert loaded["derived_theme"] == fit.DERIVED_PREFIX + "abc123"
     assert loaded["row_count"] == 2

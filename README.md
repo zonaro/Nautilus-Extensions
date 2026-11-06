@@ -391,14 +391,20 @@ Read comic archives without unpacking anything by hand: right-click a `.cbz`, `.
 
 Right-click a folder → **Personalizar…** (*Customize…*) opens a layered editor for the folder icon. The icon is a stack of independent layers, composited live while you edit.
 
+See the [editor guide, portable SVG format and acceptance checklist](docs/folder-icon-editor.md).
+Development and acceptance are tracked in the existing [GitHub Project](https://github.com/users/zonaro/projects/6)
+and [correction milestone #42](https://github.com/zonaro/Nautilus-Extensions/issues/42).
+
 - **Image layers** — any PNG/JPEG/WebP/SVG you pick from disk, or drag from Nautilus / a browser onto the preview; **Ctrl+V** pastes an image from the clipboard (a copied file or a copied picture). The **Add image…** menu offers three explicit targets so nothing is silently overwritten: *Add as layer* (new image layer on top), *Replace selected layer* (overwrites the current image layer) and *Use as base image* (custom background in place of the themed folder icon — also available via right-click on any image layer row)
 - **Detect icon…** — a menu item under *Personalizar…* and a *Detect icon…* button inside the editor scan the folder (two levels down, hidden and build folders skipped) for image files whose names look like icons in seven languages (favicon, logo, brasão, escudo, …); one match goes straight onto the stack, several open a chooser with previews, none report "No icon found" — the chosen file lands as a badge-sized image layer (scale 70), ready to adjust
 - **Text layers** — any font installed on the machine, rendered to an image (size, bold, italic and text colour included)
+- **Symbol layers** — search the bundled open-source monochrome symbol catalogue offline and insert a recolourable layer; this is separate from saved folder compositions
 - **Emblem layers** — emblems from the current icon theme (the *Add emblem…* button is disabled when the theme has none)
 - **Drag & drop** to reorder the stack — the list is top-first, so the first row is what you see on top. Dropping an image file *on a row* replaces that picture instead of adding a layer
 - **Per-layer controls** — hue, saturation and opacity work on image, text and emblem layers alike, plus scale, rotation and X/Y offset
 - **Live preview** — every change is rendered immediately; the composed icon is cached on disk and re-rendered only when the layers change
 - **Base colours** — the folder's base colours (one row per shape of the theme's folder icon) are edited in the same dialog
+- **Quick colours** — each swatch has its own colour; a swatch or the custom-colour chooser updates every base-colour row in the active scope
 - **Custom base image** — replace the themed folder icon with any image of your choice as the composition base; persists with the folder's custom icon state
 - **Folder theme** — apply another installed icon theme's folder shape to the selected folders only (materialised as a cached `metadata::custom-icon`, so the rest of the system keeps its theme)
 
@@ -423,18 +429,29 @@ Inside the editor:
 | Alt + Scroll | Opacity of the selected layer |
 | Ctrl + Scroll | Hue of the selected layer |
 | Ctrl + V | Paste an image from the clipboard |
-| Ctrl + O | Open a previously exported project PNG |
-| Ctrl + S | Export the current composition as PNG |
-| Ctrl + A | Toggle advanced mode (persisted across sessions) |
+| Ctrl + O | Open an SVG project (or a legacy project PNG) |
+| Ctrl + S | Save an editable SVG project |
+| Ctrl + Shift + S | Export the rendered icon as PNG |
+| Ctrl + Shift + A | Toggle advanced mode (persisted across sessions) |
+| Ctrl + A | Select all in text inputs; toggle advanced mode outside text inputs |
 | Drop on the preview | Add the dropped images as layers |
 | Drop on a layer row | Replace that image layer |
 | Right-click a layer row | Use as base image / Remove layer |
 
-### Icon gallery (#36)
+### Symbols, projects and saved compositions
 
-The **Icon gallery…** button opens a grid of previously generated icons
-(stored under XDG cache, deduplicated by content hash). Each card shows a
-thumbnail, name and date, with:
+The **symbol gallery** contains monochrome artwork to add as new layers, not
+already composed folder icons. Symbols retain their own colour and transforms.
+
+**Save project…** writes a self-contained SVG which is also a displayable final
+icon. Editable metadata, original images/masks/emblems and rendered layer
+snapshots travel inside the file. Reopening does not require the original image
+paths or theme; editing text on another machine may still require its font.
+**Export PNG…** remains a separate bitmap export operation. Neither operation
+applies the project to a folder.
+
+**Saved compositions** is the separate history of previously generated icons
+(stored under XDG cache, deduplicated by content hash). Each entry has:
 
 - **Apply** — reapplies the icon to the current folder and restores the
   editor state so you can keep editing
@@ -442,6 +459,10 @@ thumbnail, name and date, with:
 
 Icons are saved to the gallery automatically whenever you apply one, and
 each entry remembers which folders use it.
+
+Keep exported SVG projects outside the cache as backups. Removing cached files
+that an applied icon references can break that icon; folder metadata does not
+necessarily survive a copy to another filesystem or machine.
 
 ### Accent colour following (#35)
 

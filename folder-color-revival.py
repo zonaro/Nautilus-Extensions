@@ -85,15 +85,27 @@ except Exception as e:
         return []
 
     def normalize_state(raw):
-        """Fallback state reader: keep only a colour spec and no layers."""
-        source = raw if isinstance(raw, dict) else {}
-        return {"version": 0, "spec": str(source.get("spec") or ""),
-                "theme": str(source.get("theme") or ""), "layers": []}
+        """Fallback state reader: preserve spec/theme/layers/base_image and
+        follow_accent so a partial install never drops the folder's snapshot.
 
-    def pack_state(spec, layers, theme=""):
+        No private ``initial`` field is added here — dirty detection and the
+        open snapshot live on the editor side.
+        """
+        source = raw if isinstance(raw, dict) else {}
+        return {"version": 0,
+                "spec": str(source.get("spec") or ""),
+                "theme": str(source.get("theme") or ""),
+                "layers": list(source.get("layers") or []),
+                "base_image": str(source.get("base_image") or ""),
+                "follow_accent": bool(source.get("follow_accent"))}
+
+    def pack_state(spec, layers, theme="", base_image=None,
+                   follow_accent=False):
         """Fallback state writer for a partial install."""
-        return {"spec": str(spec or ""), "theme": str(theme or ""),
-                "layers": list(layers or [])}
+        return {"version": 0, "spec": str(spec or ""),
+                "theme": str(theme or ""), "layers": list(layers or []),
+                "base_image": str(base_image or ""),
+                "follow_accent": bool(follow_accent)}
 
     compose_layers = None
     default_layer = None
@@ -128,6 +140,26 @@ def _custom_cache_dir():
     except Exception as e:
         log.error(f"custom cache dir: {e}")
     return path
+
+
+def _is_our_custom_icon(uri):
+    """True when ``uri`` points to an icon this extension cached."""
+    if not uri:
+        return False
+    try:
+        return str(uri).startswith(_custom_cache_dir())
+    except Exception:
+        return False
+
+
+def _read_emblems(path):
+    """Current emblem URIs of ``path`` (empty list on failure)."""
+    try:
+        info = Gio.File.new_for_path(path).query_info(
+            "metadata::emblems", 0, None)
+        return info.get_attribute_stringv("metadata::emblems") or []
+    except Exception:
+        return []
 
 
 def _shade(hex_color, factor):
@@ -725,8 +757,10 @@ def _save_overlay_state(path, state):
         state["_path"] = str(path)
         with open(_overlay_state_path(path), "w", encoding="utf-8") as f:
             json.dump(state, f)
+        return True
     except Exception as e:
         log.error(f"save overlay state: {e}")
+        return False
 
 
 def _load_overlay_state(path):
@@ -854,24 +888,34 @@ def _gallery_list():
 
 def _gallery_get(content_hash):
     index = _gallery_load_index()
-    return index.get(content_hash)
+    entry = index.get(content_hash)
+    return entry if isinstance(entry, dict) else None
 
 
 def _gallery_remove(content_hash):
-    """Remove a gallery entry and its PNG. Returns False if in use."""
+    """Remove a gallery entry and its PNG. Returns False if in use.
+
+    Corrupt or missing entries are treated as not-found (never crash); a
+    non-list ``used_by`` is normalized. After restore/reapply unmarks a
+    folder's refs, the entry becomes removable once its ``used_by`` is empty.
+    """
     index = _gallery_load_index()
+    if not isinstance(index, dict):
+        return False
     entry = index.get(content_hash)
-    if entry is None:
+    if not isinstance(entry, dict):
         return False
     used_by = entry.get("used_by") or []
+    if not isinstance(used_by, list):
+        used_by = []
     if used_by:
         return False  # In use — caller must confirm removal from folders first.
-    try:
-        png = entry.get("png")
-        if png and os.path.exists(png):
+    png = entry.get("png")
+    if png and os.path.exists(png):
+        try:
             os.unlink(png)
-    except OSError:
-        pass
+        except OSError:
+            pass
     del index[content_hash]
     _gallery_save_index(index)
     return True
@@ -969,14 +1013,25 @@ _ACCENT_KEY = "accent-color"
 
 
 def _resolve_accent_hex():
-    """Current GNOME accent colour as '#rrggbb' (best effort)."""
+    """Current GNOME accent colour as '#rrggbb' (best effort).
+
+    GNOME exposes ``accent-color`` as a *palette name* ("blue", "teal", …)
+    rather than a raw hex. ``folder_icon_theme`` knows the palette, so use it
+    when available; fall back to parsing a raw hex, then to the default blue.
+    """
     try:
+        raw = ""
         from gi.repository import Gio
         settings = Gio.Settings.new(_ACCENT_SCHEMA)
         raw = str(settings.get_string(_ACCENT_KEY))
     except Exception:
-        return "#3584e4"
-    raw = raw.strip()
+        raw = ""
+    if _ICON_THEME_AVAILABLE:
+        try:
+            return icon_theme.resolve_accent_hex(raw)
+        except Exception:
+            pass
+    raw = str(raw).strip()
     if raw.startswith("#") and len(raw) == 7:
         return raw.lower()
     return "#3584e4"
@@ -987,7 +1042,10 @@ class AccentWatcher:
     folders whose icon recipe has follow_accent=True (#35).
 
     The watcher is best-effort: if GSettings is unavailable it silently
-    stays idle. Callbacks are invoked on the GLib main loop thread.
+    stays idle. Callbacks are invoked on the GLib main loop thread with a
+    single stable arity: ``on_accent_changed(accent_hex, count, applied)``.
+    Changes are debounced so a rapid sequence of accent toggles coalesces
+    into a single regeneration.
     """
 
     def __init__(self, foldercolor, on_accent_changed=None):
@@ -995,6 +1053,8 @@ class AccentWatcher:
         self.on_accent_changed = on_accent_changed
         self._settings = None
         self._id = 0
+        self._debounce_id = 0
+        self._last = (0, 0)  # (count, applied) of the last regeneration
         self._start()
 
     def _start(self):
@@ -1007,19 +1067,31 @@ class AccentWatcher:
             log.debug(f"accent watcher unavailable: {e}")
 
     def _on_changed(self, _settings, _key):
-        try:
-            self.regenerate_all(self.foldercolor)
-        except Exception as e:
-            log.error(f"accent regenerate: {e}")
+        # Debounce: rapid successive changes coalesce into one regeneration.
+        if self._debounce_id:
+            try:
+                GLib.source_remove(self._debounce_id)
+            except Exception:
+                pass
+        self._debounce_id = GLib.timeout_add_seconds(1, self._debounced_regenerate)
+
+    def _debounced_regenerate(self):
+        self._debounce_id = 0
+        count, applied = self.regenerate_all(self.foldercolor)
+        self._last = (count, applied)
+        accent = _resolve_accent_hex()
         if self.on_accent_changed is not None:
             try:
-                self.on_accent_changed()
+                self.on_accent_changed(accent, count, applied)
             except Exception as e:
                 log.debug(f"accent callback: {e}")
+        return False  # do not repeat
 
     def regenerate_all(self, foldercolor=None):
         """Re-apply every folder icon that follows the accent colour (#35).
 
+        Unlike a plain re-save, this re-tints each follow-accent folder with
+        the *current* accent colour so the icon tracks the system accent.
         ``foldercolor`` is needed to re-apply icons; when None the watcher
         only counts and notifies via callback.
         """
@@ -1041,31 +1113,140 @@ class AccentWatcher:
             folder_path = state.get("_path") or ""
             if foldercolor and folder_path:
                 try:
-                    hexes = [h for h in str(state.get("spec") or "").split(";")
-                             if len(h) == 6]
-                    layers = state.get("layers") or []
-                    theme = str(state.get("theme") or "")
-                    base_image = str(state.get("base_image") or "") or None
+                    parts = _split_color_spec(state.get("spec") or "")
+                    if not parts:
+                        continue
+                    # The accent owns the colour: every shape takes the
+                    # current accent hue, then re-apply through the overlay.
+                    accent_hexes = [accent.lstrip("#")] * len(parts)
+                    state = dict(state)
+                    state["spec"] = ";".join(accent_hexes)
                     if foldercolor.set_custom_overlay_color(
-                            folder_path, ";".join(hexes), state):
+                            folder_path, ";".join(accent_hexes), state):
+                        state["_path"] = folder_path
                         _save_overlay_state(folder_path, state)
                         applied += 1
                 except Exception as e:
                     log.error(f"re-apply {folder_path}: {e}")
-        if self.on_accent_changed is not None:
-            try:
-                self.on_accent_changed(accent, count, applied)
-            except Exception as e:
-                log.debug(f"accent callback: {e}")
         return count, applied
 
     def stop(self):
+        if self._debounce_id:
+            try:
+                GLib.source_remove(self._debounce_id)
+            except Exception:
+                pass
+            self._debounce_id = 0
         if self._settings is not None and self._id:
             try:
                 self._settings.disconnect(self._id)
             except Exception:
                 pass
             self._settings = None
+
+
+# ---------------------------------------------------------------------------
+# Manual accent regeneration (#35/#38) — cooperative, cancellable job
+# ---------------------------------------------------------------------------
+
+class RegenJob:
+    """One-shot accent regeneration for managed follow-accent folders.
+
+    Processes one folder per GLib idle iteration so the host stays
+    responsive; ``cancel()`` stops the job cleanly and ``on_done`` is still
+    invoked with partial counts. Only folders whose overlay state carries
+    ``follow_accent=True`` are candidates. Never connects a second settings
+    watcher and never exports or touches external paths.
+    """
+
+    def __init__(self, foldercolor, on_progress=None, on_done=None):
+        self.foldercolor = foldercolor
+        self.on_progress = on_progress
+        self.on_done = on_done
+        self._cancelled = False
+        self._idle_id = 0
+        self._paths = []
+        self._index = 0
+        self.total = 0
+        self.applied = 0
+        self.skipped = 0
+        self.failed = 0
+
+    def cancel(self):
+        """Request a clean stop; the current folder finishes, the rest skip."""
+        self._cancelled = True
+
+    def start(self):
+        """Collect follow-accent candidates and begin idle stepping."""
+        from glob import glob
+        cache_dir = _custom_cache_dir()
+        self._paths = []
+        for state_path in glob(os.path.join(cache_dir, "state-*.json")):
+            try:
+                with open(state_path, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            except Exception:
+                continue
+            if isinstance(state, dict) and state.get("follow_accent") \
+                    and state.get("_path"):
+                self._paths.append(state)
+        self.total = len(self._paths)
+        self._index = 0
+        self.applied = self.skipped = self.failed = 0
+        if self.on_progress is not None:
+            try:
+                self.on_progress(0, self.total, "", "idle")
+            except Exception:
+                pass
+        self._idle_id = GLib.idle_add(self._step)
+        return self
+
+    def _step(self):
+        if self._cancelled or self._index >= len(self._paths):
+            self._finish()
+            return False  # remove the idle source
+        state = self._paths[self._index]
+        self._index += 1
+        folder_path = str(state.get("_path") or "")
+        accent = _resolve_accent_hex()
+        try:
+            parts = _split_color_spec(state.get("spec") or "")
+            if not parts or not folder_path:
+                self.skipped += 1
+                status = "skipped"
+            else:
+                accent_hexes = [accent.lstrip("#")] * len(parts)
+                new_spec = ";".join(accent_hexes)
+                new_state = dict(state)
+                new_state["spec"] = new_spec
+                new_state["_path"] = folder_path
+                applied_ok = self.foldercolor.set_custom_overlay_color(
+                    folder_path, new_spec, new_state)
+                if applied_ok and _save_overlay_state(folder_path, new_state):
+                    self.applied += 1
+                    status = "applied"
+                else:
+                    self.failed += 1
+                    status = "failed"
+        except Exception as e:
+            log.error(f"regen {folder_path}: {e}")
+            self.failed += 1
+            status = "failed"
+        if self.on_progress is not None:
+            try:
+                self.on_progress(self._index, self.total, folder_path, status)
+            except Exception:
+                pass
+        return True  # keep the idle source alive
+
+    def _finish(self):
+        self._idle_id = 0
+        if self.on_done is not None:
+            try:
+                self.on_done(self.applied, self.skipped, self.failed,
+                             self._cancelled)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -1222,6 +1403,15 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
         # silently dropping the layers of the folder.
         if not current["layers"] and not current["theme"] \
                 and not current["base_image"] and spec == initial_spec:
+            # follow_accent must survive a no-op: the flag is what makes the
+            # accent watcher re-tint the folder later, so record it even when
+            # nothing else changed.
+            if follow_accent and not current.get("follow_accent"):
+                state = pack_state(spec, [], theme,
+                                   base_image=base_image,
+                                   follow_accent=True)
+                for path in paths:
+                    _save_overlay_state(path, state)
             return True
 
     ok = True
@@ -1234,24 +1424,31 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
                 state = pack_state(spec, layers, theme,
                                    base_image=base_image,
                                    follow_accent=follow_accent)
-                if foldercolor.set_custom_overlay_color(path, spec, state):
-                    _save_overlay_state(path, state)
-                    # Save to the managed gallery (#36): deduplicated by
-                    # content hash, reopenable and re-applicable to any folder.
-                    try:
-                        composed = _compose_final(spec, state)
-                        if composed:
-                            ch = _gallery_content_hash(composed)
-                            gallery_state = dict(state)
-                            gallery_state["name"] = ""
-                            gallery_state["hexes"] = list(hexes or [])
-                            _gallery_entry(ch, composed, gallery_state)
-                            _gallery_mark_used(ch, path)
-                    except Exception as e:
-                        log.debug(f"gallery save: {e}")
-                else:
+                applied = foldercolor.set_custom_overlay_color(path, spec, state)
+                if applied is False:
                     log.error(f"overlay color not applied: {path}")
                     ok = False
+                    continue
+                # A metadata write that fails must not leave bogus state
+                # behind: report it instead of saving a state the icon does
+                # not match.
+                if _save_overlay_state(path, state) is False:
+                    log.error(f"overlay state not saved: {path}")
+                    ok = False
+                    continue
+                # Save to the managed gallery (#36): deduplicated by
+                # content hash, reopenable and re-applicable to any folder.
+                try:
+                    composed = _compose_final(spec, state)
+                    if composed:
+                        ch = _gallery_content_hash(composed)
+                        gallery_state = dict(state)
+                        gallery_state["name"] = ""
+                        gallery_state["hexes"] = list(hexes or [])
+                        _gallery_entry(ch, composed, gallery_state)
+                        _gallery_mark_used(ch, path)
+                except Exception as e:
+                    log.debug(f"gallery save: {e}")
             else:
                 result = foldercolor.set_custom_color(path, spec)
                 if result is False:
@@ -1260,19 +1457,25 @@ def _apply_icon_state(foldercolor, paths, hexes, layers, initial_hexes,
                 else:
                     # Remember the colour spec so the editor opens with the
                     # right colours next time (no layers -> plain colour icon).
-                    state = pack_state(spec, [], "")
-                    _save_overlay_state(path, state)
-                    try:
-                        composed = _compose_final(spec, state)
-                        if composed:
-                            ch = _gallery_content_hash(composed)
-                            gallery_state = dict(state)
-                            gallery_state["name"] = ""
-                            gallery_state["hexes"] = list(hexes or [])
-                            _gallery_entry(ch, composed, gallery_state)
-                            _gallery_mark_used(ch, path)
-                    except Exception as e:
-                        log.debug(f"gallery save: {e}")
+                    # follow_accent must survive here too: the accent watcher
+                    # re-tints folders whose state carries the flag.
+                    state = pack_state(spec, [], "",
+                                       follow_accent=follow_accent)
+                    if _save_overlay_state(path, state) is False:
+                        log.error(f"colour state not saved: {path}")
+                        ok = False
+                    else:
+                        try:
+                            composed = _compose_final(spec, state)
+                            if composed:
+                                ch = _gallery_content_hash(composed)
+                                gallery_state = dict(state)
+                                gallery_state["name"] = ""
+                                gallery_state["hexes"] = list(hexes or [])
+                                _gallery_entry(ch, composed, gallery_state)
+                                _gallery_mark_used(ch, path)
+                        except Exception as e:
+                            log.debug(f"gallery save: {e}")
         except Exception as e:
             log.error(f"apply icon state {path}: {e}")
             ok = False
@@ -1654,6 +1857,39 @@ if _lang.startswith("fr"):
         "Could not apply the global icon.": "Impossible d'appliquer l'icône globale.",
         "Could not restore the folder icon.": "Impossible de rétablir l'icône du dossier.",
         "The clipboard holds no image.": "Le presse-papiers ne contient pas d'image.",
+        "Add symbol…": "Ajouter un symbole…",
+        "Clean up unused cache": "Nettoyer le cache inutilisé",
+        "Could not add the symbol.": "Impossible d’ajouter le symbole.",
+        "Could not list the saved compositions.": "Impossible de lister les compositions enregistrées.",
+        "Could not open the colour picker.": "Impossible d’ouvrir le sélecteur de couleur.",
+        "Could not open the project.": "Impossible d’ouvrir le projet.",
+        "Could not regenerate folders.": "Impossible de régénérer les dossiers.",
+        "Could not save the project.": "Impossible d’enregistrer le projet.",
+        "Could not write the project file.": "Impossible d’écrire le fichier du projet.",
+        "Drag to export PNG": "Glisser pour exporter PNG",
+        "Layered SVG project save requires the project module.": "L’enregistrement du projet SVG en calques nécessite le module de projet.",
+        "New image layers": "Nouveaux calques d’image",
+        "No project data in this file.": "Aucune donnée de projet dans ce fichier.",
+        "Nothing to save.": "Rien à enregistrer.",
+        "Preferences": "Préférences",
+        "Project (SVG/PNG)": "Projet (SVG/PNG)",
+        "Regenerate folders": "Régénérer les dossiers",
+        "Regenerating folders…": "Régénération des dossiers…",
+        "Regenerating folders… ({done}/{total})": "Régénération des dossiers… ({done}/{total})",
+        "Regeneration cancelled.": "Régénération annulée.",
+        "Regeneration complete: {applied} applied, {skipped} skipped, {failed} failed.": "Régénération terminée : {applied} appliqué(s), {skipped} ignoré(s), {failed} échoué(s).",
+        "SVG project": "Projet SVG",
+        "Save project": "Enregistrer le projet",
+        "Save project…": "Enregistrer le projet…",
+        "Saved compositions": "Compositions enregistrées",
+        "Saved compositions are not available.": "Les compositions enregistrées ne sont pas disponibles.",
+        "Saved compositions…": "Compositions enregistrées…",
+        "Search symbols…": "Rechercher des symboles…",
+        "Symbol": "Symbole",
+        "Symbol gallery": "Galerie de symboles",
+        "Symbol gallery requires the icon catalog module.": "La galerie de symboles nécessite le module de catalogue d’icônes.",
+        "Unused cache cleaned up.": "Cache inutilisé nettoyé.",
+        "When an image is dropped": "Lorsqu’une image est déposée",
     }
 elif _lang.startswith("de"):
     _T = {
@@ -1790,6 +2026,39 @@ elif _lang.startswith("de"):
         "Could not apply the global icon.": "Das globale Symbol konnte nicht angewendet werden.",
         "Could not restore the folder icon.": "Das Ordnersymbol konnte nicht wiederhergestellt werden.",
         "The clipboard holds no image.": "Die Zwischenablage enthält kein Bild.",
+        "Add symbol…": "Symbol hinzufügen…",
+        "Clean up unused cache": "Nicht verwendeten Cache leeren",
+        "Could not add the symbol.": "Symbol konnte nicht hinzugefügt werden.",
+        "Could not list the saved compositions.": "Gespeicherte Kompositionen konnten nicht aufgelistet werden.",
+        "Could not open the colour picker.": "Farbedialog konnte nicht geöffnet werden.",
+        "Could not open the project.": "Projekt konnte nicht geöffnet werden.",
+        "Could not regenerate folders.": "Ordner konnten nicht neu generiert werden.",
+        "Could not save the project.": "Projekt konnte nicht gespeichert werden.",
+        "Could not write the project file.": "Projektdatei konnte nicht geschrieben werden.",
+        "Drag to export PNG": "Zum Exportieren von PNG ziehen",
+        "Layered SVG project save requires the project module.": "Speichern des mehrstufigen SVG-Projekts erfordert das Projektmodul.",
+        "New image layers": "Neue Bildebenen",
+        "No project data in this file.": "Keine Projektdaten in dieser Datei.",
+        "Nothing to save.": "Nichts zu speichern.",
+        "Preferences": "Einstellungen",
+        "Project (SVG/PNG)": "Projekt (SVG/PNG)",
+        "Regenerate folders": "Ordner neu generieren",
+        "Regenerating folders…": "Ordner werden neu generiert…",
+        "Regenerating folders… ({done}/{total})": "Ordner werden neu generiert… ({done}/{total})",
+        "Regeneration cancelled.": "Neugenerierung abgebrochen.",
+        "Regeneration complete: {applied} applied, {skipped} skipped, {failed} failed.": "Neugenerierung abgeschlossen: {applied} angewendet, {skipped} übersprungen, {failed} fehlgeschlagen.",
+        "SVG project": "SVG-Projekt",
+        "Save project": "Projekt speichern",
+        "Save project…": "Projekt speichern…",
+        "Saved compositions": "Gespeicherte Kompositionen",
+        "Saved compositions are not available.": "Gespeicherte Kompositionen sind nicht verfügbar.",
+        "Saved compositions…": "Gespeicherte Kompositionen…",
+        "Search symbols…": "Symbole suchen…",
+        "Symbol": "Symbol",
+        "Symbol gallery": "Symbolgalerie",
+        "Symbol gallery requires the icon catalog module.": "Die Symbolgalerie erfordert das Symbolkatalog-Modul.",
+        "Unused cache cleaned up.": "Nicht verwendeter Cache geleert.",
+        "When an image is dropped": "Wenn ein Bild abgelegt wird",
     }
 elif _lang.startswith("es"):
     _T = {
@@ -1926,6 +2195,39 @@ elif _lang.startswith("es"):
         "Could not apply the global icon.": "No se pudo aplicar el icono global.",
         "Could not restore the folder icon.": "No se pudo restaurar el icono de la carpeta.",
         "The clipboard holds no image.": "El portapapeles no contiene ninguna imagen.",
+        "Add symbol…": "Añadir símbolo…",
+        "Clean up unused cache": "Limpiar caché sin usar",
+        "Could not add the symbol.": "No se pudo añadir el símbolo.",
+        "Could not list the saved compositions.": "No se pudieron listar las composiciones guardadas.",
+        "Could not open the colour picker.": "No se pudo abrir el selector de color.",
+        "Could not open the project.": "No se pudo abrir el proyecto.",
+        "Could not regenerate folders.": "No se pudieron regenerar las carpetas.",
+        "Could not save the project.": "No se pudo guardar el proyecto.",
+        "Could not write the project file.": "No se pudo escribir el archivo del proyecto.",
+        "Drag to export PNG": "Arrastrar para exportar PNG",
+        "Layered SVG project save requires the project module.": "Guardar proyecto SVG en capas requiere el módulo de proyecto.",
+        "New image layers": "Nuevas capas de imagen",
+        "No project data in this file.": "No hay datos de proyecto en este archivo.",
+        "Nothing to save.": "No hay nada para guardar.",
+        "Preferences": "Preferencias",
+        "Project (SVG/PNG)": "Proyecto (SVG/PNG)",
+        "Regenerate folders": "Regenerar carpetas",
+        "Regenerating folders…": "Regenerando carpetas…",
+        "Regenerating folders… ({done}/{total})": "Regenerando carpetas… ({done}/{total})",
+        "Regeneration cancelled.": "Regeneración cancelada.",
+        "Regeneration complete: {applied} applied, {skipped} skipped, {failed} failed.": "Regeneración completa: {applied} aplicada(s), {skipped} omitida(s), {failed} con error.",
+        "SVG project": "Proyecto SVG",
+        "Save project": "Guardar proyecto",
+        "Save project…": "Guardar proyecto…",
+        "Saved compositions": "Composiciones guardadas",
+        "Saved compositions are not available.": "Las composiciones guardadas no están disponibles.",
+        "Saved compositions…": "Composiciones guardadas…",
+        "Search symbols…": "Buscar símbolos…",
+        "Symbol": "Símbolo",
+        "Symbol gallery": "Galería de símbolos",
+        "Symbol gallery requires the icon catalog module.": "La galería de símbolos requiere el módulo del catálogo de iconos.",
+        "Unused cache cleaned up.": "Caché sin usar limpiada.",
+        "When an image is dropped": "Cuando se suelta una imagen",
     }
 elif _lang.startswith("pt"):
     _T = {
@@ -2061,6 +2363,39 @@ elif _lang.startswith("pt"):
         "Could not apply the global icon.": "Não foi possível aplicar o ícone global.",
         "Could not restore the folder icon.": "Não foi possível restaurar o ícone da pasta.",
         "The clipboard holds no image.": "A área de transferência não contém nenhuma imagem.",
+        "Add symbol…": "Adicionar símbolo…",
+        "Clean up unused cache": "Limpar cache não utilizado",
+        "Could not add the symbol.": "Não foi possível adicionar o símbolo.",
+        "Could not list the saved compositions.": "Não foi possível listar as composições salvas.",
+        "Could not open the colour picker.": "Não foi possível abrir o seletor de cor.",
+        "Could not open the project.": "Não foi possível abrir o projeto.",
+        "Could not regenerate folders.": "Não foi possível regenerar as pastas.",
+        "Could not save the project.": "Não foi possível salvar o projeto.",
+        "Could not write the project file.": "Não foi possível escrever o arquivo do projeto.",
+        "Drag to export PNG": "Arrastar para exportar PNG",
+        "Layered SVG project save requires the project module.": "Salvar projeto SVG em camadas requer o módulo de projeto.",
+        "New image layers": "Novas camadas de imagem",
+        "No project data in this file.": "Não há dados de projeto neste arquivo.",
+        "Nothing to save.": "Não há nada para salvar.",
+        "Preferences": "Preferências",
+        "Project (SVG/PNG)": "Projeto (SVG/PNG)",
+        "Regenerate folders": "Regenerar pastas",
+        "Regenerating folders…": "Regenerando pastas…",
+        "Regenerating folders… ({done}/{total})": "Regenerando pastas… ({done}/{total})",
+        "Regeneration cancelled.": "Regeneração cancelada.",
+        "Regeneration complete: {applied} applied, {skipped} skipped, {failed} failed.": "Regeneração concluída: {applied} aplicada(s), {skipped} ignorada(s), {failed} com falha.",
+        "SVG project": "Projeto SVG",
+        "Save project": "Salvar projeto",
+        "Save project…": "Salvar projeto…",
+        "Saved compositions": "Composições salvas",
+        "Saved compositions are not available.": "As composições salvas não estão disponíveis.",
+        "Saved compositions…": "Composições salvas…",
+        "Search symbols…": "Pesquisar símbolos…",
+        "Symbol": "Símbolo",
+        "Symbol gallery": "Galeria de símbolos",
+        "Symbol gallery requires the icon catalog module.": "A galeria de símbolos requer o módulo de catálogo de ícones.",
+        "Unused cache cleaned up.": "Cache não utilizado limpo.",
+        "When an image is dropped": "Quando uma imagem é solta",
     }
 else:
     _T = {}
@@ -2302,35 +2637,78 @@ class FolderColor:
             info.set_attribute_stringv("metadata::emblems", emblems)
             item_aux.set_attributes_from_info(info, 0, None)
             self._reload_icon(item)
+            # Remember what we set so restore never wipes foreign emblems.
+            try:
+                if item:
+                    state = _load_overlay_state(str(item)) or {}
+                    state["emblems"] = list(emblems)
+                    _save_overlay_state(str(item), state)
+            except Exception:
+                pass
         except Exception as e:
             log.error(f"set_emblem: {e}")
 
     def set_restore(self, item):
-        self._set_restore_folder(item)
-        self._set_restore_emblem(item)
+        """Restore native appearance of ``item``.
+
+        Only clears customisation this extension owns: a ``custom-icon`` that
+        points to our own cache, ``custom-icon-name`` (our convention) and the
+        emblems we recorded. Foreign metadata set by other extensions or the
+        user is preserved. Returns True on success, False on failure.
+        """
+        ok = True
+        if not self._set_restore_folder(item):
+            ok = False
+        if not self._set_restore_emblem(item):
+            ok = False
         self._reload_icon(item)
+        return ok
 
     def _set_restore_folder(self, item):
+        """Clear the folder icon only when it is one we own.
+
+        Preserves ``custom-icon`` values that point elsewhere (foreign
+        themes or other extensions) so we never override their changes.
+        Returns True on success, False on failure.
+        """
         try:
             item_aux = Gio.File.new_for_path(item)
-            info     = item_aux.query_info("metadata::custom-icon-name", 0, None)
-            info.set_attribute("metadata::custom-icon",
-                               Gio.FileAttributeType.INVALID, 0)
+            info = item_aux.query_info(
+                "metadata::custom-icon,metadata::custom-icon-name", 0, None)
+            uri = info.get_attribute_as_string("metadata::custom-icon") or ""
+            # Only clear our own cached icon; leave foreign icons untouched.
+            if uri and not _is_our_custom_icon(uri):
+                info.set_attribute("metadata::custom-icon",
+                                   Gio.FileAttributeType.INVALID, 0)
             info.set_attribute("metadata::custom-icon-name",
                                Gio.FileAttributeType.INVALID, 0)
             item_aux.set_attributes_from_info(info, 0, None)
+            return True
         except Exception as e:
             log.error(f"restore_folder: {e}")
+            return False
 
     def _set_restore_emblem(self, item):
+        """Clear only the emblems this extension recorded.
+
+        Emblems set by other extensions or by the user are preserved.
+        Returns True on success, False on failure.
+        """
         try:
+            state = _load_overlay_state(str(item)) or {}
+            owned = state.get("emblems") or []
+            current = _read_emblems(str(item))
+            if not current and not owned:
+                return True
+            remaining = [e for e in current if e not in owned]
             item_aux = Gio.File.new_for_path(item)
-            info     = item_aux.query_info("metadata::emblems", 0, None)
-            info.set_attribute("metadata::emblems",
-                               Gio.FileAttributeType.INVALID, 0)
+            info = item_aux.query_info("metadata::emblems", 0, None)
+            info.set_attribute_stringv("metadata::emblems", remaining)
             item_aux.set_attributes_from_info(info, 0, None)
+            return True
         except Exception as e:
-            print(f"[folder-color] restore_emblem error: {e}")
+            log.error(f"restore_emblem: {e}")
+            return False
 
     def _reload_icon(self, item):
         try:
@@ -2412,7 +2790,8 @@ def _confirm_multi_scope(paths, action):
         dialog.set_cancel_button(2)
     except Exception as e:
         log.error(f"scope dialog setup: {e}")
-        action(paths)
+        # Fail closed: a broken GTK dialog must not silently apply the
+        # action to every selected folder.
         return
 
     def on_done(dlg, result):
@@ -2424,12 +2803,16 @@ def _confirm_multi_scope(paths, action):
             action(paths)
         elif index == 1:
             action(paths[:1])
+        # index == 2 (Cancel) and any failure: do nothing — fail closed,
+        # never silently apply to all folders.
 
     try:
         dialog.choose(_nautilus_window(), None, on_done)
     except Exception as e:
         log.error(f"scope dialog: {e}")
-        action(paths)
+        # Fail closed: a broken GTK dialog must not silently apply the
+        # action to every selected folder.
+        return
 
 
 class GlobalIconHost:
@@ -2441,8 +2824,9 @@ class GlobalIconHost:
     dialog module stays free of GSettings and icon-theme paths.
     """
 
-    def __init__(self, tr=None):
+    def __init__(self, tr=None, foldercolor=None):
         self.tr = tr if callable(tr) else (lambda text: text)
+        self.foldercolor = foldercolor
 
     # -- discovery --------------------------------------------------------
     def themes(self):
@@ -2557,8 +2941,34 @@ class GlobalIconHost:
             return False
         if previous and not previous.startswith(icon_theme.DERIVED_PREFIX):
             icon_theme.set_icon_theme(previous)
+        elif not icon_theme.get_icon_theme() \
+                or str(icon_theme.get_icon_theme()).startswith(
+                    icon_theme.DERIVED_PREFIX):
+            # No safe previous theme (or we removed ours while it was still
+            # active): fall back to a theme that still exists so the shell is
+            # never left pointing at a deleted derived directory.
+            icon_theme.set_icon_theme(icon_theme.fallback_theme_name())
         icon_theme.clear_state()
         return True
+
+    def regenerate_folders(self, on_progress=None, on_done=None):
+        """Manual accent regeneration for managed follow-accent folders (#35/#38).
+
+        Returns a :class:`RegenJob` (with ``cancel()``) that re-tints every
+        folder whose overlay state carries ``follow_accent=True`` to the
+        current accent colour, one folder per idle iteration. Never connects a
+        second settings watcher and never touches external/exported paths.
+        ``on_progress(done, total, path, status)`` is called per step with
+        status in ``{"idle","applied","skipped","failed"}``;
+        ``on_done(applied, skipped, failed, cancelled)`` when finished.
+        Returns None when the host is unavailable or holds no foldercolor.
+        """
+        if not _ICON_THEME_AVAILABLE or self.foldercolor is None:
+            return None
+        job = RegenJob(self.foldercolor, on_progress=on_progress,
+                       on_done=on_done)
+        job.start()
+        return job
 
 
 def _ensure_accent_watcher():
@@ -2911,7 +3321,8 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
             chosen["theme"] = str(theme or "")
             return True
 
-        global_host = GlobalIconHost(tr=_) if _ICON_THEME_AVAILABLE else None
+        global_host = GlobalIconHost(tr=_, foldercolor=self.foldercolor) \
+            if _ICON_THEME_AVAILABLE else None
         if global_host is not None:
             _ensure_accent_watcher()
 
@@ -2958,7 +3369,9 @@ class FolderColorMenu(GObject.GObject, Nautilus.MenuProvider):
         failed = []
         for path in paths:
             try:
-                self.foldercolor.set_restore(path)
+                if not self.foldercolor.set_restore(path):
+                    failed.append(path)
+                    continue
             except Exception as e:
                 log.error(f"restore {path}: {e}")
                 failed.append(path)

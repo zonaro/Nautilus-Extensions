@@ -85,12 +85,16 @@ def accent_hex(name, fallback=""):
     """Palette key -> '#rrggbb'.
 
     An unknown key falls back to ``fallback`` when it is a valid hex colour,
-    otherwise to the default accent. This keeps a future GNOME accent name
-    usable instead of painting the folder black.
+    otherwise to the default accent. A raw ``#rrggbb`` passed as ``name`` (a
+    future/unknown GNOME accent) is usable as-is instead of painting the
+    folder black.
     """
     value = str(name or "").strip().lower()
     if value in ACCENT_COLORS:
         return ACCENT_COLORS[value]
+    match = _HEX_RE.match(value)
+    if match:
+        return "#" + match.group(1).lower()
     match = _HEX_RE.match(str(fallback or "").strip())
     if match:
         return "#" + match.group(1).lower()
@@ -232,15 +236,18 @@ def derived_theme_root():
     return os.path.join(home, ".local", "share", "icons")
 
 
-def derived_theme_name(theme, spec, layers=None):
+def derived_theme_name(theme, spec, layers=None, extra=""):
     """Deterministic name of the derived theme for a state.
 
     Same state -> same directory, so re-applying rewrites in place and the
     shell's icon cache (keyed by theme name) is invalidated by the rewrite.
+    ``extra`` folds inputs that are not part of the palette/layers (a custom
+    base image fingerprint, the accent-follow flag) into the digest, so two
+    different compositions never share a cached theme name.
     """
     digest = hashlib.md5(json.dumps(
         {"theme": str(theme or ""), "spec": str(spec or ""),
-         "layers": layers or []},
+         "layers": layers or [], "extra": str(extra or "")},
         sort_keys=True, default=str).encode("utf-8")).hexdigest()[:12]
     return DERIVED_PREFIX + digest
 
@@ -364,6 +371,19 @@ def remove_theme_dir(path):
 def remove_derived_themes(root=None):
     """Delete every derived theme; returns the removed names."""
     return prune_derived_themes(keep=None, root=root)
+
+
+def fallback_theme_name():
+    """A safe non-derived theme to activate after our theme is removed.
+
+    Prefers the GNOME defaults and then any discovered theme, so a restore
+    never leaves ``icon-theme`` pointing at a directory it just deleted.
+    """
+    for candidate in ("Adwaita", "hicolor"):
+        if theme_directories(candidate):
+            return candidate
+    themes = discover_folder_themes()
+    return themes[0]["name"] if themes else "hicolor"
 
 
 def read_index_theme(theme_dir):
@@ -521,6 +541,12 @@ def normalize_state(raw):
     restored = source.get("previous_theme")
     state["previous_theme"] = restored if safe_theme_name(restored) else ""
     state["follow_accent"] = bool(source.get("follow_accent"))
+    image = source.get("base_image")
+    # A custom base image (#30) must survive a load/save round-trip: losing it
+    # silently fell back to the themed folder icon on the next accent change.
+    state["base_image"] = (
+        image.strip() if isinstance(image, str) and "\x00" not in image
+        else "")
     name = source.get("derived_theme")
     state["derived_theme"] = name if (
         safe_theme_name(name) and len(str(name)) > len(DERIVED_PREFIX)

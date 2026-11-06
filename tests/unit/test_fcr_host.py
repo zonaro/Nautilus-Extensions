@@ -332,10 +332,11 @@ def test_open_editor_signature_matches_the_contract():
     assert signature.parameters["follow_accent"].default is False
 
 
-def test_gallery_unmark_all_for_folder_removes_from_every_entry(tmp_path):
+def test_gallery_unmark_all_for_folder_removes_from_every_entry(tmp_path, monkeypatch):
     """Restoring a folder removes it from all gallery ``used_by`` lists (#37)."""
-    fcr._gallery_dir = lambda: str(tmp_path / "gallery")
-    fcr._gallery_index_path = lambda: str(tmp_path / "gallery" / "index.json")
+    monkeypatch.setattr(fcr, "_gallery_dir", lambda: str(tmp_path / "gallery"))
+    monkeypatch.setattr(fcr, "_gallery_index_path",
+                        lambda: str(tmp_path / "gallery" / "index.json"))
 
     import json, os
     os.makedirs(fcr._gallery_dir(), exist_ok=True)
@@ -356,10 +357,11 @@ def test_gallery_unmark_all_for_folder_removes_from_every_entry(tmp_path):
     assert saved["c"]["used_by"] == []
 
 
-def test_gallery_latest_returns_most_recent_entry(tmp_path):
+def test_gallery_latest_returns_most_recent_entry(tmp_path, monkeypatch):
     """The gallery latest entry is the most recently updated one (#37)."""
-    fcr._gallery_dir = lambda: str(tmp_path / "gallery")
-    fcr._gallery_index_path = lambda: str(tmp_path / "gallery" / "index.json")
+    monkeypatch.setattr(fcr, "_gallery_dir", lambda: str(tmp_path / "gallery"))
+    monkeypatch.setattr(fcr, "_gallery_index_path",
+                        lambda: str(tmp_path / "gallery" / "index.json"))
 
     import json, os
     os.makedirs(fcr._gallery_dir(), exist_ok=True)
